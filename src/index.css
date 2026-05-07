@@ -508,7 +508,12 @@ a {
 
 .donut-chart {
   aspect-ratio: 1;
-  background: conic-gradient(var(--green) 0 54%, var(--red) 54% 72%, #f7c948 72% 100%);
+  background: conic-gradient(
+    var(--green) 0 var(--paid-degrees, 0deg),
+    var(--red) var(--paid-degrees, 0deg)
+      calc(var(--paid-degrees, 0deg) + var(--overdue-degrees, 0deg)),
+    #f7c948 calc(var(--paid-degrees, 0deg) + var(--overdue-degrees, 0deg)) 360deg
+  );
   border-radius: 999px;
   position: relative;
 }
@@ -588,6 +593,11 @@ a {
 .notices-panel span {
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.empty-copy {
+  align-self: center;
+  color: var(--text-muted);
 }
 
 .filters-row {
