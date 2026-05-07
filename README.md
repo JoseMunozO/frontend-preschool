@@ -1,6 +1,6 @@
 # Preschool Admin Frontend
 
-Frontend React para la aplicacion administrativa del preescolar.
+Frontend React para la aplicacion administrativa del preescolar. Este repo debe avanzar de forma ordenada, con branches pequenos, commits claros y validacion local antes de subir cambios.
 
 ## Stack
 
@@ -12,27 +12,44 @@ Frontend React para la aplicacion administrativa del preescolar.
 - Tailwind CSS disponible
 - lucide-react
 
-## Backend local
+## Inicio Rapido
 
-El backend esperado vive en:
-
-```bash
-/Volumes/KINGSTON/backend-preschool
-```
-
-Arranque recomendado:
+1. Instalar dependencias:
 
 ```bash
-cd /Volumes/KINGSTON/backend-preschool
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+npm install
 ```
 
-## Frontend local
-
-Crear o revisar `.env.local`:
+2. Crear `.env.local` a partir de `.env.example`:
 
 ```properties
 VITE_API_BASE_URL=http://localhost:8080
+```
+
+3. Arrancar el backend local desde `/Volumes/KINGSTON/backend-preschool`.
+
+4. Arrancar el frontend:
+
+```bash
+npm run dev
+```
+
+Frontend local:
+
+```text
+http://localhost:5173
+```
+
+Backend local:
+
+```text
+http://localhost:8080
+```
+
+Swagger del backend:
+
+```text
+http://localhost:8080/swagger-ui/index.html
 ```
 
 Version de Node recomendada:
@@ -45,8 +62,8 @@ Comandos:
 
 ```bash
 npm run dev
-npm run build
 npm run lint
+npm run build
 npm run preview
 ```
 
@@ -77,8 +94,10 @@ src/
   types/        contratos TypeScript
 ```
 
-## Estado actual
+## Documentacion
 
-La base inicial ya incluye login, JWT en localStorage, rutas protegidas, layout interno,
-dashboard conectado a `/api/dashboard/summary` y primera tabla de estudiantes conectada
-a `/api/students`.
+- [Frontend roadmap](docs/frontend-roadmap.md)
+- [Development workflow](docs/development-workflow.md)
+- [API integration](docs/api-integration.md)
+- [CI and deployment](docs/ci-and-deployment.md)
+- [Docker](docs/docker.md)
