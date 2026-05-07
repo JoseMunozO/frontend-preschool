@@ -19,27 +19,28 @@ Ultima actualizacion: 2026-05-07.
 - Proxy local de Vite agregado para evitar CORS durante desarrollo.
 - Dashboard visual inicial creado.
 - Dashboard mapeado a la estructura real de `/api/dashboard/summary`.
-- Tabla visual inicial de estudiantes creada.
+- Tabla de estudiantes conectada a `GET /api/students`.
+- Estudiantes mapeado a `StudentResponse` real del backend.
 
 ## Siguiente Punto Recomendado
 
 Prioridad inmediata:
 
-1. Validar login y dashboard end-to-end con backend levantado desde navegador.
-2. Adaptar estudiantes a los campos reales de `/api/students`.
+1. Validar login, dashboard y estudiantes end-to-end con backend levantado desde navegador.
+2. Definir como mostrar tutor principal en estudiantes.
 3. Conectar padres/tutores con `/api/parents`.
 4. Conectar pagos con `/api/payments/charges`.
 
 Branch sugerido:
 
 ```text
-feat/students-list
+feat/parents-list
 ```
 
 Commit sugerido:
 
 ```text
-feat(students): map backend students response
+feat(parents): map backend parents response
 ```
 
 ## Fase 0 - Base Del Proyecto
@@ -92,7 +93,11 @@ feat(students): map backend students response
 ## Fase 4 - Modulos De Lectura
 
 - [x] Estudiantes: tabla visual inicial.
-- [ ] Estudiantes: adaptar campos reales del backend.
+- [x] Estudiantes: adaptar campos reales del backend.
+- [x] Estudiantes: busqueda local por nombre o codigo.
+- [x] Estudiantes: filtro local por grupo.
+- [ ] Estudiantes: mostrar tutor principal.
+- [ ] Estudiantes: paginacion real.
 - [ ] Padres/tutores.
 - [ ] Pagos.
 - [ ] Materiales.
