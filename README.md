@@ -35,6 +35,12 @@ Crear o revisar `.env.local`:
 VITE_API_BASE_URL=http://localhost:8080
 ```
 
+Version de Node recomendada:
+
+```bash
+nvm use
+```
+
 Comandos:
 
 ```bash
@@ -43,6 +49,18 @@ npm run build
 npm run lint
 npm run preview
 ```
+
+## CI
+
+GitHub Actions valida cada pull request y cada push a `main` con:
+
+```bash
+npm ci
+npm run lint
+npm run build
+```
+
+El workflow vive en `.github/workflows/frontend-ci.yml` y usa la version de Node definida en `.nvmrc`.
 
 ## Estructura
 
