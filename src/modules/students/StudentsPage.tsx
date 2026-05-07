@@ -1,63 +1,67 @@
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle } from 'lucide-react'
 import { getStudents } from '../../api/students.api'
 import type { StudentListItem } from '../../api/students.api'
 
-type StudentRow = StudentListItem & {
-  birthDate?: string
-  guardianName?: string
+const emptyStudents: StudentListItem[] = []
+
+const statusLabels: Record<string, string> = {
+  active: 'Activo',
+  inactive: 'Inactivo',
+  pending: 'Pendiente',
+  graduated: 'Graduado',
 }
 
-const demoStudents: StudentRow[] = [
-  {
-    id: 1,
-    birthDate: '12/03/2020',
-    fullName: 'Ana Sofia Lopez',
-    groupName: 'Kinder A',
-    guardianName: 'Maria Lopez',
-    status: 'Activo',
-  },
-  {
-    id: 2,
-    birthDate: '25/07/2019',
-    fullName: 'Mateo Hernandez',
-    groupName: 'Kinder A',
-    guardianName: 'Juan Hernandez',
-    status: 'Activo',
-  },
-  {
-    id: 3,
-    birthDate: '05/11/2019',
-    fullName: 'Camila Torres',
-    groupName: 'Kinder B',
-    guardianName: 'Paula Torres',
-    status: 'Activo',
-  },
-  {
-    id: 4,
-    birthDate: '18/02/2020',
-    fullName: 'Emiliano Garcia',
-    groupName: 'Kinder B',
-    guardianName: 'Luis Garcia',
-    status: 'Activo',
-  },
-  {
-    id: 5,
-    birthDate: '30/09/2019',
-    fullName: 'Valentina Diaz',
-    groupName: 'Kinder A',
-    guardianName: 'Andrea Diaz',
-    status: 'Baja',
-  },
-]
+const statusDangerValues = new Set(['inactive'])
+
+function formatStudentName(firstName: string, lastName: string) {
+  return `${firstName} ${lastName}`.trim()
+}
+
+function formatDate(value?: string) {
+  if (!value) {
+    return '-'
+  }
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(`${value}T00:00:00`))
+}
 
 export function StudentsPage() {
+  const [search, setSearch] = useState('')
+  const [groupFilter, setGroupFilter] = useState('all')
   const { data, error, isLoading } = useQuery({
     queryKey: ['students'],
     queryFn: getStudents,
     retry: false,
   })
-  const students: StudentRow[] = data && data.length > 0 ? data : demoStudents
+
+  const students = data ?? emptyStudents
+  const groups = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          students.flatMap((student) => (student.groupName ? [student.groupName] : [])),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [students],
+  )
+  const filteredStudents = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase()
+
+    return students.filter((student) => {
+      const name = formatStudentName(student.firstName, student.lastName).toLowerCase()
+      const code = student.studentCode?.toLowerCase() ?? ''
+      const matchesSearch = !normalizedSearch || name.includes(normalizedSearch) || code.includes(normalizedSearch)
+      const matchesGroup = groupFilter === 'all' || student.groupName === groupFilter
+
+      return matchesSearch && matchesGroup
+    })
+  }, [groupFilter, search, students])
 
   return (
     <main className="page-content">
@@ -77,12 +81,24 @@ export function StudentsPage() {
       <section className="filters-row" aria-label="Filtros de estudiantes">
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
-          <input placeholder="Buscar estudiante..." type="search" />
+          <input
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar estudiante..."
+            type="search"
+            value={search}
+          />
         </label>
-        <select aria-label="Grupo">
-          <option>Todos los grupos</option>
-          <option>Kinder A</option>
-          <option>Kinder B</option>
+        <select
+          aria-label="Grupo"
+          onChange={(event) => setGroupFilter(event.target.value)}
+          value={groupFilter}
+        >
+          <option value="all">Todos los grupos</option>
+          {groups.map((groupName) => (
+            <option key={groupName} value={groupName}>
+              {groupName}
+            </option>
+          ))}
         </select>
         <button className="secondary-button" type="button">
           <ListFilter size={17} aria-hidden="true" />
@@ -104,40 +120,52 @@ export function StudentsPage() {
             </tr>
           </thead>
           <tbody>
-            {students.map((student) => (
-              <tr key={student.id}>
-                <td>
-                  <span className="student-avatar">
-                    <UserCircle size={28} aria-hidden="true" />
-                  </span>
-                </td>
-                <td>{student.fullName ?? `${student.firstName ?? ''} ${student.lastName ?? ''}`}</td>
-                <td>{student.birthDate ?? '-'}</td>
-                <td>{student.groupName ?? student.groupId ?? '-'}</td>
-                <td>{student.guardianName ?? '-'}</td>
-                <td>
-                  <span
-                    className={student.status === 'Baja' ? 'status-badge status-danger' : 'status-badge'}
-                  >
-                    {student.status ?? '-'}
-                  </span>
-                </td>
-                <td>
-                  <div className="row-actions">
-                    <button title="Ver" type="button">
-                      <Eye size={16} aria-hidden="true" />
-                    </button>
-                    <button title="Editar" type="button">
-                      <Pencil size={16} aria-hidden="true" />
-                    </button>
-                    <button title="Eliminar" type="button">
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!isLoading && students.length === 0 ? (
+            {filteredStudents.map((student) => {
+              const statusLabel = statusLabels[student.status] ?? student.status
+
+              return (
+                <tr key={student.studentId}>
+                  <td>
+                    <span className="student-avatar">
+                      {student.profilePhotoUrl ? (
+                        <img src={student.profilePhotoUrl} alt="" />
+                      ) : (
+                        <UserCircle size={28} aria-hidden="true" />
+                      )}
+                    </span>
+                  </td>
+                  <td>{formatStudentName(student.firstName, student.lastName)}</td>
+                  <td>{formatDate(student.birthDate)}</td>
+                  <td>{student.groupName ?? student.groupId ?? '-'}</td>
+                  <td>No disponible</td>
+                  <td>
+                    <span
+                      className={
+                        statusDangerValues.has(student.status)
+                          ? 'status-badge status-danger'
+                          : 'status-badge'
+                      }
+                    >
+                      {statusLabel}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      <button title="Ver" type="button">
+                        <Eye size={16} aria-hidden="true" />
+                      </button>
+                      <button title="Editar" type="button">
+                        <Pencil size={16} aria-hidden="true" />
+                      </button>
+                      <button title="Eliminar" type="button">
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {!isLoading && filteredStudents.length === 0 ? (
               <tr>
                 <td colSpan={7}>Sin estudiantes para mostrar.</td>
               </tr>
@@ -145,7 +173,9 @@ export function StudentsPage() {
           </tbody>
         </table>
         <footer className="table-footer">
-          <span>Mostrando 1 a 5 de 32 estudiantes</span>
+          <span>
+            Mostrando {filteredStudents.length} de {students.length} estudiantes
+          </span>
           <div className="pagination">
             <button aria-label="Pagina anterior" type="button">
               {'<'}
@@ -153,10 +183,6 @@ export function StudentsPage() {
             <button className="active" type="button">
               1
             </button>
-            <button type="button">2</button>
-            <button type="button">3</button>
-            <span>...</span>
-            <button type="button">7</button>
             <button aria-label="Pagina siguiente" type="button">
               {'>'}
             </button>

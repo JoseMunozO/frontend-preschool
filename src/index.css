@@ -658,7 +658,14 @@ td {
   color: #a4abb8;
   height: 36px;
   justify-content: center;
+  overflow: hidden;
   width: 36px;
+}
+
+.student-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 
 .status-badge {
