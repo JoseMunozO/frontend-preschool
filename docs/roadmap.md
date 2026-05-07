@@ -81,10 +81,16 @@ La primera version debe construir una base funcional que permita validar si la a
 - [x] Grupo/aula mediante `groupId`.
 - [x] Alergias, notas medicas y observaciones.
 - [x] Vinculacion con padres/tutores mediante `student_guardians`.
+- [x] Frontend: tabla inicial de estudiantes conectada a `GET /api/students`.
+- [x] Frontend: mapeo de campos reales de `StudentResponse`.
+- [x] Frontend: busqueda local por nombre o codigo.
+- [x] Frontend: filtro local por grupo.
 - [ ] Busqueda por nombre, codigo, grupo o estado.
 - [ ] Filtros formales por estado/grupo.
 - [ ] Contactos de emergencia como campo o entidad especifica.
 - [ ] Respuesta de ficha completa con tutores incluidos.
+- [ ] Frontend: mostrar tutor principal en listado usando endpoint de tutores o respuesta extendida.
+- [ ] Frontend: paginacion real o server-side si el volumen crece.
 - [ ] Revisar si las notas actuales son suficientes o si se necesita historial de notas por fecha/usuario.
 - [ ] Investigar almacenamiento de fotos: base de datos, filesystem local, S3/Cloudinary u otro proveedor.
 - [ ] Definir modelo de album de fotos por estudiante.
