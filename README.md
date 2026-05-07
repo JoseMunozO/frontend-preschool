@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# Preschool Admin Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend React para la aplicacion administrativa del preescolar.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React + Vite + TypeScript
+- React Router
+- TanStack Query
+- Zustand
+- React Hook Form + Zod
+- Tailwind CSS disponible
+- lucide-react
 
-## React Compiler
+## Backend local
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+El backend esperado vive en:
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+/Volumes/KINGSTON/backend-preschool
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Arranque recomendado:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd /Volumes/KINGSTON/backend-preschool
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
+
+## Frontend local
+
+Crear o revisar `.env.local`:
+
+```properties
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+Comandos:
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
+
+## Estructura
+
+```text
+src/
+  app/          router y providers
+  api/          cliente HTTP y endpoints por modulo
+  auth/         login, sesion, rutas protegidas y roles
+  layouts/      shell principal
+  dashboards/   dashboard interno
+  modules/      pantallas por modulo
+  components/   componentes compartidos
+  config/       variables de entorno
+  types/        contratos TypeScript
+```
+
+## Estado actual
+
+La base inicial ya incluye login, JWT en localStorage, rutas protegidas, layout interno,
+dashboard conectado a `/api/dashboard/summary` y primera tabla de estudiantes conectada
+a `/api/students`.
