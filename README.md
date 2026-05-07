@@ -52,13 +52,13 @@ Swagger del backend:
 http://localhost:8080/swagger-ui/index.html
 ```
 
-OpenAPI JSON:
+Version de Node recomendada:
 
-```text
-http://localhost:8080/v3/api-docs
+```bash
+nvm use
 ```
 
-## Comandos
+Comandos:
 
 ```bash
 npm run dev
@@ -67,53 +67,19 @@ npm run build
 npm run preview
 ```
 
-## Branches
+## CI
 
-Usar branches pequenos por tipo de cambio:
-
-```text
-chore/*
-feature/*
-fix/*
-test/*
-docs/*
-```
-
-Orden recomendado para los primeros branches:
-
-```text
-chore/scaffold-react-frontend
-chore/frontend-docs
-feat/auth-login
-feat/app-shell
-feat/dashboard-summary
-feat/students-list
-```
-
-## Commits
-
-Usar mensajes claros y con alcance cuando ayude:
-
-```text
-chore: scaffold react frontend
-feat(auth): add login page
-feat(dashboard): connect dashboard summary
-fix(api): handle expired token
-test(auth): add login form tests
-docs: add frontend workflow
-```
-
-Checklist antes de cada commit:
+GitHub Actions valida cada pull request y cada push a `main` con:
 
 ```bash
+npm ci
 npm run lint
 npm run build
-git status --short
 ```
 
-No subir `.env.local`, secretos, tokens, credenciales reales ni archivos AppleDouble `._*`.
+El workflow vive en `.github/workflows/frontend-ci.yml` y usa la version de Node definida en `.nvmrc`.
 
-## Estructura Esperada
+## Estructura
 
 ```text
 src/
