@@ -22,6 +22,13 @@ export class ApiError extends Error {
   }
 }
 
+export class ApiNetworkError extends Error {
+  constructor(message = 'No se pudo conectar con el backend. Verifica que este iniciado.') {
+    super(message)
+    this.name = 'ApiNetworkError'
+  }
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
   const headers = new Headers(options.headers)
 
@@ -37,11 +44,17 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     headers.set('Authorization', `Bearer ${authToken}`)
   }
 
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
-    ...options,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${env.apiBaseUrl}${path}`, {
+      ...options,
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    })
+  } catch {
+    throw new ApiNetworkError()
+  }
 
   const contentType = response.headers.get('content-type')
   const isJson = contentType?.includes('application/json')
