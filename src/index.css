@@ -619,6 +619,10 @@ a {
   grid-template-columns: minmax(260px, 1fr) minmax(180px, 240px) minmax(160px, 220px) auto;
 }
 
+.filters-row-schedules {
+  grid-template-columns: minmax(260px, 1fr) minmax(170px, 220px) minmax(180px, 240px) auto;
+}
+
 .search-field {
   align-items: center;
   display: flex;
