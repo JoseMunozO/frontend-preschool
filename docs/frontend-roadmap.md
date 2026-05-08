@@ -25,6 +25,8 @@ Ultima actualizacion: 2026-05-07.
 - Padres/tutores mapeado a `ParentResponse` real del backend.
 - Tabla de cargos conectada a `GET /api/payments/charges`.
 - Pagos mapeado a `StudentChargeResponse` real del backend.
+- Tabla de materiales conectada a `GET /api/materials`.
+- Materiales mapeado a `MaterialResponse` real del backend.
 
 ## Siguiente Punto Recomendado
 
@@ -32,19 +34,19 @@ Prioridad inmediata:
 
 1. Validar login, dashboard y estudiantes end-to-end con backend levantado desde navegador.
 2. Definir como mostrar tutor principal en estudiantes.
-3. Conectar materiales con `/api/materials`.
-4. Conectar horarios con `/api/schedules`.
+3. Conectar horarios con `/api/schedules`.
+4. Validar responsive real de dashboard y tablas principales.
 
 Branch sugerido:
 
 ```text
-feat/materials-list
+feat/schedules-list
 ```
 
 Commit sugerido:
 
 ```text
-feat(materials): map backend materials response
+feat(schedules): map backend schedules response
 ```
 
 ## Fase 0 - Base Del Proyecto
@@ -112,7 +114,11 @@ feat(materials): map backend materials response
 - [x] Pagos: busqueda local por estudiante o concepto.
 - [ ] Pagos: registrar pago desde cargo.
 - [ ] Pagos: historial de pagos.
-- [ ] Materiales.
+- [x] Materiales: tabla visual inicial.
+- [x] Materiales: adaptar campos reales del backend.
+- [x] Materiales: busqueda local por nombre, SKU o categoria.
+- [x] Materiales: filtros locales por categoria y stock bajo.
+- [ ] Materiales: registrar entradas, salidas y ajustes.
 - [ ] Horarios.
 
 ## Fase 5 - Formularios
@@ -153,4 +159,5 @@ feat/students-list
 feat/parents-list
 feat/payments-overview
 feat/materials-list
+feat/schedules-list
 ```

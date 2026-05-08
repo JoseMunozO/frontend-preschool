@@ -219,8 +219,13 @@ El preescolar podra ver rapidamente quien ha pagado, quien esta pendiente y que 
 - [x] Tests de servicio.
 - [x] Actualizar `api-test.http`.
 - [x] Tests de controller/API.
+- [x] Frontend: tabla inicial de materiales conectada a `GET /api/materials`.
+- [x] Frontend: mapeo de campos reales de `MaterialResponse`.
+- [x] Frontend: busqueda local por nombre, SKU o categoria.
+- [x] Frontend: filtros locales por categoria y stock bajo.
 - [ ] Revisar categorias finales con el cliente.
 - [ ] Revisar si se necesita responsable como staff especifico en vez de usuario autenticado.
+- [ ] Frontend: registrar entradas, salidas y ajustes.
 
 ### Resultado esperado
 
