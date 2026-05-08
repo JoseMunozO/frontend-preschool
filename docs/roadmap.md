@@ -174,9 +174,15 @@ El centro sabra rapidamente a quien contactar y quien es responsable de cada est
 - [x] Seguridad por roles para `ADMIN`, `DIRECTOR`, `FINANCE` y `PARENT`.
 - [x] Tests de servicio.
 - [x] Actualizar `api-test.http`.
+- [x] Frontend: tabla inicial de cargos conectada a `GET /api/payments/charges`.
+- [x] Frontend: mapeo de campos reales de `StudentChargeResponse`.
+- [x] Frontend: filtros por mes y estado.
+- [x] Frontend: busqueda local por estudiante o concepto.
 - [ ] Endpoint explicito para actualizar/cancelar estado de cargo sin registrar pago.
 - [ ] Reporte/resumen mensual de pagos pendientes y atrasados.
 - [x] Tests de controller/API.
+- [ ] Frontend: registrar pago desde un cargo.
+- [ ] Frontend: vista de historial de pagos.
 - [ ] Revisar optimizacion de queries si el volumen de pagos crece.
 - [ ] Generacion de recibo simple o comprobante en PDF en fase posterior.
 
