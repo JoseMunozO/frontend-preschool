@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { CalendarDays, Eye, ListFilter, Pencil, Plus, Search } from 'lucide-react'
 import { getSchedules } from '../../api/schedules.api'
 import type { DayOfWeek, ScheduleItem } from '../../types/schedules'
+import { translateBackendSeed } from '../../utils/displayText'
 
 const emptySchedules: ScheduleItem[] = []
 
@@ -103,7 +104,7 @@ export function SchedulesPage() {
           <option value="all">Todos los grupos</option>
           {groups.map(([groupId, groupName]) => (
             <option key={groupId} value={groupId}>
-              {groupName}
+              {translateBackendSeed(groupName)}
             </option>
           ))}
         </select>
@@ -143,13 +144,15 @@ export function SchedulesPage() {
                     <span className="student-avatar">
                       <CalendarDays size={22} aria-hidden="true" />
                     </span>
-                    {schedule.activityTitle}
+                    {translateBackendSeed(schedule.activityTitle)}
                   </span>
                 </td>
-                <td>{schedule.groupName}</td>
-                <td>{schedule.roomName ?? '-'}</td>
-                <td>{schedule.primaryStaffName ?? '-'}</td>
-                <td>{schedule.notes ?? '-'}</td>
+                <td>{translateBackendSeed(schedule.groupName)}</td>
+                <td>{schedule.roomName ? translateBackendSeed(schedule.roomName) : '-'}</td>
+                <td>
+                  {schedule.primaryStaffName ? translateBackendSeed(schedule.primaryStaffName) : '-'}
+                </td>
+                <td>{schedule.notes ? translateBackendSeed(schedule.notes) : '-'}</td>
                 <td>
                   <div className="row-actions">
                     <button title="Ver horario" type="button">

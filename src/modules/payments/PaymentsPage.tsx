@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Eye, FileText, ListFilter, Plus, Search } from 'lucide-react'
 import { getStudentCharges } from '../../api/payments.api'
 import type { PaymentChargeStatus, StudentCharge } from '../../types/payments'
+import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyCharges: StudentCharge[] = []
 
@@ -148,7 +149,7 @@ export function PaymentsPage() {
             {filteredCharges.map((charge) => (
               <tr key={charge.studentChargeId}>
                 <td>{charge.studentName}</td>
-                <td>{charge.chargeTypeName}</td>
+                <td>{translateBackendSeed(charge.chargeTypeName)}</td>
                 <td>{formatBillingPeriod(charge)}</td>
                 <td>{formatCurrency(charge.amountDue)}</td>
                 <td>{formatCurrency(charge.amountPaid)}</td>
