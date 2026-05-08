@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle } from 'lucide-react'
 import { getStudents } from '../../api/students.api'
 import type { StudentListItem } from '../../api/students.api'
+import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyStudents: StudentListItem[] = []
 
@@ -96,7 +97,7 @@ export function StudentsPage() {
           <option value="all">Todos los grupos</option>
           {groups.map((groupName) => (
             <option key={groupName} value={groupName}>
-              {groupName}
+              {translateBackendSeed(groupName)}
             </option>
           ))}
         </select>
@@ -136,7 +137,9 @@ export function StudentsPage() {
                   </td>
                   <td>{formatStudentName(student.firstName, student.lastName)}</td>
                   <td>{formatDate(student.birthDate)}</td>
-                  <td>{student.groupName ?? student.groupId ?? '-'}</td>
+                  <td>
+                    {student.groupName ? translateBackendSeed(student.groupName) : student.groupId ?? '-'}
+                  </td>
                   <td>No disponible</td>
                   <td>
                     <span

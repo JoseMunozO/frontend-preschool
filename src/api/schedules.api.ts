@@ -1,6 +1,23 @@
 import { apiRequest } from './client'
-import type { ScheduleItem } from '../types/schedules'
+import type { DayOfWeek, ScheduleItem } from '../types/schedules'
 
-export function getSchedules() {
-  return apiRequest<ScheduleItem[]>('/api/schedules')
+type GetSchedulesParams = {
+  dayOfWeek?: DayOfWeek | 'ALL'
+  groupId?: number | string
+}
+
+export function getSchedules(params: GetSchedulesParams = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.groupId) {
+    searchParams.set('groupId', String(params.groupId))
+  }
+
+  if (params.dayOfWeek && params.dayOfWeek !== 'ALL') {
+    searchParams.set('dayOfWeek', params.dayOfWeek)
+  }
+
+  const query = searchParams.toString()
+
+  return apiRequest<ScheduleItem[]>(`/api/schedules${query ? `?${query}` : ''}`)
 }

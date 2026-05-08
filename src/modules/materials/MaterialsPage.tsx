@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Eye, ListFilter, PackagePlus, Pencil, Plus, Search } from 'lucide-react'
 import { getMaterials } from '../../api/materials.api'
 import type { MaterialItem, MaterialStatus } from '../../types/materials'
+import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyMaterials: MaterialItem[] = []
 
@@ -83,7 +84,7 @@ export function MaterialsPage() {
           <option value="all">Todas las categorias</option>
           {categories.map((category) => (
             <option key={category} value={category}>
-              {category}
+              {translateBackendSeed(category)}
             </option>
           ))}
         </select>
@@ -123,14 +124,14 @@ export function MaterialsPage() {
                     <span className="student-avatar">
                       <PackagePlus size={24} aria-hidden="true" />
                     </span>
-                    {material.name}
+                    {translateBackendSeed(material.name)}
                   </span>
                 </td>
                 <td>{material.sku ?? '-'}</td>
-                <td>{material.category ?? '-'}</td>
+                <td>{material.category ? translateBackendSeed(material.category) : '-'}</td>
                 <td>{material.quantityOnHand}</td>
                 <td>{material.minimumQuantity ?? '-'}</td>
-                <td>{material.unit ?? '-'}</td>
+                <td>{material.unit ? translateBackendSeed(material.unit) : '-'}</td>
                 <td>
                   <span
                     className={

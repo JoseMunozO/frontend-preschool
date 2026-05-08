@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { Box, DollarSign, UsersRound } from 'lucide-react'
 import { getDashboardSummary } from '../api/dashboard.api'
 import { StatCard } from '../components/ui/StatCard'
+import { translateBackendSeed } from '../utils/displayText'
 
 const numberFormatter = new Intl.NumberFormat('es-MX')
 
@@ -120,10 +121,10 @@ export function AdminDashboard() {
             <ul>
               {administration.todaySchedule.slice(0, 3).map((item) => (
                 <li key={item.scheduleSlotId}>
-                  <strong>{item.activityTitle}</strong>
+                  <strong>{translateBackendSeed(item.activityTitle)}</strong>
                   <span>
                     {item.startTime} - {item.endTime}
-                    {item.groupName ? ` · ${item.groupName}` : ''}
+                    {item.groupName ? ` · ${translateBackendSeed(item.groupName)}` : ''}
                   </span>
                 </li>
               ))}

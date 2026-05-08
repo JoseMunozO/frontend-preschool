@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-05-07.
+Ultima actualizacion: 2026-05-08.
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -27,26 +27,28 @@ Ultima actualizacion: 2026-05-07.
 - Pagos mapeado a `StudentChargeResponse` real del backend.
 - Tabla de materiales conectada a `GET /api/materials`.
 - Materiales mapeado a `MaterialResponse` real del backend.
+- Tabla de horarios conectada a `GET /api/schedules`.
+- Horarios mapeado a `ScheduleSlotResponse` real del backend.
 
 ## Siguiente Punto Recomendado
 
 Prioridad inmediata:
 
-1. Validar login, dashboard y estudiantes end-to-end con backend levantado desde navegador.
+1. Validar visualmente horarios desde navegador con backend levantado.
 2. Definir como mostrar tutor principal en estudiantes.
-3. Conectar horarios con `/api/schedules`.
+3. Empezar formularios pequenos para crear/editar entidades principales.
 4. Validar responsive real de dashboard y tablas principales.
 
 Branch sugerido:
 
 ```text
-feat/schedules-list
+feat/student-form
 ```
 
 Commit sugerido:
 
 ```text
-feat(schedules): map backend schedules response
+feat(students): add student form
 ```
 
 ## Fase 0 - Base Del Proyecto
@@ -79,9 +81,9 @@ feat(schedules): map backend schedules response
 - [x] Implementar logout.
 - [x] Agregar error claro cuando el backend no responde.
 - [x] Agregar proxy local de Vite para evitar CORS en desarrollo.
-- [ ] Validar login end-to-end desde navegador.
-- [ ] Manejar token expirado.
-- [ ] Redirigir automaticamente a login en `401`.
+- [x] Validar login end-to-end desde navegador.
+- [x] Manejar token expirado.
+- [x] Redirigir automaticamente a login en `401`.
 
 ## Fase 3 - Dashboard
 
@@ -94,7 +96,7 @@ feat(schedules): map backend schedules response
 - [x] Mostrar actividades del dia.
 - [ ] Mostrar cumpleanos proximos si el backend lo expone.
 - [x] Reemplazar datos demo principales por datos reales.
-- [ ] Validar visualmente con datos reales en navegador.
+- [x] Validar visualmente con datos reales en navegador.
 
 ## Fase 4 - Modulos De Lectura
 
@@ -119,7 +121,13 @@ feat(schedules): map backend schedules response
 - [x] Materiales: busqueda local por nombre, SKU o categoria.
 - [x] Materiales: filtros locales por categoria y stock bajo.
 - [ ] Materiales: registrar entradas, salidas y ajustes.
-- [ ] Horarios.
+- [x] Horarios: tabla visual inicial.
+- [x] Horarios: adaptar campos reales del backend.
+- [x] Horarios: filtro por dia.
+- [x] Horarios: busqueda local por actividad, aula, grupo o responsable.
+- [x] Horarios: filtro local por grupo.
+- [ ] Horarios: crear/editar actividades.
+- [ ] Horarios: vista semanal o calendario visual.
 
 ## Fase 5 - Formularios
 
@@ -160,4 +168,9 @@ feat/parents-list
 feat/payments-overview
 feat/materials-list
 feat/schedules-list
+feat/student-form
+feat/payment-registration
+feat/material-movements
+feat/schedule-form
+feat/responsive-polish
 ```
