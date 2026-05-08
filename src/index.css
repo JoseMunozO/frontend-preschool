@@ -607,6 +607,10 @@ a {
   grid-template-columns: minmax(260px, 1fr) minmax(180px, 260px) auto;
 }
 
+.filters-row-compact {
+  grid-template-columns: minmax(260px, 1fr) auto;
+}
+
 .search-field {
   align-items: center;
   display: flex;
@@ -702,6 +706,12 @@ td {
 .row-actions button:hover {
   background: var(--surface-muted);
   color: var(--primary);
+}
+
+.name-cell {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
 }
 
 .table-footer {
