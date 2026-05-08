@@ -260,6 +260,14 @@ El centro podra prevenir faltas de material y planificar compras con mas control
 - [x] Tests de servicio.
 - [x] Tests de controller/API.
 - [x] Actualizar `api-test.http`.
+- [x] Frontend: tabla inicial de horarios conectada a `GET /api/schedules`.
+- [x] Frontend: mapeo de campos reales de `ScheduleSlotResponse`.
+- [x] Frontend: filtro por dia usando query param `dayOfWeek`.
+- [x] Frontend: busqueda local por actividad, aula, grupo o responsable.
+- [x] Frontend: filtro local por grupo.
+- [ ] Frontend: crear/editar actividades.
+- [ ] Frontend: asignar responsable principal desde la tabla.
+- [ ] Frontend: vista semanal o calendario visual.
 
 ### Resultado esperado
 
