@@ -1,11 +1,25 @@
-export type PaymentChargeStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'PARTIAL'
+export type PaymentChargeStatus =
+  | 'PENDING'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'CANCELLED'
+  | 'OVERDUE'
 
 export type StudentCharge = {
-  id: number | string
-  studentId?: number | string
-  studentName?: string
-  month?: string
-  status?: PaymentChargeStatus
-  amount?: number
-  pendingBalance?: number
+  studentChargeId: number
+  studentId: number
+  studentName: string
+  chargeTypeId: number
+  chargeTypeCode?: string
+  chargeTypeName: string
+  dueDate: string
+  billingPeriodStart?: string
+  billingPeriodEnd?: string
+  amountDue: number
+  amountPaid: number
+  balance: number
+  status: PaymentChargeStatus
+  description?: string
+  createdAt?: string
+  updatedAt?: string
 }

@@ -1,7 +1,22 @@
 import { apiRequest } from './client'
-import type { StudentCharge } from '../types/payments'
+import type { PaymentChargeStatus, StudentCharge } from '../types/payments'
 
-export function getStudentCharges(month?: string) {
-  const query = month ? `?month=${encodeURIComponent(month)}` : ''
+type GetStudentChargesParams = {
+  month?: string
+  status?: PaymentChargeStatus | 'ALL'
+}
+
+export function getStudentCharges(params: GetStudentChargesParams = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.month) {
+    searchParams.set('month', params.month)
+  }
+
+  if (params.status && params.status !== 'ALL') {
+    searchParams.set('status', params.status)
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
   return apiRequest<StudentCharge[]>(`/api/payments/charges${query}`)
 }
