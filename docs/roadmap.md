@@ -81,10 +81,16 @@ La primera version debe construir una base funcional que permita validar si la a
 - [x] Grupo/aula mediante `groupId`.
 - [x] Alergias, notas medicas y observaciones.
 - [x] Vinculacion con padres/tutores mediante `student_guardians`.
+- [x] Frontend: tabla inicial de estudiantes conectada a `GET /api/students`.
+- [x] Frontend: mapeo de campos reales de `StudentResponse`.
+- [x] Frontend: busqueda local por nombre o codigo.
+- [x] Frontend: filtro local por grupo.
 - [ ] Busqueda por nombre, codigo, grupo o estado.
 - [ ] Filtros formales por estado/grupo.
 - [ ] Contactos de emergencia como campo o entidad especifica.
 - [ ] Respuesta de ficha completa con tutores incluidos.
+- [ ] Frontend: mostrar tutor principal en listado usando endpoint de tutores o respuesta extendida.
+- [ ] Frontend: paginacion real o server-side si el volumen crece.
 - [ ] Revisar si las notas actuales son suficientes o si se necesita historial de notas por fecha/usuario.
 - [ ] Investigar almacenamiento de fotos: base de datos, filesystem local, S3/Cloudinary u otro proveedor.
 - [ ] Definir modelo de album de fotos por estudiante.
@@ -125,6 +131,10 @@ El personal podra consultar rapidamente la informacion de cada nino sin depender
 - [x] Marcar autorizado para recogida.
 - [x] Marcar si vive con el estudiante.
 - [x] Tests de servicio principales.
+- [x] Frontend: tabla inicial de padres/tutores conectada a `GET /api/parents`.
+- [x] Frontend: mapeo de campos reales de `ParentResponse`.
+- [x] Frontend: busqueda local por nombre, correo o telefono.
+- [ ] Frontend: mostrar cantidad de hijos usando `/api/parents/{parentId}/students`.
 - [ ] Revisar payloads finales para frontend.
 - [ ] Agregar tests de controller/API.
 
@@ -164,9 +174,15 @@ El centro sabra rapidamente a quien contactar y quien es responsable de cada est
 - [x] Seguridad por roles para `ADMIN`, `DIRECTOR`, `FINANCE` y `PARENT`.
 - [x] Tests de servicio.
 - [x] Actualizar `api-test.http`.
+- [x] Frontend: tabla inicial de cargos conectada a `GET /api/payments/charges`.
+- [x] Frontend: mapeo de campos reales de `StudentChargeResponse`.
+- [x] Frontend: filtros por mes y estado.
+- [x] Frontend: busqueda local por estudiante o concepto.
 - [ ] Endpoint explicito para actualizar/cancelar estado de cargo sin registrar pago.
 - [ ] Reporte/resumen mensual de pagos pendientes y atrasados.
 - [x] Tests de controller/API.
+- [ ] Frontend: registrar pago desde un cargo.
+- [ ] Frontend: vista de historial de pagos.
 - [ ] Revisar optimizacion de queries si el volumen de pagos crece.
 - [ ] Generacion de recibo simple o comprobante en PDF en fase posterior.
 
@@ -203,8 +219,13 @@ El preescolar podra ver rapidamente quien ha pagado, quien esta pendiente y que 
 - [x] Tests de servicio.
 - [x] Actualizar `api-test.http`.
 - [x] Tests de controller/API.
+- [x] Frontend: tabla inicial de materiales conectada a `GET /api/materials`.
+- [x] Frontend: mapeo de campos reales de `MaterialResponse`.
+- [x] Frontend: busqueda local por nombre, SKU o categoria.
+- [x] Frontend: filtros locales por categoria y stock bajo.
 - [ ] Revisar categorias finales con el cliente.
 - [ ] Revisar si se necesita responsable como staff especifico en vez de usuario autenticado.
+- [ ] Frontend: registrar entradas, salidas y ajustes.
 
 ### Resultado esperado
 
@@ -239,6 +260,14 @@ El centro podra prevenir faltas de material y planificar compras con mas control
 - [x] Tests de servicio.
 - [x] Tests de controller/API.
 - [x] Actualizar `api-test.http`.
+- [x] Frontend: tabla inicial de horarios conectada a `GET /api/schedules`.
+- [x] Frontend: mapeo de campos reales de `ScheduleSlotResponse`.
+- [x] Frontend: filtro por dia usando query param `dayOfWeek`.
+- [x] Frontend: busqueda local por actividad, aula, grupo o responsable.
+- [x] Frontend: filtro local por grupo.
+- [ ] Frontend: crear/editar actividades.
+- [ ] Frontend: asignar responsable principal desde la tabla.
+- [ ] Frontend: vista semanal o calendario visual.
 
 ### Resultado esperado
 

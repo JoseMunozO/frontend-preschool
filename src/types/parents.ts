@@ -1,7 +1,14 @@
 export type ParentListItem = {
-  id: number | string
-  fullName?: string
+  parentId: number
+  userId?: number
+  firstName: string
+  lastName: string
   email?: string
   phone?: string
-  active?: boolean
+  address?: string
+  preferredLanguage?: string
+  status: 'ACTIVE' | 'INACTIVE'
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
 }

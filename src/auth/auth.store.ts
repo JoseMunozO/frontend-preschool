@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { setApiAuthToken } from '../api/client'
+import { setApiAuthToken, setUnauthorizedHandler } from '../api/client'
 import type { AuthSession } from '../types/auth'
 
 const storageKey = 'preschool.auth.session'
@@ -46,3 +46,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return roles.some((role) => currentRoles.some((currentRole) => currentRole === role))
   },
 }))
+
+setUnauthorizedHandler(() => {
+  localStorage.removeItem(storageKey)
+  setApiAuthToken(null)
+  useAuthStore.setState({ session: null })
+})

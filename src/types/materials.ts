@@ -1,8 +1,16 @@
+export type MaterialStatus = 'ACTIVE' | 'ARCHIVED'
+
 export type MaterialItem = {
-  id: number | string
+  materialId: number
+  sku?: string
   name: string
   category?: string
-  quantity?: number
+  unit?: string
+  quantityOnHand: number
   minimumQuantity?: number
-  lowStock?: boolean
+  lowStock: boolean
+  status: MaterialStatus
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
 }
