@@ -23,6 +23,8 @@ Ultima actualizacion: 2026-05-07.
 - Estudiantes mapeado a `StudentResponse` real del backend.
 - Tabla de padres/tutores conectada a `GET /api/parents`.
 - Padres/tutores mapeado a `ParentResponse` real del backend.
+- Tabla de cargos conectada a `GET /api/payments/charges`.
+- Pagos mapeado a `StudentChargeResponse` real del backend.
 
 ## Siguiente Punto Recomendado
 
@@ -30,19 +32,19 @@ Prioridad inmediata:
 
 1. Validar login, dashboard y estudiantes end-to-end con backend levantado desde navegador.
 2. Definir como mostrar tutor principal en estudiantes.
-3. Conectar pagos con `/api/payments/charges`.
-4. Conectar materiales con `/api/materials`.
+3. Conectar materiales con `/api/materials`.
+4. Conectar horarios con `/api/schedules`.
 
 Branch sugerido:
 
 ```text
-feat/payments-overview
+feat/materials-list
 ```
 
 Commit sugerido:
 
 ```text
-feat(payments): map backend charges response
+feat(materials): map backend materials response
 ```
 
 ## Fase 0 - Base Del Proyecto
@@ -104,7 +106,12 @@ feat(payments): map backend charges response
 - [x] Padres/tutores: adaptar campos reales del backend.
 - [x] Padres/tutores: busqueda local por nombre, correo o telefono.
 - [ ] Padres/tutores: mostrar cantidad de hijos.
-- [ ] Pagos.
+- [x] Pagos: tabla visual inicial.
+- [x] Pagos: adaptar campos reales de cargos del backend.
+- [x] Pagos: filtros por mes y estado.
+- [x] Pagos: busqueda local por estudiante o concepto.
+- [ ] Pagos: registrar pago desde cargo.
+- [ ] Pagos: historial de pagos.
 - [ ] Materiales.
 - [ ] Horarios.
 
