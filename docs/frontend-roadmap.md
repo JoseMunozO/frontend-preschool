@@ -21,6 +21,8 @@ Ultima actualizacion: 2026-05-07.
 - Dashboard mapeado a la estructura real de `/api/dashboard/summary`.
 - Tabla de estudiantes conectada a `GET /api/students`.
 - Estudiantes mapeado a `StudentResponse` real del backend.
+- Tabla de padres/tutores conectada a `GET /api/parents`.
+- Padres/tutores mapeado a `ParentResponse` real del backend.
 
 ## Siguiente Punto Recomendado
 
@@ -28,19 +30,19 @@ Prioridad inmediata:
 
 1. Validar login, dashboard y estudiantes end-to-end con backend levantado desde navegador.
 2. Definir como mostrar tutor principal en estudiantes.
-3. Conectar padres/tutores con `/api/parents`.
-4. Conectar pagos con `/api/payments/charges`.
+3. Conectar pagos con `/api/payments/charges`.
+4. Conectar materiales con `/api/materials`.
 
 Branch sugerido:
 
 ```text
-feat/parents-list
+feat/payments-overview
 ```
 
 Commit sugerido:
 
 ```text
-feat(parents): map backend parents response
+feat(payments): map backend charges response
 ```
 
 ## Fase 0 - Base Del Proyecto
@@ -98,7 +100,10 @@ feat(parents): map backend parents response
 - [x] Estudiantes: filtro local por grupo.
 - [ ] Estudiantes: mostrar tutor principal.
 - [ ] Estudiantes: paginacion real.
-- [ ] Padres/tutores.
+- [x] Padres/tutores: tabla visual inicial.
+- [x] Padres/tutores: adaptar campos reales del backend.
+- [x] Padres/tutores: busqueda local por nombre, correo o telefono.
+- [ ] Padres/tutores: mostrar cantidad de hijos.
 - [ ] Pagos.
 - [ ] Materiales.
 - [ ] Horarios.

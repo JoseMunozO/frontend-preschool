@@ -131,6 +131,10 @@ El personal podra consultar rapidamente la informacion de cada nino sin depender
 - [x] Marcar autorizado para recogida.
 - [x] Marcar si vive con el estudiante.
 - [x] Tests de servicio principales.
+- [x] Frontend: tabla inicial de padres/tutores conectada a `GET /api/parents`.
+- [x] Frontend: mapeo de campos reales de `ParentResponse`.
+- [x] Frontend: busqueda local por nombre, correo o telefono.
+- [ ] Frontend: mostrar cantidad de hijos usando `/api/parents/{parentId}/students`.
 - [ ] Revisar payloads finales para frontend.
 - [ ] Agregar tests de controller/API.
 
