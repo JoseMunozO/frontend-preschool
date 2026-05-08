@@ -615,6 +615,10 @@ a {
   grid-template-columns: minmax(140px, 180px) minmax(180px, 220px) minmax(260px, 1fr) auto;
 }
 
+.filters-row-materials {
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 240px) minmax(160px, 220px) auto;
+}
+
 .search-field {
   align-items: center;
   display: flex;
