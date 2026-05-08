@@ -5,9 +5,14 @@ type RequestOptions = Omit<RequestInit, 'body'> & {
 }
 
 let authToken: string | null = null
+let unauthorizedHandler: (() => void) | null = null
 
 export function setApiAuthToken(token: string | null) {
   authToken = token
+}
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler
 }
 
 export class ApiError extends Error {
@@ -61,6 +66,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
   const payload = isJson ? await response.json() : await response.text()
 
   if (!response.ok) {
+    if (response.status === 401) {
+      unauthorizedHandler?.()
+    }
+
     const message =
       typeof payload === 'object' && payload && 'message' in payload
         ? String(payload.message)

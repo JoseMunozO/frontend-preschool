@@ -26,6 +26,7 @@ dist-ssr
 
 # Local-only notes
 docs/local/
+docs/errors/
 
 # Editor directories and files
 .vscode/*
