@@ -157,7 +157,6 @@ docs/frontend-working-agreement
 ci/frontend-validation
 feat/app-shell
 fix/auth-login-fetch-error
-feat/dashboard-summary
 ```
 
 Siguientes:
