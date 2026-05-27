@@ -1,5 +1,7 @@
 import { apiRequest } from './client'
 
+export type StudentStatus = 'active' | 'inactive' | 'pending' | 'graduated'
+
 export type StudentListItem = {
   studentId: number
   studentCode?: string
@@ -9,7 +11,7 @@ export type StudentListItem = {
   birthDate: string
   groupId?: number
   groupName?: string
-  status: 'active' | 'inactive' | 'pending' | 'graduated'
+  status: StudentStatus
   enrollmentDate?: string
   withdrawalDate?: string
   medicalNotes?: string
@@ -17,6 +19,20 @@ export type StudentListItem = {
   notes?: string
   createdAt?: string
   updatedAt?: string
+}
+
+export type StudentRequest = {
+  studentCode?: string
+  firstName: string
+  lastName: string
+  birthDate: string
+  groupId?: number
+  status: StudentStatus
+  enrollmentDate: string
+  withdrawalDate?: string
+  medicalNotes?: string
+  allergies?: string
+  notes?: string
 }
 
 export type StudentGuardian = {
@@ -39,4 +55,18 @@ export function getStudents() {
 
 export function getStudentGuardians(studentId: number) {
   return apiRequest<StudentGuardian[]>(`/api/students/${studentId}/guardians`)
+}
+
+export function createStudent(request: StudentRequest) {
+  return apiRequest<StudentListItem>('/api/students', {
+    method: 'POST',
+    body: request,
+  })
+}
+
+export function updateStudent(studentId: number, request: StudentRequest) {
+  return apiRequest<StudentListItem>(`/api/students/${studentId}`, {
+    method: 'PUT',
+    body: request,
+  })
 }
