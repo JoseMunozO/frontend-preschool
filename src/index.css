@@ -135,9 +135,9 @@ a {
 .login-form input,
 .filters-row input,
 .filters-row select,
-.student-form input,
-.student-form select,
-.student-form textarea {
+.entity-form input,
+.entity-form select,
+.entity-form textarea {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -149,9 +149,9 @@ a {
 .login-form input:focus,
 .filters-row input:focus,
 .filters-row select:focus,
-.student-form input:focus,
-.student-form select:focus,
-.student-form textarea:focus {
+.entity-form input:focus,
+.entity-form select:focus,
+.entity-form textarea:focus {
   border-color: var(--primary);
   outline: 3px solid rgba(108, 92, 231, 0.14);
 }
@@ -514,7 +514,7 @@ a {
   color: var(--text-muted);
 }
 
-.student-form-panel {
+.entity-form-panel {
   min-height: auto;
 }
 
@@ -524,18 +524,18 @@ a {
   justify-content: space-between;
 }
 
-.student-form {
+.entity-form {
   display: grid;
   gap: 18px;
 }
 
-.student-form-grid {
+.entity-form-grid {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.student-form label {
+.entity-form label {
   color: var(--text);
   display: grid;
   font-size: 13px;
@@ -543,11 +543,11 @@ a {
   gap: 7px;
 }
 
-.student-form-wide {
+.entity-form-wide {
   grid-column: span 2;
 }
 
-.student-form-full {
+.entity-form-full {
   grid-column: 1 / -1;
 }
 
@@ -855,11 +855,11 @@ td {
   .stats-grid,
   .work-grid,
   .filters-row,
-  .student-form-grid {
+  .entity-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .student-form-wide {
+  .entity-form-wide {
     grid-column: auto;
   }
 

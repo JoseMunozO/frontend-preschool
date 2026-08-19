@@ -1,8 +1,9 @@
+import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Eye, FileText, ListFilter, Plus, Search } from 'lucide-react'
-import { getStudentCharges } from '../../api/payments.api'
-import type { PaymentChargeStatus, StudentCharge } from '../../types/payments'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Eye, FileText, ListFilter, Plus, Search, X } from 'lucide-react'
+import { createPayment, getStudentCharges } from '../../api/payments.api'
+import type { PaymentChargeStatus, PaymentMethod, PaymentRequest, StudentCharge } from '../../types/payments'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyCharges: StudentCharge[] = []
@@ -23,9 +24,23 @@ const statusClassNames: Record<PaymentChargeStatus, string> = {
   OVERDUE: 'status-danger',
 }
 
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  CASH: 'Efectivo',
+  CARD: 'Tarjeta',
+  TRANSFER: 'Transferencia',
+}
+
+const payableStatuses = new Set<PaymentChargeStatus>(['PENDING', 'PARTIALLY_PAID', 'OVERDUE'])
+
 function getCurrentMonth() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function todayInputValue() {
+  const date = new Date()
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return localDate.toISOString().slice(0, 10)
 }
 
 function formatCurrency(value: number) {
@@ -55,17 +70,65 @@ function formatBillingPeriod(charge: StudentCharge) {
   return `${formatDate(charge.billingPeriodStart)} - ${formatDate(charge.billingPeriodEnd)}`
 }
 
+type PaymentFormValues = {
+  studentChargeId: string
+  paymentDate: string
+  amount: string
+  paymentMethod: PaymentMethod
+  referenceNumber: string
+  notes: string
+}
+
+type PaymentFormErrors = Partial<Record<keyof PaymentFormValues, string>>
+
+function emptyFormValues(charge?: StudentCharge): PaymentFormValues {
+  return {
+    studentChargeId: charge ? String(charge.studentChargeId) : '',
+    paymentDate: todayInputValue(),
+    amount: charge ? String(charge.balance) : '',
+    paymentMethod: 'CASH',
+    referenceNumber: '',
+    notes: '',
+  }
+}
+
+function optionalValue(value: string) {
+  const trimmedValue = value.trim()
+  return trimmedValue || undefined
+}
+
 export function PaymentsPage() {
+  const queryClient = useQueryClient()
   const [month, setMonth] = useState(getCurrentMonth())
   const [status, setStatus] = useState<PaymentChargeStatus | 'ALL'>('ALL')
   const [search, setSearch] = useState('')
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [selectedCharge, setSelectedCharge] = useState<StudentCharge | null>(null)
+  const [formValues, setFormValues] = useState<PaymentFormValues>(() => emptyFormValues())
+  const [formErrors, setFormErrors] = useState<PaymentFormErrors>({})
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
   const { data, error, isLoading } = useQuery({
     queryKey: ['student-charges', month, status],
     queryFn: () => getStudentCharges({ month, status }),
     retry: false,
   })
 
+  const savePaymentMutation = useMutation({
+    mutationFn: (request: PaymentRequest) => createPayment(request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'student-charges',
+      })
+      setSuccessMessage('Pago registrado correctamente.')
+      setIsFormOpen(false)
+      setSelectedCharge(null)
+      setFormErrors({})
+    },
+  })
+
   const charges = data ?? emptyCharges
+  const payableCharges = useMemo(() => charges.filter((charge) => payableStatuses.has(charge.status)), [charges])
   const filteredCharges = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
 
@@ -81,6 +144,79 @@ export function PaymentsPage() {
     })
   }, [charges, search])
 
+  const activeCharge =
+    selectedCharge ??
+    payableCharges.find((charge) => String(charge.studentChargeId) === formValues.studentChargeId)
+
+  function openPaymentForm(charge?: StudentCharge) {
+    setSelectedCharge(charge ?? null)
+    setFormValues(emptyFormValues(charge))
+    setFormErrors({})
+    savePaymentMutation.reset()
+    setSuccessMessage(null)
+    setIsFormOpen(true)
+  }
+
+  function closePaymentForm() {
+    setIsFormOpen(false)
+    setSelectedCharge(null)
+    setFormErrors({})
+    savePaymentMutation.reset()
+  }
+
+  function updateField<Key extends keyof PaymentFormValues>(key: Key, value: PaymentFormValues[Key]) {
+    setFormValues((currentValues) => ({ ...currentValues, [key]: value }))
+    setFormErrors((currentErrors) => ({ ...currentErrors, [key]: undefined }))
+  }
+
+  function handleChargeChange(studentChargeId: string) {
+    const charge = payableCharges.find((item) => String(item.studentChargeId) === studentChargeId)
+    setFormValues((currentValues) => ({
+      ...currentValues,
+      studentChargeId,
+      amount: charge ? String(charge.balance) : currentValues.amount,
+    }))
+    setFormErrors((currentErrors) => ({ ...currentErrors, studentChargeId: undefined, amount: undefined }))
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const errors: PaymentFormErrors = {}
+    const charge = activeCharge
+
+    if (!formValues.studentChargeId) {
+      errors.studentChargeId = 'Selecciona un cargo.'
+    }
+
+    if (!formValues.paymentDate) {
+      errors.paymentDate = 'La fecha de pago es obligatoria.'
+    }
+
+    const amount = Number(formValues.amount)
+
+    if (!formValues.amount.trim() || amount <= 0) {
+      errors.amount = 'Indica un monto valido, mayor a 0.'
+    } else if (charge && amount > charge.balance) {
+      errors.amount = `El monto no puede superar el saldo pendiente (${formatCurrency(charge.balance)}).`
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      return
+    }
+
+    const request: PaymentRequest = {
+      paymentDate: formValues.paymentDate,
+      totalAmount: amount,
+      paymentMethod: formValues.paymentMethod,
+      referenceNumber: optionalValue(formValues.referenceNumber),
+      notes: optionalValue(formValues.notes),
+      allocations: [{ studentChargeId: Number(formValues.studentChargeId), amountAllocated: amount }],
+    }
+
+    savePaymentMutation.mutate(request)
+  }
+
   return (
     <main className="page-content">
       <section className="page-heading page-heading-row">
@@ -88,13 +224,144 @@ export function PaymentsPage() {
           <h2>Pagos mensuales</h2>
           <p>Controla los pagos mensuales de los estudiantes.</p>
         </div>
-        <button className="primary-button inline-button" type="button">
+        <button className="primary-button inline-button" onClick={() => openPaymentForm()} type="button">
           <Plus size={17} aria-hidden="true" />
           Registrar pago
         </button>
       </section>
 
+      {successMessage ? (
+        <div className="success-notice" role="status">
+          {successMessage}
+        </div>
+      ) : null}
       {error ? <div className="notice">No se pudo cargar la lista de cargos.</div> : null}
+
+      {isFormOpen ? (
+        <section className="panel entity-form-panel" aria-labelledby="payment-form-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="payment-form-title">Registrar pago</h3>
+              <p>Aplica un pago a un cargo pendiente, parcial o atrasado.</p>
+            </div>
+            <button
+              aria-label="Cerrar formulario"
+              className="icon-button"
+              disabled={savePaymentMutation.isPending}
+              onClick={closePaymentForm}
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+          <form className="entity-form" onSubmit={handleSubmit}>
+            <div className="entity-form-grid">
+              <label className="entity-form-wide">
+                Cargo *
+                {selectedCharge ? (
+                  <input
+                    disabled
+                    value={`${selectedCharge.studentName} - ${translateBackendSeed(selectedCharge.chargeTypeName)}`}
+                  />
+                ) : (
+                  <select
+                    onChange={(event) => handleChargeChange(event.target.value)}
+                    value={formValues.studentChargeId}
+                  >
+                    <option value="">Selecciona un cargo</option>
+                    {payableCharges.map((charge) => (
+                      <option key={charge.studentChargeId} value={charge.studentChargeId}>
+                        {charge.studentName} - {translateBackendSeed(charge.chargeTypeName)} -{' '}
+                        {formatCurrency(charge.balance)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {formErrors.studentChargeId ? (
+                  <span className="field-error">{formErrors.studentChargeId}</span>
+                ) : null}
+              </label>
+              {activeCharge ? (
+                <label>
+                  Saldo pendiente
+                  <input disabled value={formatCurrency(activeCharge.balance)} />
+                </label>
+              ) : null}
+              <label>
+                Fecha de pago *
+                <input
+                  onChange={(event) => updateField('paymentDate', event.target.value)}
+                  type="date"
+                  value={formValues.paymentDate}
+                />
+                {formErrors.paymentDate ? <span className="field-error">{formErrors.paymentDate}</span> : null}
+              </label>
+              <label>
+                Monto *
+                <input
+                  min={0}
+                  onChange={(event) => updateField('amount', event.target.value)}
+                  step="0.01"
+                  type="number"
+                  value={formValues.amount}
+                />
+                {formErrors.amount ? <span className="field-error">{formErrors.amount}</span> : null}
+              </label>
+              <label>
+                Metodo de pago
+                <select
+                  onChange={(event) => updateField('paymentMethod', event.target.value as PaymentMethod)}
+                  value={formValues.paymentMethod}
+                >
+                  {Object.entries(paymentMethodLabels).map(([method, label]) => (
+                    <option key={method} value={method}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {formValues.paymentMethod === 'TRANSFER' ? (
+                <label>
+                  Numero de referencia
+                  <input
+                    maxLength={100}
+                    onChange={(event) => updateField('referenceNumber', event.target.value)}
+                    value={formValues.referenceNumber}
+                  />
+                </label>
+              ) : null}
+              <label className="entity-form-full">
+                Comentario administrativo
+                <textarea
+                  onChange={(event) => updateField('notes', event.target.value)}
+                  rows={2}
+                  value={formValues.notes}
+                />
+              </label>
+            </div>
+            {savePaymentMutation.error ? (
+              <p className="form-error" role="alert">
+                {savePaymentMutation.error instanceof Error
+                  ? savePaymentMutation.error.message
+                  : 'No se pudo registrar el pago.'}
+              </p>
+            ) : null}
+            <footer className="form-actions">
+              <button
+                className="secondary-button"
+                disabled={savePaymentMutation.isPending}
+                onClick={closePaymentForm}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={savePaymentMutation.isPending} type="submit">
+                {savePaymentMutation.isPending ? 'Guardando...' : 'Registrar pago'}
+              </button>
+            </footer>
+          </form>
+        </section>
+      ) : null}
 
       <section className="filters-row filters-row-payments" aria-label="Filtros de pagos">
         <input
@@ -165,9 +432,11 @@ export function PaymentsPage() {
                     <button title="Ver cargo" type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
-                    <button title="Registrar pago" type="button">
-                      <FileText size={16} aria-hidden="true" />
-                    </button>
+                    {payableStatuses.has(charge.status) ? (
+                      <button onClick={() => openPaymentForm(charge)} title="Registrar pago" type="button">
+                        <FileText size={16} aria-hidden="true" />
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

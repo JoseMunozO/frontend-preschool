@@ -266,7 +266,7 @@ export function StudentsPage() {
       {error ? <div className="notice">No se pudo cargar la lista de estudiantes.</div> : null}
 
       {isFormOpen ? (
-        <section className="panel student-form-panel" aria-labelledby="student-form-title">
+        <section className="panel entity-form-panel" aria-labelledby="student-form-title">
           <header className="form-panel-heading">
             <div>
               <h3 id="student-form-title">
@@ -284,8 +284,8 @@ export function StudentsPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <form className="student-form" onSubmit={handleSubmit}>
-            <div className="student-form-grid">
+          <form className="entity-form" onSubmit={handleSubmit}>
+            <div className="entity-form-grid">
               <label>
                 Nombre *
                 <input
@@ -371,7 +371,7 @@ export function StudentsPage() {
                   <span className="field-error">{formErrors.withdrawalDate}</span>
                 ) : null}
               </label>
-              <label className="student-form-wide">
+              <label className="entity-form-wide">
                 Alergias
                 <textarea
                   onChange={(event) => updateField('allergies', event.target.value)}
@@ -379,7 +379,7 @@ export function StudentsPage() {
                   value={formValues.allergies}
                 />
               </label>
-              <label className="student-form-wide">
+              <label className="entity-form-wide">
                 Notas medicas
                 <textarea
                   onChange={(event) => updateField('medicalNotes', event.target.value)}
@@ -387,7 +387,7 @@ export function StudentsPage() {
                   value={formValues.medicalNotes}
                 />
               </label>
-              <label className="student-form-full">
+              <label className="entity-form-full">
                 Observaciones
                 <textarea
                   onChange={(event) => updateField('notes', event.target.value)}
@@ -485,7 +485,7 @@ export function StudentsPage() {
                   <td>
                     {student.groupName ? translateBackendSeed(student.groupName) : student.groupId ?? '-'}
                   </td>
-                  <td>No disponible</td>
+                  <td>{student.primaryGuardianName ?? 'Sin tutor principal'}</td>
                   <td>
                     <span
                       className={

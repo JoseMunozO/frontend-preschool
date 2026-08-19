@@ -22,3 +22,14 @@ export type ScheduleItem = {
   createdAt?: string
   updatedAt?: string
 }
+
+export type ScheduleRequest = {
+  groupId: number
+  primaryStaffId?: number
+  dayOfWeek: DayOfWeek
+  startTime: string
+  endTime: string
+  activityTitle: string
+  roomName?: string
+  notes?: string
+}

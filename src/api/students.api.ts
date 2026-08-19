@@ -1,3 +1,5 @@
+
+
 import { apiRequest } from './client'
 
 export type StudentStatus = 'active' | 'inactive' | 'pending' | 'graduated'
@@ -11,6 +13,7 @@ export type StudentListItem = {
   birthDate: string
   groupId?: number
   groupName?: string
+  primaryGuardianName?: string
   status: StudentStatus
   enrollmentDate?: string
   withdrawalDate?: string

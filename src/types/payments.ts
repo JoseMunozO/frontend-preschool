@@ -23,3 +23,19 @@ export type StudentCharge = {
   createdAt?: string
   updatedAt?: string
 }
+
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER'
+
+export type PaymentAllocationRequest = {
+  studentChargeId: number
+  amountAllocated: number
+}
+
+export type PaymentRequest = {
+  paymentDate: string
+  totalAmount: number
+  paymentMethod: PaymentMethod
+  referenceNumber?: string
+  notes?: string
+  allocations: PaymentAllocationRequest[]
+}

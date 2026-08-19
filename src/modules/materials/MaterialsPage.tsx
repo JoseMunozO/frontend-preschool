@@ -1,8 +1,15 @@
+import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Eye, ListFilter, PackagePlus, Pencil, Plus, Search } from 'lucide-react'
-import { getMaterials } from '../../api/materials.api'
-import type { MaterialItem, MaterialStatus } from '../../types/materials'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeftRight, Eye, ListFilter, PackagePlus, Pencil, Plus, Search, X } from 'lucide-react'
+import { createMaterial, createMaterialMovement, getMaterials, updateMaterial } from '../../api/materials.api'
+import type {
+  MaterialItem,
+  MaterialMovementRequest,
+  MaterialMovementType,
+  MaterialRequest,
+  MaterialStatus,
+} from '../../types/materials'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyMaterials: MaterialItem[] = []
@@ -12,14 +19,132 @@ const statusLabels: Record<MaterialStatus, string> = {
   ARCHIVED: 'Archivado',
 }
 
+const movementTypeLabels: Record<MaterialMovementType, string> = {
+  IN: 'Entrada',
+  OUT: 'Salida',
+  ADJUSTMENT: 'Ajuste por conteo',
+}
+
+type MaterialFormValues = {
+  sku: string
+  name: string
+  category: string
+  unit: string
+  quantityOnHand: string
+  minimumQuantity: string
+  status: MaterialStatus
+  notes: string
+}
+
+type MaterialFormErrors = Partial<Record<keyof MaterialFormValues, string>>
+
+function emptyFormValues(): MaterialFormValues {
+  return {
+    sku: '',
+    name: '',
+    category: '',
+    unit: '',
+    quantityOnHand: '0',
+    minimumQuantity: '0',
+    status: 'ACTIVE',
+    notes: '',
+  }
+}
+
+function formValuesForMaterial(material: MaterialItem): MaterialFormValues {
+  return {
+    sku: material.sku ?? '',
+    name: material.name,
+    category: material.category ?? '',
+    unit: material.unit ?? '',
+    quantityOnHand: String(material.quantityOnHand),
+    minimumQuantity: String(material.minimumQuantity ?? 0),
+    status: material.status,
+    notes: material.notes ?? '',
+  }
+}
+
+function optionalValue(value: string) {
+  const trimmedValue = value.trim()
+  return trimmedValue || undefined
+}
+
+function validateMaterial(values: MaterialFormValues) {
+  const errors: MaterialFormErrors = {}
+
+  if (!values.name.trim()) {
+    errors.name = 'El nombre es obligatorio.'
+  }
+
+  if (values.quantityOnHand.trim() === '' || Number(values.quantityOnHand) < 0) {
+    errors.quantityOnHand = 'Indica una cantidad valida (0 o mayor).'
+  }
+
+  if (values.minimumQuantity.trim() === '' || Number(values.minimumQuantity) < 0) {
+    errors.minimumQuantity = 'Indica un minimo valido (0 o mayor).'
+  }
+
+  return errors
+}
+
+type MovementFormValues = {
+  movementType: MaterialMovementType
+  quantity: string
+  notes: string
+}
+
+function emptyMovementValues(): MovementFormValues {
+  return {
+    movementType: 'IN',
+    quantity: '',
+    notes: '',
+  }
+}
+
 export function MaterialsPage() {
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all')
+  const [editingMaterial, setEditingMaterial] = useState<MaterialItem | null>(null)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formValues, setFormValues] = useState<MaterialFormValues>(emptyFormValues)
+  const [formErrors, setFormErrors] = useState<MaterialFormErrors>({})
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [movementMaterial, setMovementMaterial] = useState<MaterialItem | null>(null)
+  const [movementValues, setMovementValues] = useState<MovementFormValues>(emptyMovementValues)
+  const [movementError, setMovementError] = useState<string | undefined>(undefined)
+
   const { data, error, isLoading } = useQuery({
     queryKey: ['materials'],
     queryFn: () => getMaterials(),
     retry: false,
+  })
+
+  const saveMaterialMutation = useMutation({
+    mutationFn: ({ materialId, request }: { materialId?: number; request: MaterialRequest }) =>
+      materialId ? updateMaterial(materialId, request) : createMaterial(request),
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['materials'] })
+      setSuccessMessage(
+        variables.materialId ? 'Material actualizado correctamente.' : 'Material creado correctamente.',
+      )
+      setIsFormOpen(false)
+      setEditingMaterial(null)
+      setFormErrors({})
+    },
+  })
+
+  const movementMutation = useMutation({
+    mutationFn: ({ materialId, request }: { materialId: number; request: MaterialMovementRequest }) =>
+      createMaterialMovement(materialId, request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['materials'] })
+      setSuccessMessage('Movimiento registrado correctamente.')
+      setMovementMaterial(null)
+      setMovementValues(emptyMovementValues())
+      setMovementError(undefined)
+    },
   })
 
   const materials = data ?? emptyMaterials
@@ -51,6 +176,98 @@ export function MaterialsPage() {
     })
   }, [categoryFilter, materials, search, stockFilter])
 
+  function openNewMaterialForm() {
+    setEditingMaterial(null)
+    setFormValues(emptyFormValues())
+    setFormErrors({})
+    saveMaterialMutation.reset()
+    setSuccessMessage(null)
+    setIsFormOpen(true)
+  }
+
+  function openEditMaterialForm(material: MaterialItem) {
+    setEditingMaterial(material)
+    setFormValues(formValuesForMaterial(material))
+    setFormErrors({})
+    saveMaterialMutation.reset()
+    setSuccessMessage(null)
+    setIsFormOpen(true)
+  }
+
+  function closeMaterialForm() {
+    setIsFormOpen(false)
+    setEditingMaterial(null)
+    setFormErrors({})
+    saveMaterialMutation.reset()
+  }
+
+  function updateField<Key extends keyof MaterialFormValues>(key: Key, value: MaterialFormValues[Key]) {
+    setFormValues((currentValues) => ({ ...currentValues, [key]: value }))
+    setFormErrors((currentErrors) => ({ ...currentErrors, [key]: undefined }))
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const errors = validateMaterial(formValues)
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      return
+    }
+
+    const request: MaterialRequest = {
+      sku: optionalValue(formValues.sku),
+      name: formValues.name.trim(),
+      category: optionalValue(formValues.category),
+      unit: optionalValue(formValues.unit),
+      quantityOnHand: Number(formValues.quantityOnHand),
+      minimumQuantity: Number(formValues.minimumQuantity),
+      status: formValues.status,
+      notes: optionalValue(formValues.notes),
+    }
+
+    saveMaterialMutation.mutate({ materialId: editingMaterial?.materialId, request })
+  }
+
+  function openMovementForm(material: MaterialItem) {
+    setMovementMaterial(material)
+    setMovementValues(emptyMovementValues())
+    setMovementError(undefined)
+    movementMutation.reset()
+    setSuccessMessage(null)
+  }
+
+  function closeMovementForm() {
+    setMovementMaterial(null)
+    setMovementValues(emptyMovementValues())
+    setMovementError(undefined)
+    movementMutation.reset()
+  }
+
+  function handleMovementSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!movementMaterial) {
+      return
+    }
+
+    const quantity = Number(movementValues.quantity)
+
+    if (!movementValues.quantity.trim() || quantity < 1) {
+      setMovementError('Indica una cantidad valida (1 o mayor).')
+      return
+    }
+
+    movementMutation.mutate({
+      materialId: movementMaterial.materialId,
+      request: {
+        movementType: movementValues.movementType,
+        quantity,
+        notes: optionalValue(movementValues.notes),
+      },
+    })
+  }
+
   return (
     <main className="page-content">
       <section className="page-heading page-heading-row">
@@ -58,13 +275,230 @@ export function MaterialsPage() {
           <h2>Material Escolar</h2>
           <p>Administra inventario, stock minimo y necesidades de reposicion.</p>
         </div>
-        <button className="primary-button inline-button" type="button">
+        <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
           <Plus size={17} aria-hidden="true" />
           Nuevo material
         </button>
       </section>
 
+      {successMessage ? (
+        <div className="success-notice" role="status">
+          {successMessage}
+        </div>
+      ) : null}
       {error ? <div className="notice">No se pudo cargar la lista de materiales.</div> : null}
+
+      {isFormOpen ? (
+        <section className="panel entity-form-panel" aria-labelledby="material-form-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="material-form-title">{editingMaterial ? 'Editar material' : 'Nuevo material'}</h3>
+              <p>Completa los datos del inventario.</p>
+            </div>
+            <button
+              aria-label="Cerrar formulario"
+              className="icon-button"
+              disabled={saveMaterialMutation.isPending}
+              onClick={closeMaterialForm}
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+          <form className="entity-form" onSubmit={handleSubmit}>
+            <div className="entity-form-grid">
+              <label>
+                Nombre *
+                <input
+                  maxLength={150}
+                  onChange={(event) => updateField('name', event.target.value)}
+                  value={formValues.name}
+                />
+                {formErrors.name ? <span className="field-error">{formErrors.name}</span> : null}
+              </label>
+              <label>
+                SKU
+                <input
+                  maxLength={50}
+                  onChange={(event) => updateField('sku', event.target.value)}
+                  value={formValues.sku}
+                />
+              </label>
+              <label>
+                Categoria
+                <input
+                  maxLength={100}
+                  onChange={(event) => updateField('category', event.target.value)}
+                  value={formValues.category}
+                />
+              </label>
+              <label>
+                Unidad
+                <input
+                  maxLength={50}
+                  onChange={(event) => updateField('unit', event.target.value)}
+                  placeholder="unidad, litro, paquete..."
+                  value={formValues.unit}
+                />
+              </label>
+              <label>
+                Cantidad actual *
+                <input
+                  min={0}
+                  onChange={(event) => updateField('quantityOnHand', event.target.value)}
+                  type="number"
+                  value={formValues.quantityOnHand}
+                />
+                {formErrors.quantityOnHand ? (
+                  <span className="field-error">{formErrors.quantityOnHand}</span>
+                ) : null}
+              </label>
+              <label>
+                Cantidad minima *
+                <input
+                  min={0}
+                  onChange={(event) => updateField('minimumQuantity', event.target.value)}
+                  type="number"
+                  value={formValues.minimumQuantity}
+                />
+                {formErrors.minimumQuantity ? (
+                  <span className="field-error">{formErrors.minimumQuantity}</span>
+                ) : null}
+              </label>
+              <label>
+                Estado
+                <select
+                  onChange={(event) => updateField('status', event.target.value as MaterialStatus)}
+                  value={formValues.status}
+                >
+                  {Object.entries(statusLabels).map(([status, label]) => (
+                    <option key={status} value={status}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="entity-form-full">
+                Notas
+                <textarea
+                  onChange={(event) => updateField('notes', event.target.value)}
+                  rows={2}
+                  value={formValues.notes}
+                />
+              </label>
+            </div>
+            {saveMaterialMutation.error ? (
+              <p className="form-error" role="alert">
+                {saveMaterialMutation.error instanceof Error
+                  ? saveMaterialMutation.error.message
+                  : 'No se pudo guardar el material.'}
+              </p>
+            ) : null}
+            <footer className="form-actions">
+              <button
+                className="secondary-button"
+                disabled={saveMaterialMutation.isPending}
+                onClick={closeMaterialForm}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={saveMaterialMutation.isPending} type="submit">
+                {saveMaterialMutation.isPending
+                  ? 'Guardando...'
+                  : editingMaterial
+                    ? 'Guardar cambios'
+                    : 'Crear material'}
+              </button>
+            </footer>
+          </form>
+        </section>
+      ) : null}
+
+      {movementMaterial ? (
+        <section className="panel entity-form-panel" aria-labelledby="movement-form-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="movement-form-title">Registrar movimiento</h3>
+              <p>{translateBackendSeed(movementMaterial.name)} - existencia actual: {movementMaterial.quantityOnHand}</p>
+            </div>
+            <button
+              aria-label="Cerrar formulario"
+              className="icon-button"
+              disabled={movementMutation.isPending}
+              onClick={closeMovementForm}
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+          <form className="entity-form" onSubmit={handleMovementSubmit}>
+            <div className="entity-form-grid">
+              <label>
+                Tipo de movimiento
+                <select
+                  onChange={(event) =>
+                    setMovementValues((current) => ({
+                      ...current,
+                      movementType: event.target.value as MaterialMovementType,
+                    }))
+                  }
+                  value={movementValues.movementType}
+                >
+                  {Object.entries(movementTypeLabels).map(([type, label]) => (
+                    <option key={type} value={type}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Cantidad *
+                <input
+                  min={1}
+                  onChange={(event) => {
+                    setMovementValues((current) => ({ ...current, quantity: event.target.value }))
+                    setMovementError(undefined)
+                  }}
+                  type="number"
+                  value={movementValues.quantity}
+                />
+                {movementError ? <span className="field-error">{movementError}</span> : null}
+              </label>
+              <label className="entity-form-full">
+                Comentario
+                <textarea
+                  onChange={(event) =>
+                    setMovementValues((current) => ({ ...current, notes: event.target.value }))
+                  }
+                  rows={2}
+                  value={movementValues.notes}
+                />
+              </label>
+            </div>
+            {movementMutation.error ? (
+              <p className="form-error" role="alert">
+                {movementMutation.error instanceof Error
+                  ? movementMutation.error.message
+                  : 'No se pudo registrar el movimiento.'}
+              </p>
+            ) : null}
+            <footer className="form-actions">
+              <button
+                className="secondary-button"
+                disabled={movementMutation.isPending}
+                onClick={closeMovementForm}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={movementMutation.isPending} type="submit">
+                {movementMutation.isPending ? 'Guardando...' : 'Registrar movimiento'}
+              </button>
+            </footer>
+          </form>
+        </section>
+      ) : null}
 
       <section className="filters-row filters-row-materials" aria-label="Filtros de materiales">
         <label className="search-field">
@@ -150,8 +584,11 @@ export function MaterialsPage() {
                     <button title="Ver" type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
-                    <button title="Editar" type="button">
+                    <button onClick={() => openEditMaterialForm(material)} title="Editar" type="button">
                       <Pencil size={16} aria-hidden="true" />
+                    </button>
+                    <button onClick={() => openMovementForm(material)} title="Registrar movimiento" type="button">
+                      <ArrowLeftRight size={16} aria-hidden="true" />
                     </button>
                   </div>
                 </td>
