@@ -1,5 +1,5 @@
 import { apiRequest } from './client'
-import type { PaymentChargeStatus, StudentCharge } from '../types/payments'
+import type { PaymentChargeStatus, PaymentRequest, StudentCharge } from '../types/payments'
 
 type GetStudentChargesParams = {
   month?: string
@@ -19,4 +19,11 @@ export function getStudentCharges(params: GetStudentChargesParams = {}) {
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
   return apiRequest<StudentCharge[]>(`/api/payments/charges${query}`)
+}
+
+export function createPayment(request: PaymentRequest) {
+  return apiRequest('/api/payments', {
+    method: 'POST',
+    body: request,
+  })
 }

@@ -42,7 +42,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -133,7 +134,10 @@ a {
 
 .login-form input,
 .filters-row input,
-.filters-row select {
+.filters-row select,
+.entity-form input,
+.entity-form select,
+.entity-form textarea {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -144,7 +148,10 @@ a {
 
 .login-form input:focus,
 .filters-row input:focus,
-.filters-row select:focus {
+.filters-row select:focus,
+.entity-form input:focus,
+.entity-form select:focus,
+.entity-form textarea:focus {
   border-color: var(--primary);
   outline: 3px solid rgba(108, 92, 231, 0.14);
 }
@@ -198,6 +205,14 @@ a {
   border: 1px solid rgba(229, 72, 77, 0.22);
   border-radius: 6px;
   color: #b42318;
+  padding: 12px 14px;
+}
+
+.success-notice {
+  background: var(--green-soft);
+  border: 1px solid rgba(54, 179, 106, 0.2);
+  border-radius: 6px;
+  color: #16834d;
   padding: 12px 14px;
 }
 
@@ -499,6 +514,61 @@ a {
   color: var(--text-muted);
 }
 
+.entity-form-panel {
+  min-height: auto;
+}
+
+.form-panel-heading {
+  align-items: start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.entity-form {
+  display: grid;
+  gap: 18px;
+}
+
+.entity-form-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.entity-form label {
+  color: var(--text);
+  display: grid;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 7px;
+}
+
+.entity-form-wide {
+  grid-column: span 2;
+}
+
+.entity-form-full {
+  grid-column: 1 / -1;
+}
+
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.field-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
 .donut-summary {
   align-items: center;
   display: grid;
@@ -784,8 +854,13 @@ td {
 
   .stats-grid,
   .work-grid,
-  .filters-row {
+  .filters-row,
+  .entity-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .entity-form-wide {
+    grid-column: auto;
   }
 
   .page-heading-row,

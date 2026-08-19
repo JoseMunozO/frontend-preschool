@@ -1,5 +1,11 @@
 import { apiRequest } from './client'
-import type { MaterialItem, MaterialStatus } from '../types/materials'
+import type {
+  MaterialItem,
+  MaterialMovement,
+  MaterialMovementRequest,
+  MaterialRequest,
+  MaterialStatus,
+} from '../types/materials'
 
 type GetMaterialsParams = {
   search?: string
@@ -33,4 +39,25 @@ export function getMaterials(params: GetMaterialsParams = {}) {
 
 export function getLowStockMaterials() {
   return apiRequest<MaterialItem[]>('/api/materials/low-stock')
+}
+
+export function createMaterial(request: MaterialRequest) {
+  return apiRequest<MaterialItem>('/api/materials', {
+    method: 'POST',
+    body: request,
+  })
+}
+
+export function updateMaterial(materialId: number, request: MaterialRequest) {
+  return apiRequest<MaterialItem>(`/api/materials/${materialId}`, {
+    method: 'PUT',
+    body: request,
+  })
+}
+
+export function createMaterialMovement(materialId: number, request: MaterialMovementRequest) {
+  return apiRequest<MaterialMovement>(`/api/materials/${materialId}/movements`, {
+    method: 'POST',
+    body: request,
+  })
 }
