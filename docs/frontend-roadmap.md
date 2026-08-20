@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-19.
+Ultima actualizacion: 2026-08-20.
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -36,18 +36,31 @@ Ultima actualizacion: 2026-08-19.
 - Horarios mapeado a `ScheduleSlotResponse` real del backend.
 - Horarios: formulario de creacion/edicion de actividades con asignacion de responsable.
 - Estilos de formulario de entidad generalizados y reutilizados entre modulos.
+- Padres/tutores: cantidad de hijos mostrada en la tabla, vía `GET /api/parents/{parentId}/students` por tutor (`useQueries` en `ParentsPage.tsx`). Implementado en el working tree de `feat/parents-children-count`, pendiente de verificar lint/build y commitear.
+
+## Backend API — cambios pendientes de aprovechar (sync 2026-08-20)
+
+El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
+
+- **Filtros de estudiantes server-side** (`GET /api/students?search=&groupId=&status=`): `getStudents()` en `src/api/students.api.ts` no envia ningun parametro todavia; `StudentsPage.tsx` sigue filtrando 100% en cliente. Migrar antes de construir paginacion real (punto 2 de abajo), porque el filtrado local no pagina bien.
+- **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
+- **Contactos de emergencia** (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`): no existe ningun modulo, tipo ni llamada en el frontend todavia.
+- **Reporte mensual de pagos** (`GET /api/payments/reports/monthly?month=YYYY-MM`): no hay ninguna pantalla ni llamada que lo consuma; encaja con el punto 4 de abajo (historial/reportes de pagos).
+- **Manejo de `403`**: `src/api/client.ts` solo tiene rama especial para `401` (`unauthorizedHandler`); un `403` cae al mismo `throw new ApiError(...)` generico, sin pantalla "No tienes permiso" en ningun componente. Antes esto se enmascaraba porque el backend real devolvia `401` en vez de `403` para peticiones sin permiso (bug ya corregido en backend), asi que ahora es visible y vale la pena cerrarlo — ver Fase 6.
 
 ## Siguiente Punto Recomendado
 
 Prioridad inmediata:
 
-1. Mostrar cantidad de hijos en la tabla de padres/tutores (columna "Hijos" existe en UI pero muestra "No disponible" fijo).
-2. Implementar paginacion real de estudiantes (los controles de paginacion son visuales, sin logica todavia).
-3. Agregar confirmaciones para acciones sensibles (desactivar padre/tutor, eliminar, etc.) — no hay ningun dialogo de confirmacion en el frontend todavia.
-4. Vista de historial de pagos por estudiante.
-5. Validar responsive real de dashboard y tablas principales.
+1. Confirmar `npm run lint && npm run build` en `feat/parents-children-count` y abrir PR (cantidad de hijos en tabla de padres/tutores — implementacion ya en el working tree).
+2. Migrar `GET /api/students` a filtros server-side (`search`, `groupId`, `status`) e implementar paginacion real (los controles de paginacion son visuales, sin logica todavia).
+3. Agregar manejo de `403` distinto de `401` (pantalla "No tienes permiso"), ahora que el backend lo distingue correctamente.
+4. Agregar confirmaciones para acciones sensibles (desactivar padre/tutor, eliminar, etc.) — no hay ningun dialogo de confirmacion en el frontend todavia.
+5. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
+6. Modulo de contactos de emergencia por estudiante (no existe todavia).
+7. Validar responsive real de dashboard y tablas principales.
 
-Branch sugerido:
+Branch en curso:
 
 ```text
 feat/parents-children-count
@@ -113,11 +126,12 @@ feat(parents): show children count in parents table
 - [x] Estudiantes: busqueda local por nombre o codigo.
 - [x] Estudiantes: filtro local por grupo.
 - [x] Estudiantes: mostrar tutor principal.
+- [ ] Estudiantes: migrar busqueda/filtro de grupo a parametros server-side (`search`, `groupId`, `status` en `GET /api/students`) en vez de filtrado 100% local.
 - [ ] Estudiantes: paginacion real (controles visuales presentes, sin logica).
 - [x] Padres/tutores: tabla visual inicial.
 - [x] Padres/tutores: adaptar campos reales del backend.
 - [x] Padres/tutores: busqueda local por nombre, correo o telefono.
-- [ ] Padres/tutores: mostrar cantidad de hijos (columna en UI, valor fijo "No disponible").
+- [x] Padres/tutores: mostrar cantidad de hijos (`GET /api/parents/{parentId}/students` por tutor en `ParentsPage.tsx`; en `feat/parents-children-count`, pendiente de commit).
 - [x] Pagos: tabla visual inicial.
 - [x] Pagos: adaptar campos reales de cargos del backend.
 - [x] Pagos: filtros por mes y estado.
@@ -136,6 +150,7 @@ feat(parents): show children count in parents table
 - [x] Horarios: filtro local por grupo.
 - [x] Horarios: crear/editar actividades.
 - [ ] Horarios: vista semanal o calendario visual.
+- [ ] Contactos de emergencia: modulo nuevo (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`), sin frontend todavia.
 
 ## Fase 5 - Formularios
 
@@ -150,7 +165,7 @@ feat(parents): show children count in parents table
 
 - [x] Estados de carga.
 - [x] Estados vacios.
-- [ ] Manejo de errores API (validacion de formularios presente; sin revisar manejo uniforme de errores de red/API).
+- [ ] Manejo de errores API (validacion de formularios presente; falta manejo uniforme de errores de red/API). En concreto: `src/api/client.ts` solo tiene rama especial para `401`; falta pantalla "No tienes permiso" para `403`, ahora que el backend lo distingue correctamente de `401` (antes un bug en el backend real devolvia `401` para todo rechazo por rol).
 - [ ] Confirmaciones para acciones sensibles (ninguna accion usa dialogo de confirmacion todavia).
 - [x] Filtros por modulo.
 - [ ] Tests de formularios y flujos criticos.
@@ -174,13 +189,21 @@ feat/student-form
 feat/student-primary-guardian
 ```
 
-Siguientes:
+En curso (working tree, sin commitear):
 
 ```text
 feat/parents-children-count
+```
+
+Siguientes:
+
+```text
+feat/students-server-filters
 feat/students-pagination
-feat/payment-history
-feat/schedule-week-view
+fix/403-permission-screen
 feat/action-confirmations
+feat/payment-history
+feat/emergency-contacts
+feat/schedule-week-view
 feat/responsive-polish
 ```
