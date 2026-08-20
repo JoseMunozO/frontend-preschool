@@ -1,6 +1,8 @@
-import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
 import { createStudent, getStudents, updateStudent } from '../../api/students.api'
 import type { StudentListItem, StudentRequest, StudentStatus } from '../../api/students.api'
@@ -17,21 +19,39 @@ const statusLabels: Record<StudentStatus, string> = {
 
 const statusDangerValues = new Set(['inactive'])
 
-type StudentFormValues = {
-  studentCode: string
-  firstName: string
-  lastName: string
-  birthDate: string
-  groupId: string
-  status: StudentStatus
-  enrollmentDate: string
-  withdrawalDate: string
-  medicalNotes: string
-  allergies: string
-  notes: string
-}
+const studentFormSchema = z
+  .object({
+    studentCode: z.string(),
+    firstName: z.string().trim().min(1, 'El nombre es obligatorio.'),
+    lastName: z.string().trim().min(1, 'Los apellidos son obligatorios.'),
+    birthDate: z.string().min(1, 'La fecha de nacimiento es obligatoria.'),
+    groupId: z.string(),
+    status: z.enum(['active', 'inactive', 'pending', 'graduated']),
+    enrollmentDate: z.string().min(1, 'La fecha de ingreso es obligatoria.'),
+    withdrawalDate: z.string(),
+    medicalNotes: z.string(),
+    allergies: z.string(),
+    notes: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.birthDate && values.enrollmentDate && values.birthDate > values.enrollmentDate) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'La fecha de ingreso debe ser posterior al nacimiento.',
+        path: ['enrollmentDate'],
+      })
+    }
 
-type StudentFormErrors = Partial<Record<keyof StudentFormValues, string>>
+    if (values.withdrawalDate && values.enrollmentDate && values.withdrawalDate < values.enrollmentDate) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'La fecha de baja debe ser posterior al ingreso.',
+        path: ['withdrawalDate'],
+      })
+    }
+  })
+
+type StudentFormValues = z.infer<typeof studentFormSchema>
 
 function todayInputValue() {
   const date = new Date()
@@ -76,36 +96,6 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
-function validateStudent(values: StudentFormValues) {
-  const errors: StudentFormErrors = {}
-
-  if (!values.firstName.trim()) {
-    errors.firstName = 'El nombre es obligatorio.'
-  }
-
-  if (!values.lastName.trim()) {
-    errors.lastName = 'Los apellidos son obligatorios.'
-  }
-
-  if (!values.birthDate) {
-    errors.birthDate = 'La fecha de nacimiento es obligatoria.'
-  }
-
-  if (!values.enrollmentDate) {
-    errors.enrollmentDate = 'La fecha de ingreso es obligatoria.'
-  }
-
-  if (values.birthDate && values.enrollmentDate && values.birthDate > values.enrollmentDate) {
-    errors.enrollmentDate = 'La fecha de ingreso debe ser posterior al nacimiento.'
-  }
-
-  if (values.withdrawalDate && values.enrollmentDate && values.withdrawalDate < values.enrollmentDate) {
-    errors.withdrawalDate = 'La fecha de baja debe ser posterior al ingreso.'
-  }
-
-  return errors
-}
-
 function formatStudentName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim()
 }
@@ -128,9 +118,16 @@ export function StudentsPage() {
   const [groupFilter, setGroupFilter] = useState('all')
   const [editingStudent, setEditingStudent] = useState<StudentListItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [formValues, setFormValues] = useState<StudentFormValues>(emptyFormValues)
-  const [formErrors, setFormErrors] = useState<StudentFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors: formErrors },
+  } = useForm<StudentFormValues>({
+    resolver: zodResolver(studentFormSchema),
+    defaultValues: emptyFormValues(),
+  })
   const { data, error, isLoading } = useQuery({
     queryKey: ['students'],
     queryFn: getStudents,
@@ -151,7 +148,6 @@ export function StudentsPage() {
       )
       setIsFormOpen(false)
       setEditingStudent(null)
-      setFormErrors({})
     },
   })
 
@@ -191,8 +187,7 @@ export function StudentsPage() {
 
   function openNewStudentForm() {
     setEditingStudent(null)
-    setFormValues(emptyFormValues())
-    setFormErrors({})
+    reset(emptyFormValues())
     saveStudentMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -200,8 +195,7 @@ export function StudentsPage() {
 
   function openEditStudentForm(student: StudentListItem) {
     setEditingStudent(student)
-    setFormValues(formValuesForStudent(student))
-    setFormErrors({})
+    reset(formValuesForStudent(student))
     saveStudentMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -210,40 +204,26 @@ export function StudentsPage() {
   function closeStudentForm() {
     setIsFormOpen(false)
     setEditingStudent(null)
-    setFormErrors({})
     saveStudentMutation.reset()
   }
 
-  function updateField<Key extends keyof StudentFormValues>(key: Key, value: StudentFormValues[Key]) {
-    setFormValues((currentValues) => ({ ...currentValues, [key]: value }))
-    setFormErrors((currentErrors) => ({ ...currentErrors, [key]: undefined }))
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const errors = validateStudent(formValues)
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
-      return
-    }
-
+  const onSubmit = handleSubmit((values) => {
     const request: StudentRequest = {
-      studentCode: optionalValue(formValues.studentCode),
-      firstName: formValues.firstName.trim(),
-      lastName: formValues.lastName.trim(),
-      birthDate: formValues.birthDate,
-      groupId: formValues.groupId ? Number(formValues.groupId) : undefined,
-      status: formValues.status,
-      enrollmentDate: formValues.enrollmentDate,
-      withdrawalDate: optionalValue(formValues.withdrawalDate),
-      medicalNotes: optionalValue(formValues.medicalNotes),
-      allergies: optionalValue(formValues.allergies),
-      notes: optionalValue(formValues.notes),
+      studentCode: optionalValue(values.studentCode),
+      firstName: values.firstName,
+      lastName: values.lastName,
+      birthDate: values.birthDate,
+      groupId: values.groupId ? Number(values.groupId) : undefined,
+      status: values.status,
+      enrollmentDate: values.enrollmentDate,
+      withdrawalDate: optionalValue(values.withdrawalDate),
+      medicalNotes: optionalValue(values.medicalNotes),
+      allergies: optionalValue(values.allergies),
+      notes: optionalValue(values.notes),
     }
 
     saveStudentMutation.mutate({ studentId: editingStudent?.studentId, request })
-  }
+  })
 
   return (
     <main className="page-content">
@@ -284,40 +264,27 @@ export function StudentsPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <form className="entity-form" onSubmit={handleSubmit}>
+          <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
                 Nombre *
-                <input
-                  maxLength={100}
-                  onChange={(event) => updateField('firstName', event.target.value)}
-                  value={formValues.firstName}
-                />
-                {formErrors.firstName ? <span className="field-error">{formErrors.firstName}</span> : null}
+                <input maxLength={100} {...register('firstName')} />
+                {formErrors.firstName ? (
+                  <span className="field-error">{formErrors.firstName.message}</span>
+                ) : null}
               </label>
               <label>
                 Apellidos *
-                <input
-                  maxLength={100}
-                  onChange={(event) => updateField('lastName', event.target.value)}
-                  value={formValues.lastName}
-                />
-                {formErrors.lastName ? <span className="field-error">{formErrors.lastName}</span> : null}
+                <input maxLength={100} {...register('lastName')} />
+                {formErrors.lastName ? <span className="field-error">{formErrors.lastName.message}</span> : null}
               </label>
               <label>
                 Codigo
-                <input
-                  maxLength={50}
-                  onChange={(event) => updateField('studentCode', event.target.value)}
-                  value={formValues.studentCode}
-                />
+                <input maxLength={50} {...register('studentCode')} />
               </label>
               <label>
                 Estado
-                <select
-                  onChange={(event) => updateField('status', event.target.value as StudentStatus)}
-                  value={formValues.status}
-                >
+                <select {...register('status')}>
                   {Object.entries(statusLabels).map(([status, label]) => (
                     <option key={status} value={status}>
                       {label}
@@ -327,30 +294,19 @@ export function StudentsPage() {
               </label>
               <label>
                 Fecha de nacimiento *
-                <input
-                  onChange={(event) => updateField('birthDate', event.target.value)}
-                  type="date"
-                  value={formValues.birthDate}
-                />
-                {formErrors.birthDate ? <span className="field-error">{formErrors.birthDate}</span> : null}
+                <input type="date" {...register('birthDate')} />
+                {formErrors.birthDate ? <span className="field-error">{formErrors.birthDate.message}</span> : null}
               </label>
               <label>
                 Fecha de ingreso *
-                <input
-                  onChange={(event) => updateField('enrollmentDate', event.target.value)}
-                  type="date"
-                  value={formValues.enrollmentDate}
-                />
+                <input type="date" {...register('enrollmentDate')} />
                 {formErrors.enrollmentDate ? (
-                  <span className="field-error">{formErrors.enrollmentDate}</span>
+                  <span className="field-error">{formErrors.enrollmentDate.message}</span>
                 ) : null}
               </label>
               <label>
                 Grupo
-                <select
-                  onChange={(event) => updateField('groupId', event.target.value)}
-                  value={formValues.groupId}
-                >
+                <select {...register('groupId')}>
                   <option value="">Sin grupo asignado</option>
                   {formGroups.map(([groupId, groupName]) => (
                     <option key={groupId} value={groupId}>
@@ -362,38 +318,22 @@ export function StudentsPage() {
               </label>
               <label>
                 Fecha de baja
-                <input
-                  onChange={(event) => updateField('withdrawalDate', event.target.value)}
-                  type="date"
-                  value={formValues.withdrawalDate}
-                />
+                <input type="date" {...register('withdrawalDate')} />
                 {formErrors.withdrawalDate ? (
-                  <span className="field-error">{formErrors.withdrawalDate}</span>
+                  <span className="field-error">{formErrors.withdrawalDate.message}</span>
                 ) : null}
               </label>
               <label className="entity-form-wide">
                 Alergias
-                <textarea
-                  onChange={(event) => updateField('allergies', event.target.value)}
-                  rows={2}
-                  value={formValues.allergies}
-                />
+                <textarea rows={2} {...register('allergies')} />
               </label>
               <label className="entity-form-wide">
                 Notas medicas
-                <textarea
-                  onChange={(event) => updateField('medicalNotes', event.target.value)}
-                  rows={2}
-                  value={formValues.medicalNotes}
-                />
+                <textarea rows={2} {...register('medicalNotes')} />
               </label>
               <label className="entity-form-full">
                 Observaciones
-                <textarea
-                  onChange={(event) => updateField('notes', event.target.value)}
-                  rows={2}
-                  value={formValues.notes}
-                />
+                <textarea rows={2} {...register('notes')} />
               </label>
             </div>
             {saveStudentMutation.error ? (
