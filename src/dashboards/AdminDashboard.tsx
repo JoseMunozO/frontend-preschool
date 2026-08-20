@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { Box, DollarSign, UsersRound } from 'lucide-react'
 import { getDashboardSummary } from '../api/dashboard.api'
 import { StatCard } from '../components/ui/StatCard'
+import { isForbiddenError } from '../utils/apiErrors'
 import { translateBackendSeed } from '../utils/displayText'
 
 const numberFormatter = new Intl.NumberFormat('es-MX')
@@ -37,8 +38,9 @@ export function AdminDashboard() {
 
       {error ? (
         <div className="notice">
-          No se pudo cargar el dashboard. Verifica que el backend este iniciado y que tu usuario
-          tenga permisos.
+          {isForbiddenError(error)
+            ? 'No tienes permiso para ver el dashboard.'
+            : 'No se pudo cargar el dashboard. Verifica que el backend este iniciado.'}
         </div>
       ) : null}
 

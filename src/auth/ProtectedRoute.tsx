@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { ForbiddenPage } from '../modules/shared/ForbiddenPage'
 import { useAuthStore } from './auth.store'
 
 type ProtectedRouteProps = {
@@ -15,7 +16,7 @@ export function ProtectedRoute({ roles }: ProtectedRouteProps) {
   }
 
   if (roles && roles.length > 0 && !hasAnyRole(roles)) {
-    return <Navigate to="/" replace />
+    return <ForbiddenPage />
   }
 
   return <Outlet />

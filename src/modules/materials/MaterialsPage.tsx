@@ -12,6 +12,7 @@ import type {
   MaterialRequest,
   MaterialStatus,
 } from '../../types/materials'
+import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyMaterials: MaterialItem[] = []
@@ -265,7 +266,13 @@ export function MaterialsPage() {
           {successMessage}
         </div>
       ) : null}
-      {error ? <div className="notice">No se pudo cargar la lista de materiales.</div> : null}
+      {error ? (
+        <div className="notice">
+          {isForbiddenError(error)
+            ? 'No tienes permiso para ver la lista de materiales.'
+            : 'No se pudo cargar la lista de materiales.'}
+        </div>
+      ) : null}
 
       {isFormOpen ? (
         <section className="panel entity-form-panel" aria-labelledby="material-form-title">

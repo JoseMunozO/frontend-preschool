@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
 import { createStudent, getStudents, updateStudent } from '../../api/students.api'
 import type { StudentListItem, StudentRequest, StudentStatus } from '../../api/students.api'
+import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyStudents: StudentListItem[] = []
@@ -243,7 +244,13 @@ export function StudentsPage() {
           {successMessage}
         </div>
       ) : null}
-      {error ? <div className="notice">No se pudo cargar la lista de estudiantes.</div> : null}
+      {error ? (
+        <div className="notice">
+          {isForbiddenError(error)
+            ? 'No tienes permiso para ver la lista de estudiantes.'
+            : 'No se pudo cargar la lista de estudiantes.'}
+        </div>
+      ) : null}
 
       {isFormOpen ? (
         <section className="panel entity-form-panel" aria-labelledby="student-form-title">

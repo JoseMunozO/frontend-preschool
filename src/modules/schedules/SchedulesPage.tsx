@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { CalendarDays, Eye, ListFilter, Pencil, Plus, Search, X } from 'lucide-react'
 import { createSchedule, getSchedules, updateSchedule } from '../../api/schedules.api'
 import type { DayOfWeek, ScheduleItem, ScheduleRequest } from '../../types/schedules'
+import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const emptySchedules: ScheduleItem[] = []
@@ -211,7 +212,13 @@ export function SchedulesPage() {
           {successMessage}
         </div>
       ) : null}
-      {error ? <div className="notice">No se pudo cargar la lista de horarios.</div> : null}
+      {error ? (
+        <div className="notice">
+          {isForbiddenError(error)
+            ? 'No tienes permiso para ver la lista de horarios.'
+            : 'No se pudo cargar la lista de horarios.'}
+        </div>
+      ) : null}
 
       {isFormOpen ? (
         <section className="panel entity-form-panel" aria-labelledby="schedule-form-title">
