@@ -37,7 +37,8 @@ Ultima actualizacion: 2026-08-20.
 - Horarios: formulario de creacion/edicion de actividades con asignacion de responsable.
 - Estilos de formulario de entidad generalizados y reutilizados entre modulos.
 - Padres/tutores: cantidad de hijos mostrada en la tabla, vía `GET /api/parents/{parentId}/students` por tutor (`useQueries` en `ParentsPage.tsx`). Mergeado a `main` (PR #18).
-- Formularios de entidad (padres/tutores, estudiantes, materiales + movimientos, horarios) migrados de `useState`/validacion manual a React Hook Form + Zod (`useForm` + `zodResolver`); reglas cruzadas (fechas, horas) via `superRefine`. Mismos campos, mensajes y estilos visuales que antes. Mergeado a `main` (PRs #19, #20, #21, #22).
+- Formularios de entidad (padres/tutores, estudiantes, materiales + movimientos, horarios, pagos) migrados de `useState`/validacion manual a React Hook Form + Zod (`useForm` + `zodResolver`); reglas cruzadas dentro del formulario via `superRefine`, y la regla de pagos que depende del cargo seleccionado (dato externo al formulario) via `setError` manual en el submit. Mismos campos, mensajes y estilos visuales que antes. Mergeado a `main` (PRs #19-#22, #24).
+- Manejo de `403` distinto de `401`: `isForbiddenError()` en `src/utils/apiErrors.ts` detecta `ApiError` con `status === 403`; cada modulo (dashboard, estudiantes, padres/tutores, pagos, materiales, horarios) muestra un mensaje especifico "No tienes permiso para..." en vez del error generico. `ProtectedRoute` tambien muestra una pantalla `ForbiddenPage` ("No tienes permiso") cuando `roles` no coincide con el usuario, aunque ningun route todavia pasa `roles` (mecanismo listo, sin usar aun). Verificado con un usuario `TEACHER` real contra el backend.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-20)
 
@@ -46,22 +47,25 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 - **Filtros de estudiantes server-side** (`GET /api/students?search=&groupId=&status=`): `getStudents()` en `src/api/students.api.ts` no envia ningun parametro todavia; `StudentsPage.tsx` sigue filtrando 100% en cliente. Migrar antes de construir paginacion real (punto 2 de abajo), porque el filtrado local no pagina bien.
 - **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
 - **Contactos de emergencia** (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`): no existe ningun modulo, tipo ni llamada en el frontend todavia.
-- **Reporte mensual de pagos** (`GET /api/payments/reports/monthly?month=YYYY-MM`): no hay ninguna pantalla ni llamada que lo consuma; encaja con el punto 4 de abajo (historial/reportes de pagos).
-- **Manejo de `403`**: `src/api/client.ts` solo tiene rama especial para `401` (`unauthorizedHandler`); un `403` cae al mismo `throw new ApiError(...)` generico, sin pantalla "No tienes permiso" en ningun componente. Antes esto se enmascaraba porque el backend real devolvia `401` en vez de `403` para peticiones sin permiso (bug ya corregido en backend), asi que ahora es visible y vale la pena cerrarlo — ver Fase 6.
+- **Reporte mensual de pagos** (`GET /api/payments/reports/monthly?month=YYYY-MM`): no hay ninguna pantalla ni llamada que lo consuma; encaja con el punto 3 de abajo (historial/reportes de pagos).
 
 ## Siguiente Punto Recomendado
 
 Prioridad inmediata:
 
 1. Migrar `GET /api/students` a filtros server-side (`search`, `groupId`, `status`) e implementar paginacion real (los controles de paginacion son visuales, sin logica todavia).
-2. Agregar manejo de `403` distinto de `401` (pantalla "No tienes permiso"), ahora que el backend lo distingue correctamente.
-3. Agregar confirmaciones para acciones sensibles (desactivar padre/tutor, eliminar, etc.) — no hay ningun dialogo de confirmacion en el frontend todavia.
-4. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
-5. Modulo de contactos de emergencia por estudiante (no existe todavia).
-6. Adoptar Tailwind de forma incremental: mapear las variables CSS actuales (`--primary`, `--border`, `--shadow`, etc. en `src/index.css`) al `@theme` de Tailwind v4, y usarlo solo en codigo nuevo — sin reescribir el CSS existente de una vez. Ver decision registrada en memoria del proyecto.
-7. Validar responsive real de dashboard y tablas principales.
+2. Agregar confirmaciones para acciones sensibles (desactivar padre/tutor, eliminar, etc.) — no hay ningun dialogo de confirmacion en el frontend todavia.
+3. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
+4. Modulo de contactos de emergencia por estudiante (no existe todavia).
+5. Adoptar Tailwind de forma incremental: mapear las variables CSS actuales (`--primary`, `--border`, `--shadow`, etc. en `src/index.css`) al `@theme` de Tailwind v4, y usarlo solo en codigo nuevo — sin reescribir el CSS existente de una vez. Ver decision registrada en memoria del proyecto.
+6. Validar responsive real de dashboard y tablas principales.
+7. Cuando se agreguen roles diferenciados por ruta, pasar `roles` a `ProtectedRoute` en `router.tsx` (el componente ya soporta mostrar `ForbiddenPage`, pero ningun route lo usa todavia).
 
-Sin branch en curso; el trabajo de padres/tutores y la migracion a React Hook Form + Zod ya estan mergeados a `main`.
+Branch en curso:
+
+```text
+fix/403-permission-screen
+```
 
 ## Fase 0 - Base Del Proyecto
 
@@ -155,13 +159,13 @@ Sin branch en curso; el trabajo de padres/tutores y la migracion a React Hook Fo
 - [x] Migrar formulario de estudiantes a React Hook Form + Zod (incluye reglas cruzadas de fechas via `superRefine`).
 - [x] Migrar formularios de materiales (entidad + movimiento) a React Hook Form + Zod.
 - [x] Migrar formulario de horarios a React Hook Form + Zod (incluye regla cruzada de horas via `superRefine`).
-- [ ] Migrar formulario de pagos a React Hook Form + Zod (unico modulo que todavia no paso por esta migracion).
+- [x] Migrar formulario de pagos a React Hook Form + Zod (el monto vs. saldo del cargo se valida con `setError` manual, ya que depende de un dato externo al formulario).
 
 ## Fase 6 - Calidad
 
 - [x] Estados de carga.
 - [x] Estados vacios.
-- [ ] Manejo de errores API (validacion de formularios presente; falta manejo uniforme de errores de red/API). En concreto: `src/api/client.ts` solo tiene rama especial para `401`; falta pantalla "No tienes permiso" para `403`, ahora que el backend lo distingue correctamente de `401` (antes un bug en el backend real devolvia `401` para todo rechazo por rol).
+- [x] Manejo de errores API: `isForbiddenError()` distingue `403` de otros errores en los 6 modulos con `useQuery`, mostrando "No tienes permiso para..." en vez del mensaje generico. `ProtectedRoute` muestra `ForbiddenPage` si el rol no coincide (mecanismo listo, sin rutas usandolo aun — ver Siguiente Punto Recomendado). Verificado con un usuario `TEACHER` real.
 - [ ] Confirmaciones para acciones sensibles (ninguna accion usa dialogo de confirmacion todavia).
 - [x] Filtros por modulo.
 - [ ] Tests de formularios y flujos criticos.
@@ -188,6 +192,7 @@ chore/parents-form-rhf-zod
 chore/students-form-rhf-zod
 chore/materials-form-rhf-zod
 chore/schedules-form-rhf-zod
+chore/payments-form-rhf-zod
 ```
 
 Siguientes:
@@ -195,11 +200,9 @@ Siguientes:
 ```text
 feat/students-server-filters
 feat/students-pagination
-fix/403-permission-screen
 feat/action-confirmations
 feat/payment-history
 feat/emergency-contacts
-chore/payments-form-rhf-zod
 chore/tailwind-theme-tokens
 feat/schedule-week-view
 feat/responsive-polish

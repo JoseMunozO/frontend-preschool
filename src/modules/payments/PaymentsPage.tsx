@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Eye, FileText, ListFilter, Plus, Search, X } from 'lucide-react'
 import { createPayment, getStudentCharges } from '../../api/payments.api'
 import type { PaymentChargeStatus, PaymentMethod, PaymentRequest, StudentCharge } from '../../types/payments'
+import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyCharges: StudentCharge[] = []
@@ -226,7 +227,13 @@ export function PaymentsPage() {
           {successMessage}
         </div>
       ) : null}
-      {error ? <div className="notice">No se pudo cargar la lista de cargos.</div> : null}
+      {error ? (
+        <div className="notice">
+          {isForbiddenError(error)
+            ? 'No tienes permiso para ver la lista de cargos.'
+            : 'No se pudo cargar la lista de cargos.'}
+        </div>
+      ) : null}
 
       {isFormOpen ? (
         <section className="panel entity-form-panel" aria-labelledby="payment-form-title">

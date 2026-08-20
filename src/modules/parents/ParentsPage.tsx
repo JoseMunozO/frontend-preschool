@@ -13,6 +13,7 @@ import {
   updateParent,
 } from '../../api/parents.api'
 import type { ParentListItem, ParentRequest, ParentStatus } from '../../types/parents'
+import { isForbiddenError } from '../../utils/apiErrors'
 
 const emptyParents: ParentListItem[] = []
 
@@ -215,7 +216,13 @@ export function ParentsPage() {
           {successMessage}
         </div>
       ) : null}
-      {error ? <div className="notice">No se pudo cargar la lista de padres o tutores.</div> : null}
+      {error ? (
+        <div className="notice">
+          {isForbiddenError(error)
+            ? 'No tienes permiso para ver la lista de padres o tutores.'
+            : 'No se pudo cargar la lista de padres o tutores.'}
+        </div>
+      ) : null}
 
       {isFormOpen ? (
         <section className="panel entity-form-panel" aria-labelledby="parent-form-title">
