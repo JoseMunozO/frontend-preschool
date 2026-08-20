@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Eye, ListFilter, Pencil, Plus, Search, UserCheck, UserCircle, UserX, X } from 'lucide-react'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import {
   activateParent,
   createParent,
@@ -86,6 +87,7 @@ export function ParentsPage() {
   const [editingParent, setEditingParent] = useState<ParentListItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [confirmingStatusParent, setConfirmingStatusParent] = useState<ParentListItem | null>(null)
   const {
     register,
     handleSubmit,
@@ -119,6 +121,7 @@ export function ParentsPage() {
       parent.status === 'ACTIVE' ? deactivateParent(parent.parentId) : activateParent(parent.parentId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['parents'] })
+      setConfirmingStatusParent(null)
     },
   })
 
@@ -395,7 +398,7 @@ export function ParentsPage() {
                       </button>
                       <button
                         disabled={toggleStatusMutation.isPending}
-                        onClick={() => toggleStatusMutation.mutate(parent)}
+                        onClick={() => setConfirmingStatusParent(parent)}
                         title={parent.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
                         type="button"
                       >
@@ -434,6 +437,31 @@ export function ParentsPage() {
           </div>
         </footer>
       </div>
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel={confirmingStatusParent?.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
+        description={
+          confirmingStatusParent
+            ? confirmingStatusParent.status === 'ACTIVE'
+              ? `${formatParentName(confirmingStatusParent.firstName, confirmingStatusParent.lastName)} no podra acceder al portal ni aparecer como contacto activo hasta que lo reactives.`
+              : `${formatParentName(confirmingStatusParent.firstName, confirmingStatusParent.lastName)} volvera a aparecer como contacto activo.`
+            : ''
+        }
+        isConfirming={toggleStatusMutation.isPending}
+        onCancel={() => setConfirmingStatusParent(null)}
+        onConfirm={() => {
+          if (confirmingStatusParent) {
+            toggleStatusMutation.mutate(confirmingStatusParent)
+          }
+        }}
+        open={confirmingStatusParent !== null}
+        title={
+          confirmingStatusParent?.status === 'ACTIVE'
+            ? 'Desactivar a este padre o tutor?'
+            : 'Activar a este padre o tutor?'
+        }
+      />
     </main>
   )
 }
