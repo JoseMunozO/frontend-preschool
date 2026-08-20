@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
@@ -116,7 +116,9 @@ function formatDate(value?: string) {
 export function StudentsPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<StudentStatus | 'ALL'>('ALL')
   const [editingStudent, setEditingStudent] = useState<StudentListItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -129,10 +131,27 @@ export function StudentsPage() {
     resolver: zodResolver(studentFormSchema),
     defaultValues: emptyFormValues(),
   })
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(timeoutId)
+  }, [search])
+
   const { data, error, isLoading } = useQuery({
-    queryKey: ['students'],
-    queryFn: getStudents,
+    queryKey: ['students', { search: debouncedSearch, groupId: groupFilter, status: statusFilter }],
+    queryFn: () =>
+      getStudents({
+        search: debouncedSearch || undefined,
+        groupId: groupFilter === 'all' ? undefined : groupFilter,
+        status: statusFilter,
+      }),
     retry: false,
+  })
+
+  const { data: allGroupsData } = useQuery({
+    queryKey: ['students', 'groups-lookup'],
+    queryFn: () => getStudents(),
+    staleTime: Infinity,
   })
   const saveStudentMutation = useMutation({
     mutationFn: ({
@@ -153,38 +172,18 @@ export function StudentsPage() {
   })
 
   const students = data ?? emptyStudents
+  const allGroups = allGroupsData ?? emptyStudents
   const formGroups = useMemo(
     () =>
       Array.from(
         new Map(
-          students.flatMap((student) =>
+          allGroups.flatMap((student) =>
             student.groupId && student.groupName ? [[student.groupId, student.groupName]] : [],
           ),
         ),
       ).sort(([, firstName], [, secondName]) => firstName.localeCompare(secondName)),
-    [students],
+    [allGroups],
   )
-  const groups = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          students.flatMap((student) => (student.groupName ? [student.groupName] : [])),
-        ),
-      ).sort((a, b) => a.localeCompare(b)),
-    [students],
-  )
-  const filteredStudents = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase()
-
-    return students.filter((student) => {
-      const name = formatStudentName(student.firstName, student.lastName).toLowerCase()
-      const code = student.studentCode?.toLowerCase() ?? ''
-      const matchesSearch = !normalizedSearch || name.includes(normalizedSearch) || code.includes(normalizedSearch)
-      const matchesGroup = groupFilter === 'all' || student.groupName === groupFilter
-
-      return matchesSearch && matchesGroup
-    })
-  }, [groupFilter, search, students])
 
   function openNewStudentForm() {
     setEditingStudent(null)
@@ -387,9 +386,21 @@ export function StudentsPage() {
           value={groupFilter}
         >
           <option value="all">Todos los grupos</option>
-          {groups.map((groupName) => (
-            <option key={groupName} value={groupName}>
+          {formGroups.map(([groupId, groupName]) => (
+            <option key={groupId} value={groupId}>
               {translateBackendSeed(groupName)}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Estado"
+          onChange={(event) => setStatusFilter(event.target.value as StudentStatus | 'ALL')}
+          value={statusFilter}
+        >
+          <option value="ALL">Todos los estados</option>
+          {Object.entries(statusLabels).map(([status, label]) => (
+            <option key={status} value={status}>
+              {label}
             </option>
           ))}
         </select>
@@ -413,7 +424,7 @@ export function StudentsPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredStudents.map((student) => {
+            {students.map((student) => {
               const statusLabel = statusLabels[student.status] ?? student.status
 
               return (
@@ -460,7 +471,7 @@ export function StudentsPage() {
                 </tr>
               )
             })}
-            {!isLoading && filteredStudents.length === 0 ? (
+            {!isLoading && students.length === 0 ? (
               <tr>
                 <td colSpan={7}>Sin estudiantes para mostrar.</td>
               </tr>
@@ -468,9 +479,7 @@ export function StudentsPage() {
           </tbody>
         </table>
         <footer className="table-footer">
-          <span>
-            Mostrando {filteredStudents.length} de {students.length} estudiantes
-          </span>
+          <span>Mostrando {students.length} estudiantes</span>
           <div className="pagination">
             <button aria-label="Pagina anterior" type="button">
               {'<'}

@@ -52,8 +52,29 @@ export type StudentGuardian = {
   updatedAt?: string
 }
 
-export function getStudents() {
-  return apiRequest<StudentListItem[]>('/api/students')
+type GetStudentsParams = {
+  search?: string
+  groupId?: number | string
+  status?: StudentStatus | 'ALL'
+}
+
+export function getStudents(params: GetStudentsParams = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.search) {
+    searchParams.set('search', params.search)
+  }
+
+  if (params.groupId) {
+    searchParams.set('groupId', String(params.groupId))
+  }
+
+  if (params.status && params.status !== 'ALL') {
+    searchParams.set('status', params.status)
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+  return apiRequest<StudentListItem[]>(`/api/students${query}`)
 }
 
 export function getStudentGuardians(studentId: number) {
