@@ -1,8 +1,15 @@
 import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, ListFilter, Pencil, Plus, Search, UserCheck, UserCircle, UserX, X } from 'lucide-react'
-import { activateParent, createParent, deactivateParent, getParents, updateParent } from '../../api/parents.api'
+import {
+  activateParent,
+  createParent,
+  deactivateParent,
+  getParents,
+  getParentStudents,
+  updateParent,
+} from '../../api/parents.api'
 import type { ParentListItem, ParentRequest, ParentStatus } from '../../types/parents'
 
 const emptyParents: ParentListItem[] = []
@@ -124,6 +131,26 @@ export function ParentsPage() {
   })
 
   const parents = data ?? emptyParents
+
+  const childrenQueries = useQueries({
+    queries: parents.map((parent) => ({
+      queryKey: ['parent-students', parent.parentId],
+      queryFn: () => getParentStudents(parent.parentId),
+      staleTime: 60_000,
+    })),
+  })
+
+  const childrenCountByParentId = useMemo(() => {
+    const map = new Map<number, number>()
+    parents.forEach((parent, index) => {
+      const students = childrenQueries[index]?.data
+      if (students) {
+        map.set(parent.parentId, students.length)
+      }
+    })
+    return map
+  }, [parents, childrenQueries])
+
   const filteredParents = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
 
@@ -398,7 +425,7 @@ export function ParentsPage() {
                   </td>
                   <td>{parent.phone ?? '-'}</td>
                   <td>{parent.email ?? '-'}</td>
-                  <td>No disponible</td>
+                  <td>{childrenCountByParentId.get(parent.parentId) ?? '...'}</td>
                   <td>
                     <span
                       className={

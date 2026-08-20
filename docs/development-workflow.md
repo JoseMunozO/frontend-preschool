@@ -69,6 +69,12 @@ Reglas practicas:
 - No commitear archivos generados innecesarios.
 - No commitear `.env.local` ni secretos reales.
 - Revisar `git status --short` antes de commitear.
+- Los commits quedan firmados unicamente por el autor git configurado (JoseMunozO). No agregar trailers de coautoria de IA (`Co-Authored-By: Claude ...`) en ningun commit, sea cambio grande o fix chico.
+
+## Branch Por Cambio
+
+- Cualquier modificacion o cosa nueva se hace en un branch dedicado: uno nuevo (segun la convencion de prefijos de arriba) o uno existente que ya corresponda al mismo trabajo en curso.
+- No commitear directo sobre `main` ni mezclar trabajo de distinta intencion en un branch que no le corresponde.
 
 ## Checklist Antes De Cada Commit
 
