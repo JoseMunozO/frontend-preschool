@@ -40,12 +40,12 @@ Ultima actualizacion: 2026-08-20.
 - Formularios de entidad (padres/tutores, estudiantes, materiales + movimientos, horarios, pagos) migrados de `useState`/validacion manual a React Hook Form + Zod (`useForm` + `zodResolver`); reglas cruzadas dentro del formulario via `superRefine`, y la regla de pagos que depende del cargo seleccionado (dato externo al formulario) via `setError` manual en el submit. Mismos campos, mensajes y estilos visuales que antes. Mergeado a `main` (PRs #19-#22, #24).
 - Manejo de `403` distinto de `401`: `isForbiddenError()` en `src/utils/apiErrors.ts` detecta `ApiError` con `status === 403`; cada modulo (dashboard, estudiantes, padres/tutores, pagos, materiales, horarios) muestra un mensaje especifico "No tienes permiso para..." en vez del error generico. `ProtectedRoute` tambien muestra una pantalla `ForbiddenPage` ("No tienes permiso") cuando `roles` no coincide con el usuario, aunque ningun route todavia pasa `roles` (mecanismo listo, sin usar aun). Verificado con un usuario `TEACHER` real contra el backend.
 - Confirmacion para accion sensible de padres/tutores: `src/components/ui/ConfirmDialog.tsx` (reutilizable) conectado a activar/desactivar en `ParentsPage.tsx`. Es la unica accion sensible que ya estaba conectada a una mutation real; el boton "Eliminar" de `StudentsPage.tsx` sigue sin conectar a proposito — necesita soft-delete en el backend primero, ver abajo.
+- Estudiantes: filtros migrados a server-side (`getStudents({ search, groupId, status })` en `src/api/students.api.ts`, `GET /api/students?search=&groupId=&status=`). Busqueda con debounce de 300ms. El selector de grupo (tabla y formulario) usa una query separada sin filtrar (`['students', 'groups-lookup']`, `staleTime: Infinity`) para no perder opciones cuando la tabla esta filtrada — no hay endpoint de grupos dedicado. Verificado en navegador inspeccionando las requests reales (`?search=Lucas`, `?groupId=1`, `?groupId=1&status=pending`).
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-20)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
-- **Filtros de estudiantes server-side** (`GET /api/students?search=&groupId=&status=`): `getStudents()` en `src/api/students.api.ts` no envia ningun parametro todavia; `StudentsPage.tsx` sigue filtrando 100% en cliente. Migrar antes de construir paginacion real (punto 2 de abajo), porque el filtrado local no pagina bien.
 - **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
 - **Contactos de emergencia** (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`): no existe ningun modulo, tipo ni llamada en el frontend todavia.
 - **Reporte mensual de pagos** (`GET /api/payments/reports/monthly?month=YYYY-MM`): no hay ninguna pantalla ni llamada que lo consuma; encaja con el punto 3 de abajo (historial/reportes de pagos).
@@ -55,7 +55,7 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Prioridad inmediata:
 
-1. Migrar `GET /api/students` a filtros server-side (`search`, `groupId`, `status`) e implementar paginacion real (los controles de paginacion son visuales, sin logica todavia).
+1. Implementar paginacion real de estudiantes (los controles de paginacion son visuales, sin logica todavia) — ahora que los filtros van server-side, es el momento de agregarla.
 2. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
 3. Modulo de contactos de emergencia por estudiante (no existe todavia).
 4. Adoptar Tailwind de forma incremental: mapear las variables CSS actuales (`--primary`, `--border`, `--shadow`, etc. en `src/index.css`) al `@theme` de Tailwind v4, y usarlo solo en codigo nuevo — sin reescribir el CSS existente de una vez. Ver decision registrada en memoria del proyecto.
@@ -119,7 +119,7 @@ Sin branch en curso; el manejo de `403` ya esta mergeado a `main`.
 - [x] Estudiantes: busqueda local por nombre o codigo.
 - [x] Estudiantes: filtro local por grupo.
 - [x] Estudiantes: mostrar tutor principal.
-- [ ] Estudiantes: migrar busqueda/filtro de grupo a parametros server-side (`search`, `groupId`, `status` en `GET /api/students`) en vez de filtrado 100% local.
+- [x] Estudiantes: filtros migrados a server-side (`search`, `groupId`, `status` en `GET /api/students`), busqueda con debounce.
 - [ ] Estudiantes: paginacion real (controles visuales presentes, sin logica).
 - [x] Padres/tutores: tabla visual inicial.
 - [x] Padres/tutores: adaptar campos reales del backend.
@@ -193,12 +193,12 @@ chore/schedules-form-rhf-zod
 chore/payments-form-rhf-zod
 fix/403-permission-screen
 feat/action-confirmations
+feat/students-server-filters
 ```
 
 Siguientes:
 
 ```text
-feat/students-server-filters
 feat/students-pagination
 feat/payment-history
 feat/emergency-contacts
