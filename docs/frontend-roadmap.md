@@ -36,7 +36,8 @@ Ultima actualizacion: 2026-08-20.
 - Horarios mapeado a `ScheduleSlotResponse` real del backend.
 - Horarios: formulario de creacion/edicion de actividades con asignacion de responsable.
 - Estilos de formulario de entidad generalizados y reutilizados entre modulos.
-- Padres/tutores: cantidad de hijos mostrada en la tabla, vía `GET /api/parents/{parentId}/students` por tutor (`useQueries` en `ParentsPage.tsx`). Implementado en el working tree de `feat/parents-children-count`, pendiente de verificar lint/build y commitear.
+- Padres/tutores: cantidad de hijos mostrada en la tabla, vía `GET /api/parents/{parentId}/students` por tutor (`useQueries` en `ParentsPage.tsx`). Mergeado a `main` (PR #18).
+- Formularios de entidad (padres/tutores, estudiantes, materiales + movimientos, horarios) migrados de `useState`/validacion manual a React Hook Form + Zod (`useForm` + `zodResolver`); reglas cruzadas (fechas, horas) via `superRefine`. Mismos campos, mensajes y estilos visuales que antes. Mergeado a `main` (PRs #19, #20, #21, #22).
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-20)
 
@@ -52,25 +53,15 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Prioridad inmediata:
 
-1. Confirmar `npm run lint && npm run build` en `feat/parents-children-count` y abrir PR (cantidad de hijos en tabla de padres/tutores — implementacion ya en el working tree).
-2. Migrar `GET /api/students` a filtros server-side (`search`, `groupId`, `status`) e implementar paginacion real (los controles de paginacion son visuales, sin logica todavia).
-3. Agregar manejo de `403` distinto de `401` (pantalla "No tienes permiso"), ahora que el backend lo distingue correctamente.
-4. Agregar confirmaciones para acciones sensibles (desactivar padre/tutor, eliminar, etc.) — no hay ningun dialogo de confirmacion en el frontend todavia.
-5. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
-6. Modulo de contactos de emergencia por estudiante (no existe todavia).
+1. Migrar `GET /api/students` a filtros server-side (`search`, `groupId`, `status`) e implementar paginacion real (los controles de paginacion son visuales, sin logica todavia).
+2. Agregar manejo de `403` distinto de `401` (pantalla "No tienes permiso"), ahora que el backend lo distingue correctamente.
+3. Agregar confirmaciones para acciones sensibles (desactivar padre/tutor, eliminar, etc.) — no hay ningun dialogo de confirmacion en el frontend todavia.
+4. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
+5. Modulo de contactos de emergencia por estudiante (no existe todavia).
+6. Adoptar Tailwind de forma incremental: mapear las variables CSS actuales (`--primary`, `--border`, `--shadow`, etc. en `src/index.css`) al `@theme` de Tailwind v4, y usarlo solo en codigo nuevo — sin reescribir el CSS existente de una vez. Ver decision registrada en memoria del proyecto.
 7. Validar responsive real de dashboard y tablas principales.
 
-Branch en curso:
-
-```text
-feat/parents-children-count
-```
-
-Commit sugerido:
-
-```text
-feat(parents): show children count in parents table
-```
+Sin branch en curso; el trabajo de padres/tutores y la migracion a React Hook Form + Zod ya estan mergeados a `main`.
 
 ## Fase 0 - Base Del Proyecto
 
@@ -131,7 +122,7 @@ feat(parents): show children count in parents table
 - [x] Padres/tutores: tabla visual inicial.
 - [x] Padres/tutores: adaptar campos reales del backend.
 - [x] Padres/tutores: busqueda local por nombre, correo o telefono.
-- [x] Padres/tutores: mostrar cantidad de hijos (`GET /api/parents/{parentId}/students` por tutor en `ParentsPage.tsx`; en `feat/parents-children-count`, pendiente de commit).
+- [x] Padres/tutores: mostrar cantidad de hijos (`GET /api/parents/{parentId}/students` por tutor en `ParentsPage.tsx`).
 - [x] Pagos: tabla visual inicial.
 - [x] Pagos: adaptar campos reales de cargos del backend.
 - [x] Pagos: filtros por mes y estado.
@@ -160,6 +151,11 @@ feat(parents): show children count in parents table
 - [x] Crear/editar materiales.
 - [x] Registrar movimientos de material.
 - [x] Crear/editar horarios.
+- [x] Migrar formulario de padres/tutores a React Hook Form + Zod.
+- [x] Migrar formulario de estudiantes a React Hook Form + Zod (incluye reglas cruzadas de fechas via `superRefine`).
+- [x] Migrar formularios de materiales (entidad + movimiento) a React Hook Form + Zod.
+- [x] Migrar formulario de horarios a React Hook Form + Zod (incluye regla cruzada de horas via `superRefine`).
+- [ ] Migrar formulario de pagos a React Hook Form + Zod (unico modulo que todavia no paso por esta migracion).
 
 ## Fase 6 - Calidad
 
@@ -187,12 +183,11 @@ feat/materials-list
 feat/schedules-list
 feat/student-form
 feat/student-primary-guardian
-```
-
-En curso (working tree, sin commitear):
-
-```text
 feat/parents-children-count
+chore/parents-form-rhf-zod
+chore/students-form-rhf-zod
+chore/materials-form-rhf-zod
+chore/schedules-form-rhf-zod
 ```
 
 Siguientes:
@@ -204,6 +199,8 @@ fix/403-permission-screen
 feat/action-confirmations
 feat/payment-history
 feat/emergency-contacts
+chore/payments-form-rhf-zod
+chore/tailwind-theme-tokens
 feat/schedule-week-view
 feat/responsive-polish
 ```
