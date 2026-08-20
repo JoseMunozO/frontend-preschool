@@ -199,6 +199,54 @@ a {
   padding: 10px 14px;
 }
 
+.dialog-overlay {
+  align-items: center;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px;
+  position: fixed;
+  z-index: 50;
+}
+
+.dialog-panel {
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  padding: 22px;
+  width: 100%;
+}
+
+.dialog-panel h3 {
+  font-size: 18px;
+  font-weight: 760;
+}
+
+.dialog-panel p {
+  color: var(--text-muted);
+}
+
+.danger-button {
+  align-items: center;
+  background: var(--red);
+  border: 0;
+  color: #ffffff;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 16px;
+}
+
+.danger-button:hover {
+  background: #c53a3e;
+}
+
 .form-error,
 .notice {
   background: var(--red-soft);
