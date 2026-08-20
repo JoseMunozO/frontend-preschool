@@ -1,6 +1,8 @@
-import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { CalendarDays, Eye, ListFilter, Pencil, Plus, Search, X } from 'lucide-react'
 import { createSchedule, getSchedules, updateSchedule } from '../../api/schedules.api'
 import type { DayOfWeek, ScheduleItem, ScheduleRequest } from '../../types/schedules'
@@ -22,18 +24,28 @@ function formatTime(value?: string) {
   return value ? value.slice(0, 5) : '-'
 }
 
-type ScheduleFormValues = {
-  groupId: string
-  primaryStaffId: string
-  dayOfWeek: DayOfWeek
-  startTime: string
-  endTime: string
-  activityTitle: string
-  roomName: string
-  notes: string
-}
+const scheduleFormSchema = z
+  .object({
+    groupId: z.string().min(1, 'Selecciona un grupo.'),
+    primaryStaffId: z.string(),
+    dayOfWeek: z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']),
+    startTime: z.string().min(1, 'La hora de inicio es obligatoria.'),
+    endTime: z.string().min(1, 'La hora de fin es obligatoria.'),
+    activityTitle: z.string().trim().min(1, 'La actividad es obligatoria.'),
+    roomName: z.string(),
+    notes: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.startTime && values.endTime && values.startTime >= values.endTime) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'La hora de fin debe ser posterior al inicio.',
+        path: ['endTime'],
+      })
+    }
+  })
 
-type ScheduleFormErrors = Partial<Record<keyof ScheduleFormValues, string>>
+type ScheduleFormValues = z.infer<typeof scheduleFormSchema>
 
 function emptyFormValues(): ScheduleFormValues {
   return {
@@ -66,32 +78,6 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
-function validateSchedule(values: ScheduleFormValues) {
-  const errors: ScheduleFormErrors = {}
-
-  if (!values.groupId) {
-    errors.groupId = 'Selecciona un grupo.'
-  }
-
-  if (!values.activityTitle.trim()) {
-    errors.activityTitle = 'La actividad es obligatoria.'
-  }
-
-  if (!values.startTime) {
-    errors.startTime = 'La hora de inicio es obligatoria.'
-  }
-
-  if (!values.endTime) {
-    errors.endTime = 'La hora de fin es obligatoria.'
-  }
-
-  if (values.startTime && values.endTime && values.startTime >= values.endTime) {
-    errors.endTime = 'La hora de fin debe ser posterior al inicio.'
-  }
-
-  return errors
-}
-
 export function SchedulesPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
@@ -99,9 +85,16 @@ export function SchedulesPage() {
   const [groupFilter, setGroupFilter] = useState('all')
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [formValues, setFormValues] = useState<ScheduleFormValues>(emptyFormValues)
-  const [formErrors, setFormErrors] = useState<ScheduleFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors: formErrors },
+  } = useForm<ScheduleFormValues>({
+    resolver: zodResolver(scheduleFormSchema),
+    defaultValues: emptyFormValues(),
+  })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['schedules', dayFilter],
@@ -119,7 +112,6 @@ export function SchedulesPage() {
       )
       setIsFormOpen(false)
       setEditingSchedule(null)
-      setFormErrors({})
     },
   })
 
@@ -166,8 +158,7 @@ export function SchedulesPage() {
 
   function openNewScheduleForm() {
     setEditingSchedule(null)
-    setFormValues(emptyFormValues())
-    setFormErrors({})
+    reset(emptyFormValues())
     saveScheduleMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -175,8 +166,7 @@ export function SchedulesPage() {
 
   function openEditScheduleForm(schedule: ScheduleItem) {
     setEditingSchedule(schedule)
-    setFormValues(formValuesForSchedule(schedule))
-    setFormErrors({})
+    reset(formValuesForSchedule(schedule))
     saveScheduleMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -185,37 +175,23 @@ export function SchedulesPage() {
   function closeScheduleForm() {
     setIsFormOpen(false)
     setEditingSchedule(null)
-    setFormErrors({})
     saveScheduleMutation.reset()
   }
 
-  function updateField<Key extends keyof ScheduleFormValues>(key: Key, value: ScheduleFormValues[Key]) {
-    setFormValues((currentValues) => ({ ...currentValues, [key]: value }))
-    setFormErrors((currentErrors) => ({ ...currentErrors, [key]: undefined }))
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const errors = validateSchedule(formValues)
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
-      return
-    }
-
+  const onSubmit = handleSubmit((values) => {
     const request: ScheduleRequest = {
-      groupId: Number(formValues.groupId),
-      primaryStaffId: formValues.primaryStaffId ? Number(formValues.primaryStaffId) : undefined,
-      dayOfWeek: formValues.dayOfWeek,
-      startTime: formValues.startTime,
-      endTime: formValues.endTime,
-      activityTitle: formValues.activityTitle.trim(),
-      roomName: optionalValue(formValues.roomName),
-      notes: optionalValue(formValues.notes),
+      groupId: Number(values.groupId),
+      primaryStaffId: values.primaryStaffId ? Number(values.primaryStaffId) : undefined,
+      dayOfWeek: values.dayOfWeek,
+      startTime: values.startTime,
+      endTime: values.endTime,
+      activityTitle: values.activityTitle,
+      roomName: optionalValue(values.roomName),
+      notes: optionalValue(values.notes),
     }
 
     saveScheduleMutation.mutate({ scheduleSlotId: editingSchedule?.scheduleSlotId, request })
-  }
+  })
 
   return (
     <main className="page-content">
@@ -254,22 +230,18 @@ export function SchedulesPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <form className="entity-form" onSubmit={handleSubmit}>
+          <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
                 Actividad *
-                <input
-                  maxLength={150}
-                  onChange={(event) => updateField('activityTitle', event.target.value)}
-                  value={formValues.activityTitle}
-                />
+                <input maxLength={150} {...register('activityTitle')} />
                 {formErrors.activityTitle ? (
-                  <span className="field-error">{formErrors.activityTitle}</span>
+                  <span className="field-error">{formErrors.activityTitle.message}</span>
                 ) : null}
               </label>
               <label>
                 Grupo *
-                <select onChange={(event) => updateField('groupId', event.target.value)} value={formValues.groupId}>
+                <select {...register('groupId')}>
                   <option value="">Selecciona un grupo</option>
                   {groups.map(([groupId, groupName]) => (
                     <option key={groupId} value={groupId}>
@@ -277,15 +249,12 @@ export function SchedulesPage() {
                     </option>
                   ))}
                 </select>
-                {formErrors.groupId ? <span className="field-error">{formErrors.groupId}</span> : null}
+                {formErrors.groupId ? <span className="field-error">{formErrors.groupId.message}</span> : null}
                 <span className="field-hint">Se muestran los grupos ya presentes en horarios.</span>
               </label>
               <label>
                 Dia
-                <select
-                  onChange={(event) => updateField('dayOfWeek', event.target.value as DayOfWeek)}
-                  value={formValues.dayOfWeek}
-                >
+                <select {...register('dayOfWeek')}>
                   {Object.entries(dayLabels).map(([day, label]) => (
                     <option key={day} value={day}>
                       {label}
@@ -295,36 +264,21 @@ export function SchedulesPage() {
               </label>
               <label>
                 Aula
-                <input
-                  maxLength={100}
-                  onChange={(event) => updateField('roomName', event.target.value)}
-                  value={formValues.roomName}
-                />
+                <input maxLength={100} {...register('roomName')} />
               </label>
               <label>
                 Hora de inicio *
-                <input
-                  onChange={(event) => updateField('startTime', event.target.value)}
-                  type="time"
-                  value={formValues.startTime}
-                />
-                {formErrors.startTime ? <span className="field-error">{formErrors.startTime}</span> : null}
+                <input type="time" {...register('startTime')} />
+                {formErrors.startTime ? <span className="field-error">{formErrors.startTime.message}</span> : null}
               </label>
               <label>
                 Hora de fin *
-                <input
-                  onChange={(event) => updateField('endTime', event.target.value)}
-                  type="time"
-                  value={formValues.endTime}
-                />
-                {formErrors.endTime ? <span className="field-error">{formErrors.endTime}</span> : null}
+                <input type="time" {...register('endTime')} />
+                {formErrors.endTime ? <span className="field-error">{formErrors.endTime.message}</span> : null}
               </label>
               <label>
                 Responsable
-                <select
-                  onChange={(event) => updateField('primaryStaffId', event.target.value)}
-                  value={formValues.primaryStaffId}
-                >
+                <select {...register('primaryStaffId')}>
                   <option value="">Sin responsable asignado</option>
                   {staffOptions.map(([staffId, staffName]) => (
                     <option key={staffId} value={staffId}>
@@ -336,11 +290,7 @@ export function SchedulesPage() {
               </label>
               <label className="entity-form-full">
                 Notas
-                <textarea
-                  onChange={(event) => updateField('notes', event.target.value)}
-                  rows={2}
-                  value={formValues.notes}
-                />
+                <textarea rows={2} {...register('notes')} />
               </label>
             </div>
             {saveScheduleMutation.error ? (
