@@ -39,6 +39,7 @@ Ultima actualizacion: 2026-08-20.
 - Padres/tutores: cantidad de hijos mostrada en la tabla, vía `GET /api/parents/{parentId}/students` por tutor (`useQueries` en `ParentsPage.tsx`). Mergeado a `main` (PR #18).
 - Formularios de entidad (padres/tutores, estudiantes, materiales + movimientos, horarios, pagos) migrados de `useState`/validacion manual a React Hook Form + Zod (`useForm` + `zodResolver`); reglas cruzadas dentro del formulario via `superRefine`, y la regla de pagos que depende del cargo seleccionado (dato externo al formulario) via `setError` manual en el submit. Mismos campos, mensajes y estilos visuales que antes. Mergeado a `main` (PRs #19-#22, #24).
 - Manejo de `403` distinto de `401`: `isForbiddenError()` en `src/utils/apiErrors.ts` detecta `ApiError` con `status === 403`; cada modulo (dashboard, estudiantes, padres/tutores, pagos, materiales, horarios) muestra un mensaje especifico "No tienes permiso para..." en vez del error generico. `ProtectedRoute` tambien muestra una pantalla `ForbiddenPage` ("No tienes permiso") cuando `roles` no coincide con el usuario, aunque ningun route todavia pasa `roles` (mecanismo listo, sin usar aun). Verificado con un usuario `TEACHER` real contra el backend.
+- Confirmacion para accion sensible de padres/tutores: `src/components/ui/ConfirmDialog.tsx` (reutilizable) conectado a activar/desactivar en `ParentsPage.tsx`. Es la unica accion sensible que ya estaba conectada a una mutation real; el boton "Eliminar" de `StudentsPage.tsx` sigue sin conectar a proposito — necesita soft-delete en el backend primero, ver abajo.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-20)
 
@@ -48,24 +49,21 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 - **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
 - **Contactos de emergencia** (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`): no existe ningun modulo, tipo ni llamada en el frontend todavia.
 - **Reporte mensual de pagos** (`GET /api/payments/reports/monthly?month=YYYY-MM`): no hay ninguna pantalla ni llamada que lo consuma; encaja con el punto 3 de abajo (historial/reportes de pagos).
+- **Soft-delete y restauracion para estudiantes** (pedido al backend el 2026-08-20, ver `backend-preschool/docs/roadmap.md` seccion "Prioridad actual: soft-delete y restauracion"): `DELETE /api/students/{id}` hoy borra fisico e inmediato, sin endpoint de restaurar. El frontend quiere "eliminar con deshacer" (ventana de gracia ~7 dias) para el boton Eliminar de `StudentsPage.tsx`, que hoy no esta conectado a ninguna API a proposito, para no simular un soft-delete que no se puede garantizar solo del lado del cliente.
 
 ## Siguiente Punto Recomendado
 
 Prioridad inmediata:
 
 1. Migrar `GET /api/students` a filtros server-side (`search`, `groupId`, `status`) e implementar paginacion real (los controles de paginacion son visuales, sin logica todavia).
-2. Agregar confirmaciones para acciones sensibles (desactivar padre/tutor, eliminar, etc.) — no hay ningun dialogo de confirmacion en el frontend todavia.
-3. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
-4. Modulo de contactos de emergencia por estudiante (no existe todavia).
-5. Adoptar Tailwind de forma incremental: mapear las variables CSS actuales (`--primary`, `--border`, `--shadow`, etc. en `src/index.css`) al `@theme` de Tailwind v4, y usarlo solo en codigo nuevo — sin reescribir el CSS existente de una vez. Ver decision registrada en memoria del proyecto.
-6. Validar responsive real de dashboard y tablas principales.
-7. Cuando se agreguen roles diferenciados por ruta, pasar `roles` a `ProtectedRoute` en `router.tsx` (el componente ya soporta mostrar `ForbiddenPage`, pero ningun route lo usa todavia).
+2. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
+3. Modulo de contactos de emergencia por estudiante (no existe todavia).
+4. Adoptar Tailwind de forma incremental: mapear las variables CSS actuales (`--primary`, `--border`, `--shadow`, etc. en `src/index.css`) al `@theme` de Tailwind v4, y usarlo solo en codigo nuevo — sin reescribir el CSS existente de una vez. Ver decision registrada en memoria del proyecto.
+5. Validar responsive real de dashboard y tablas principales.
+6. Cuando se agreguen roles diferenciados por ruta, pasar `roles` a `ProtectedRoute` en `router.tsx` (el componente ya soporta mostrar `ForbiddenPage`, pero ningun route lo usa todavia).
+7. Bloqueado en backend: una vez que `backend-preschool` tenga soft-delete + restore para estudiantes (ver seccion de arriba), conectar el boton Eliminar de `StudentsPage.tsx` con doble confirmacion + aviso "Deshacer" corto antes de mandar el request real.
 
-Branch en curso:
-
-```text
-fix/403-permission-screen
-```
+Sin branch en curso; el manejo de `403` ya esta mergeado a `main`.
 
 ## Fase 0 - Base Del Proyecto
 
@@ -166,7 +164,7 @@ fix/403-permission-screen
 - [x] Estados de carga.
 - [x] Estados vacios.
 - [x] Manejo de errores API: `isForbiddenError()` distingue `403` de otros errores en los 6 modulos con `useQuery`, mostrando "No tienes permiso para..." en vez del mensaje generico. `ProtectedRoute` muestra `ForbiddenPage` si el rol no coincide (mecanismo listo, sin rutas usandolo aun — ver Siguiente Punto Recomendado). Verificado con un usuario `TEACHER` real.
-- [ ] Confirmaciones para acciones sensibles (ninguna accion usa dialogo de confirmacion todavia).
+- [x] Confirmaciones para acciones sensibles: `ConfirmDialog` reutilizable conectado a activar/desactivar padre/tutor (unica accion sensible ya conectada a una mutation). Eliminar estudiante queda sin conectar hasta que el backend tenga soft-delete — ver "Backend API" y "Siguiente Punto Recomendado" arriba.
 - [x] Filtros por modulo.
 - [ ] Tests de formularios y flujos criticos.
 
@@ -193,6 +191,8 @@ chore/students-form-rhf-zod
 chore/materials-form-rhf-zod
 chore/schedules-form-rhf-zod
 chore/payments-form-rhf-zod
+fix/403-permission-screen
+feat/action-confirmations
 ```
 
 Siguientes:
@@ -200,7 +200,6 @@ Siguientes:
 ```text
 feat/students-server-filters
 feat/students-pagination
-feat/action-confirmations
 feat/payment-history
 feat/emergency-contacts
 chore/tailwind-theme-tokens
