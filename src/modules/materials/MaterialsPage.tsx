@@ -1,6 +1,8 @@
-import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { ArrowLeftRight, Eye, ListFilter, PackagePlus, Pencil, Plus, Search, X } from 'lucide-react'
 import { createMaterial, createMaterialMovement, getMaterials, updateMaterial } from '../../api/materials.api'
 import type {
@@ -25,18 +27,22 @@ const movementTypeLabels: Record<MaterialMovementType, string> = {
   ADJUSTMENT: 'Ajuste por conteo',
 }
 
-type MaterialFormValues = {
-  sku: string
-  name: string
-  category: string
-  unit: string
-  quantityOnHand: string
-  minimumQuantity: string
-  status: MaterialStatus
-  notes: string
-}
+const materialFormSchema = z.object({
+  sku: z.string(),
+  name: z.string().trim().min(1, 'El nombre es obligatorio.'),
+  category: z.string(),
+  unit: z.string(),
+  quantityOnHand: z
+    .string()
+    .refine((value) => value.trim() !== '' && Number(value) >= 0, 'Indica una cantidad valida (0 o mayor).'),
+  minimumQuantity: z
+    .string()
+    .refine((value) => value.trim() !== '' && Number(value) >= 0, 'Indica un minimo valido (0 o mayor).'),
+  status: z.enum(['ACTIVE', 'ARCHIVED']),
+  notes: z.string(),
+})
 
-type MaterialFormErrors = Partial<Record<keyof MaterialFormValues, string>>
+type MaterialFormValues = z.infer<typeof materialFormSchema>
 
 function emptyFormValues(): MaterialFormValues {
   return {
@@ -69,29 +75,15 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
-function validateMaterial(values: MaterialFormValues) {
-  const errors: MaterialFormErrors = {}
+const movementFormSchema = z.object({
+  movementType: z.enum(['IN', 'OUT', 'ADJUSTMENT']),
+  quantity: z
+    .string()
+    .refine((value) => value.trim() !== '' && Number(value) >= 1, 'Indica una cantidad valida (1 o mayor).'),
+  notes: z.string(),
+})
 
-  if (!values.name.trim()) {
-    errors.name = 'El nombre es obligatorio.'
-  }
-
-  if (values.quantityOnHand.trim() === '' || Number(values.quantityOnHand) < 0) {
-    errors.quantityOnHand = 'Indica una cantidad valida (0 o mayor).'
-  }
-
-  if (values.minimumQuantity.trim() === '' || Number(values.minimumQuantity) < 0) {
-    errors.minimumQuantity = 'Indica un minimo valido (0 o mayor).'
-  }
-
-  return errors
-}
-
-type MovementFormValues = {
-  movementType: MaterialMovementType
-  quantity: string
-  notes: string
-}
+type MovementFormValues = z.infer<typeof movementFormSchema>
 
 function emptyMovementValues(): MovementFormValues {
   return {
@@ -108,12 +100,28 @@ export function MaterialsPage() {
   const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all')
   const [editingMaterial, setEditingMaterial] = useState<MaterialItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [formValues, setFormValues] = useState<MaterialFormValues>(emptyFormValues)
-  const [formErrors, setFormErrors] = useState<MaterialFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [movementMaterial, setMovementMaterial] = useState<MaterialItem | null>(null)
-  const [movementValues, setMovementValues] = useState<MovementFormValues>(emptyMovementValues)
-  const [movementError, setMovementError] = useState<string | undefined>(undefined)
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors: formErrors },
+  } = useForm<MaterialFormValues>({
+    resolver: zodResolver(materialFormSchema),
+    defaultValues: emptyFormValues(),
+  })
+
+  const {
+    register: registerMovement,
+    handleSubmit: handleMovementFormSubmit,
+    reset: resetMovement,
+    formState: { errors: movementErrors },
+  } = useForm<MovementFormValues>({
+    resolver: zodResolver(movementFormSchema),
+    defaultValues: emptyMovementValues(),
+  })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['materials'],
@@ -131,7 +139,6 @@ export function MaterialsPage() {
       )
       setIsFormOpen(false)
       setEditingMaterial(null)
-      setFormErrors({})
     },
   })
 
@@ -142,8 +149,7 @@ export function MaterialsPage() {
       await queryClient.invalidateQueries({ queryKey: ['materials'] })
       setSuccessMessage('Movimiento registrado correctamente.')
       setMovementMaterial(null)
-      setMovementValues(emptyMovementValues())
-      setMovementError(undefined)
+      resetMovement(emptyMovementValues())
     },
   })
 
@@ -178,8 +184,7 @@ export function MaterialsPage() {
 
   function openNewMaterialForm() {
     setEditingMaterial(null)
-    setFormValues(emptyFormValues())
-    setFormErrors({})
+    reset(emptyFormValues())
     saveMaterialMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -187,8 +192,7 @@ export function MaterialsPage() {
 
   function openEditMaterialForm(material: MaterialItem) {
     setEditingMaterial(material)
-    setFormValues(formValuesForMaterial(material))
-    setFormErrors({})
+    reset(formValuesForMaterial(material))
     saveMaterialMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -197,76 +201,51 @@ export function MaterialsPage() {
   function closeMaterialForm() {
     setIsFormOpen(false)
     setEditingMaterial(null)
-    setFormErrors({})
     saveMaterialMutation.reset()
   }
 
-  function updateField<Key extends keyof MaterialFormValues>(key: Key, value: MaterialFormValues[Key]) {
-    setFormValues((currentValues) => ({ ...currentValues, [key]: value }))
-    setFormErrors((currentErrors) => ({ ...currentErrors, [key]: undefined }))
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const errors = validateMaterial(formValues)
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
-      return
-    }
-
+  const onSubmit = handleSubmit((values) => {
     const request: MaterialRequest = {
-      sku: optionalValue(formValues.sku),
-      name: formValues.name.trim(),
-      category: optionalValue(formValues.category),
-      unit: optionalValue(formValues.unit),
-      quantityOnHand: Number(formValues.quantityOnHand),
-      minimumQuantity: Number(formValues.minimumQuantity),
-      status: formValues.status,
-      notes: optionalValue(formValues.notes),
+      sku: optionalValue(values.sku),
+      name: values.name,
+      category: optionalValue(values.category),
+      unit: optionalValue(values.unit),
+      quantityOnHand: Number(values.quantityOnHand),
+      minimumQuantity: Number(values.minimumQuantity),
+      status: values.status,
+      notes: optionalValue(values.notes),
     }
 
     saveMaterialMutation.mutate({ materialId: editingMaterial?.materialId, request })
-  }
+  })
 
   function openMovementForm(material: MaterialItem) {
     setMovementMaterial(material)
-    setMovementValues(emptyMovementValues())
-    setMovementError(undefined)
+    resetMovement(emptyMovementValues())
     movementMutation.reset()
     setSuccessMessage(null)
   }
 
   function closeMovementForm() {
     setMovementMaterial(null)
-    setMovementValues(emptyMovementValues())
-    setMovementError(undefined)
+    resetMovement(emptyMovementValues())
     movementMutation.reset()
   }
 
-  function handleMovementSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
+  const onMovementSubmit = handleMovementFormSubmit((values) => {
     if (!movementMaterial) {
-      return
-    }
-
-    const quantity = Number(movementValues.quantity)
-
-    if (!movementValues.quantity.trim() || quantity < 1) {
-      setMovementError('Indica una cantidad valida (1 o mayor).')
       return
     }
 
     movementMutation.mutate({
       materialId: movementMaterial.materialId,
       request: {
-        movementType: movementValues.movementType,
-        quantity,
-        notes: optionalValue(movementValues.notes),
+        movementType: values.movementType,
+        quantity: Number(values.quantity),
+        notes: optionalValue(values.notes),
       },
     })
-  }
+  })
 
   return (
     <main className="page-content">
@@ -305,72 +284,42 @@ export function MaterialsPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <form className="entity-form" onSubmit={handleSubmit}>
+          <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
                 Nombre *
-                <input
-                  maxLength={150}
-                  onChange={(event) => updateField('name', event.target.value)}
-                  value={formValues.name}
-                />
-                {formErrors.name ? <span className="field-error">{formErrors.name}</span> : null}
+                <input maxLength={150} {...register('name')} />
+                {formErrors.name ? <span className="field-error">{formErrors.name.message}</span> : null}
               </label>
               <label>
                 SKU
-                <input
-                  maxLength={50}
-                  onChange={(event) => updateField('sku', event.target.value)}
-                  value={formValues.sku}
-                />
+                <input maxLength={50} {...register('sku')} />
               </label>
               <label>
                 Categoria
-                <input
-                  maxLength={100}
-                  onChange={(event) => updateField('category', event.target.value)}
-                  value={formValues.category}
-                />
+                <input maxLength={100} {...register('category')} />
               </label>
               <label>
                 Unidad
-                <input
-                  maxLength={50}
-                  onChange={(event) => updateField('unit', event.target.value)}
-                  placeholder="unidad, litro, paquete..."
-                  value={formValues.unit}
-                />
+                <input maxLength={50} placeholder="unidad, litro, paquete..." {...register('unit')} />
               </label>
               <label>
                 Cantidad actual *
-                <input
-                  min={0}
-                  onChange={(event) => updateField('quantityOnHand', event.target.value)}
-                  type="number"
-                  value={formValues.quantityOnHand}
-                />
+                <input min={0} type="number" {...register('quantityOnHand')} />
                 {formErrors.quantityOnHand ? (
-                  <span className="field-error">{formErrors.quantityOnHand}</span>
+                  <span className="field-error">{formErrors.quantityOnHand.message}</span>
                 ) : null}
               </label>
               <label>
                 Cantidad minima *
-                <input
-                  min={0}
-                  onChange={(event) => updateField('minimumQuantity', event.target.value)}
-                  type="number"
-                  value={formValues.minimumQuantity}
-                />
+                <input min={0} type="number" {...register('minimumQuantity')} />
                 {formErrors.minimumQuantity ? (
-                  <span className="field-error">{formErrors.minimumQuantity}</span>
+                  <span className="field-error">{formErrors.minimumQuantity.message}</span>
                 ) : null}
               </label>
               <label>
                 Estado
-                <select
-                  onChange={(event) => updateField('status', event.target.value as MaterialStatus)}
-                  value={formValues.status}
-                >
+                <select {...register('status')}>
                   {Object.entries(statusLabels).map(([status, label]) => (
                     <option key={status} value={status}>
                       {label}
@@ -380,11 +329,7 @@ export function MaterialsPage() {
               </label>
               <label className="entity-form-full">
                 Notas
-                <textarea
-                  onChange={(event) => updateField('notes', event.target.value)}
-                  rows={2}
-                  value={formValues.notes}
-                />
+                <textarea rows={2} {...register('notes')} />
               </label>
             </div>
             {saveMaterialMutation.error ? (
@@ -432,19 +377,11 @@ export function MaterialsPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <form className="entity-form" onSubmit={handleMovementSubmit}>
+          <form className="entity-form" onSubmit={onMovementSubmit}>
             <div className="entity-form-grid">
               <label>
                 Tipo de movimiento
-                <select
-                  onChange={(event) =>
-                    setMovementValues((current) => ({
-                      ...current,
-                      movementType: event.target.value as MaterialMovementType,
-                    }))
-                  }
-                  value={movementValues.movementType}
-                >
+                <select {...registerMovement('movementType')}>
                   {Object.entries(movementTypeLabels).map(([type, label]) => (
                     <option key={type} value={type}>
                       {label}
@@ -454,26 +391,14 @@ export function MaterialsPage() {
               </label>
               <label>
                 Cantidad *
-                <input
-                  min={1}
-                  onChange={(event) => {
-                    setMovementValues((current) => ({ ...current, quantity: event.target.value }))
-                    setMovementError(undefined)
-                  }}
-                  type="number"
-                  value={movementValues.quantity}
-                />
-                {movementError ? <span className="field-error">{movementError}</span> : null}
+                <input min={1} type="number" {...registerMovement('quantity')} />
+                {movementErrors.quantity ? (
+                  <span className="field-error">{movementErrors.quantity.message}</span>
+                ) : null}
               </label>
               <label className="entity-form-full">
                 Comentario
-                <textarea
-                  onChange={(event) =>
-                    setMovementValues((current) => ({ ...current, notes: event.target.value }))
-                  }
-                  rows={2}
-                  value={movementValues.notes}
-                />
+                <textarea rows={2} {...registerMovement('notes')} />
               </label>
             </div>
             {movementMutation.error ? (
