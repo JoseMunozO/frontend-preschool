@@ -1,6 +1,8 @@
-import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { Eye, ListFilter, Pencil, Plus, Search, UserCheck, UserCircle, UserX, X } from 'lucide-react'
 import {
   activateParent,
@@ -19,19 +21,26 @@ const statusLabels: Record<ParentStatus, string> = {
   INACTIVE: 'Inactivo',
 }
 
-type ParentFormValues = {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  address: string
-  preferredLanguage: string
-  status: ParentStatus
-  notes: string
-  password: string
-}
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-type ParentFormErrors = Partial<Record<keyof ParentFormValues, string>>
+const parentFormSchema = z.object({
+  firstName: z.string().trim().min(1, 'El nombre es obligatorio.'),
+  lastName: z.string().trim().min(1, 'Los apellidos son obligatorios.'),
+  email: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || emailPattern.test(value), 'Ingresa un correo valido.'),
+  phone: z.string(),
+  address: z.string(),
+  preferredLanguage: z.string(),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+  notes: z.string(),
+  password: z
+    .string()
+    .refine((value) => value === '' || value.length >= 6, 'La contrasena debe tener al menos 6 caracteres.'),
+})
+
+type ParentFormValues = z.infer<typeof parentFormSchema>
 
 function emptyFormValues(): ParentFormValues {
   return {
@@ -66,30 +75,6 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function validateParent(values: ParentFormValues) {
-  const errors: ParentFormErrors = {}
-
-  if (!values.firstName.trim()) {
-    errors.firstName = 'El nombre es obligatorio.'
-  }
-
-  if (!values.lastName.trim()) {
-    errors.lastName = 'Los apellidos son obligatorios.'
-  }
-
-  if (values.email.trim() && !emailPattern.test(values.email.trim())) {
-    errors.email = 'Ingresa un correo valido.'
-  }
-
-  if (values.password && values.password.length < 6) {
-    errors.password = 'La contrasena debe tener al menos 6 caracteres.'
-  }
-
-  return errors
-}
-
 function formatParentName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim()
 }
@@ -99,9 +84,16 @@ export function ParentsPage() {
   const [search, setSearch] = useState('')
   const [editingParent, setEditingParent] = useState<ParentListItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [formValues, setFormValues] = useState<ParentFormValues>(emptyFormValues)
-  const [formErrors, setFormErrors] = useState<ParentFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors: formErrors },
+  } = useForm<ParentFormValues>({
+    resolver: zodResolver(parentFormSchema),
+    defaultValues: emptyFormValues(),
+  })
   const { data, error, isLoading } = useQuery({
     queryKey: ['parents'],
     queryFn: getParents,
@@ -118,7 +110,6 @@ export function ParentsPage() {
       )
       setIsFormOpen(false)
       setEditingParent(null)
-      setFormErrors({})
     },
   })
 
@@ -170,8 +161,7 @@ export function ParentsPage() {
 
   function openNewParentForm() {
     setEditingParent(null)
-    setFormValues(emptyFormValues())
-    setFormErrors({})
+    reset(emptyFormValues())
     saveParentMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -179,8 +169,7 @@ export function ParentsPage() {
 
   function openEditParentForm(parent: ParentListItem) {
     setEditingParent(parent)
-    setFormValues(formValuesForParent(parent))
-    setFormErrors({})
+    reset(formValuesForParent(parent))
     saveParentMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -189,38 +178,24 @@ export function ParentsPage() {
   function closeParentForm() {
     setIsFormOpen(false)
     setEditingParent(null)
-    setFormErrors({})
     saveParentMutation.reset()
   }
 
-  function updateField<Key extends keyof ParentFormValues>(key: Key, value: ParentFormValues[Key]) {
-    setFormValues((currentValues) => ({ ...currentValues, [key]: value }))
-    setFormErrors((currentErrors) => ({ ...currentErrors, [key]: undefined }))
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const errors = validateParent(formValues)
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
-      return
-    }
-
+  const onSubmit = handleSubmit((values) => {
     const request: ParentRequest = {
-      firstName: formValues.firstName.trim(),
-      lastName: formValues.lastName.trim(),
-      email: optionalValue(formValues.email),
-      phone: optionalValue(formValues.phone),
-      address: optionalValue(formValues.address),
-      preferredLanguage: optionalValue(formValues.preferredLanguage),
-      status: formValues.status,
-      notes: optionalValue(formValues.notes),
-      password: optionalValue(formValues.password),
+      firstName: values.firstName,
+      lastName: values.lastName,
+      email: optionalValue(values.email),
+      phone: optionalValue(values.phone),
+      address: optionalValue(values.address),
+      preferredLanguage: optionalValue(values.preferredLanguage),
+      status: values.status,
+      notes: optionalValue(values.notes),
+      password: optionalValue(values.password),
     }
 
     saveParentMutation.mutate({ parentId: editingParent?.parentId, request })
-  }
+  })
 
   return (
     <main className="page-content">
@@ -259,50 +234,32 @@ export function ParentsPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <form className="entity-form" onSubmit={handleSubmit}>
+          <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
                 Nombre *
-                <input
-                  maxLength={100}
-                  onChange={(event) => updateField('firstName', event.target.value)}
-                  value={formValues.firstName}
-                />
-                {formErrors.firstName ? <span className="field-error">{formErrors.firstName}</span> : null}
+                <input maxLength={100} {...register('firstName')} />
+                {formErrors.firstName ? (
+                  <span className="field-error">{formErrors.firstName.message}</span>
+                ) : null}
               </label>
               <label>
                 Apellidos *
-                <input
-                  maxLength={100}
-                  onChange={(event) => updateField('lastName', event.target.value)}
-                  value={formValues.lastName}
-                />
-                {formErrors.lastName ? <span className="field-error">{formErrors.lastName}</span> : null}
+                <input maxLength={100} {...register('lastName')} />
+                {formErrors.lastName ? <span className="field-error">{formErrors.lastName.message}</span> : null}
               </label>
               <label>
                 Correo electronico
-                <input
-                  maxLength={150}
-                  onChange={(event) => updateField('email', event.target.value)}
-                  type="email"
-                  value={formValues.email}
-                />
-                {formErrors.email ? <span className="field-error">{formErrors.email}</span> : null}
+                <input maxLength={150} type="email" {...register('email')} />
+                {formErrors.email ? <span className="field-error">{formErrors.email.message}</span> : null}
               </label>
               <label>
                 Telefono
-                <input
-                  maxLength={30}
-                  onChange={(event) => updateField('phone', event.target.value)}
-                  value={formValues.phone}
-                />
+                <input maxLength={30} {...register('phone')} />
               </label>
               <label>
                 Estado
-                <select
-                  onChange={(event) => updateField('status', event.target.value as ParentStatus)}
-                  value={formValues.status}
-                >
+                <select {...register('status')}>
                   {Object.entries(statusLabels).map(([status, label]) => (
                     <option key={status} value={status}>
                       {label}
@@ -312,20 +269,11 @@ export function ParentsPage() {
               </label>
               <label>
                 Idioma preferido
-                <input
-                  maxLength={20}
-                  onChange={(event) => updateField('preferredLanguage', event.target.value)}
-                  placeholder="es"
-                  value={formValues.preferredLanguage}
-                />
+                <input maxLength={20} placeholder="es" {...register('preferredLanguage')} />
               </label>
               <label className="entity-form-wide">
                 Direccion
-                <input
-                  maxLength={255}
-                  onChange={(event) => updateField('address', event.target.value)}
-                  value={formValues.address}
-                />
+                <input maxLength={255} {...register('address')} />
               </label>
               {!editingParent ? (
                 <label>
@@ -333,12 +281,11 @@ export function ParentsPage() {
                   <input
                     autoComplete="new-password"
                     maxLength={100}
-                    onChange={(event) => updateField('password', event.target.value)}
                     type="password"
-                    value={formValues.password}
+                    {...register('password')}
                   />
                   {formErrors.password ? (
-                    <span className="field-error">{formErrors.password}</span>
+                    <span className="field-error">{formErrors.password.message}</span>
                   ) : (
                     <span className="field-hint">Opcional. Dejar vacio si no necesita acceso al portal.</span>
                   )}
@@ -346,11 +293,7 @@ export function ParentsPage() {
               ) : null}
               <label className="entity-form-full">
                 Notas
-                <textarea
-                  onChange={(event) => updateField('notes', event.target.value)}
-                  rows={2}
-                  value={formValues.notes}
-                />
+                <textarea rows={2} {...register('notes')} />
               </label>
             </div>
             {saveParentMutation.error ? (
