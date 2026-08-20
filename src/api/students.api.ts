@@ -20,6 +20,7 @@ export type StudentListItem = {
   medicalNotes?: string
   allergies?: string
   notes?: string
+  deletedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -56,6 +57,7 @@ type GetStudentsParams = {
   search?: string
   groupId?: number | string
   status?: StudentStatus | 'ALL'
+  includeDeleted?: boolean
 }
 
 export function getStudents(params: GetStudentsParams = {}) {
@@ -71,6 +73,10 @@ export function getStudents(params: GetStudentsParams = {}) {
 
   if (params.status && params.status !== 'ALL') {
     searchParams.set('status', params.status)
+  }
+
+  if (params.includeDeleted) {
+    searchParams.set('includeDeleted', 'true')
   }
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
@@ -92,5 +98,17 @@ export function updateStudent(studentId: number, request: StudentRequest) {
   return apiRequest<StudentListItem>(`/api/students/${studentId}`, {
     method: 'PUT',
     body: request,
+  })
+}
+
+export function deleteStudent(studentId: number) {
+  return apiRequest<void>(`/api/students/${studentId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function restoreStudent(studentId: number) {
+  return apiRequest<StudentListItem>(`/api/students/${studentId}/restore`, {
+    method: 'POST',
   })
 }
