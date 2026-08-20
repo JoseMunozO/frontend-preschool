@@ -27,6 +27,8 @@ dist-ssr
 # Local-only notes
 docs/local/
 docs/errors/
+CLAUDE.md
+docs/backend-api-reference.md
 
 # Editor directories and files
 .vscode/*
