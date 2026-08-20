@@ -1,6 +1,8 @@
-import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm, useWatch } from 'react-hook-form'
+import { z } from 'zod'
 import { Eye, FileText, ListFilter, Plus, Search, X } from 'lucide-react'
 import { createPayment, getStudentCharges } from '../../api/payments.api'
 import type { PaymentChargeStatus, PaymentMethod, PaymentRequest, StudentCharge } from '../../types/payments'
@@ -70,16 +72,18 @@ function formatBillingPeriod(charge: StudentCharge) {
   return `${formatDate(charge.billingPeriodStart)} - ${formatDate(charge.billingPeriodEnd)}`
 }
 
-type PaymentFormValues = {
-  studentChargeId: string
-  paymentDate: string
-  amount: string
-  paymentMethod: PaymentMethod
-  referenceNumber: string
-  notes: string
-}
+const paymentFormSchema = z.object({
+  studentChargeId: z.string().min(1, 'Selecciona un cargo.'),
+  paymentDate: z.string().min(1, 'La fecha de pago es obligatoria.'),
+  amount: z
+    .string()
+    .refine((value) => value.trim() !== '' && Number(value) > 0, 'Indica un monto valido, mayor a 0.'),
+  paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER']),
+  referenceNumber: z.string(),
+  notes: z.string(),
+})
 
-type PaymentFormErrors = Partial<Record<keyof PaymentFormValues, string>>
+type PaymentFormValues = z.infer<typeof paymentFormSchema>
 
 function emptyFormValues(charge?: StudentCharge): PaymentFormValues {
   return {
@@ -104,9 +108,21 @@ export function PaymentsPage() {
   const [search, setSearch] = useState('')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedCharge, setSelectedCharge] = useState<StudentCharge | null>(null)
-  const [formValues, setFormValues] = useState<PaymentFormValues>(() => emptyFormValues())
-  const [formErrors, setFormErrors] = useState<PaymentFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    setError,
+    control,
+    formState: { errors: formErrors },
+  } = useForm<PaymentFormValues>({
+    resolver: zodResolver(paymentFormSchema),
+    defaultValues: emptyFormValues(),
+  })
+  const studentChargeId = useWatch({ control, name: 'studentChargeId' })
+  const paymentMethod = useWatch({ control, name: 'paymentMethod' })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['student-charges', month, status],
@@ -123,7 +139,6 @@ export function PaymentsPage() {
       setSuccessMessage('Pago registrado correctamente.')
       setIsFormOpen(false)
       setSelectedCharge(null)
-      setFormErrors({})
     },
   })
 
@@ -145,13 +160,11 @@ export function PaymentsPage() {
   }, [charges, search])
 
   const activeCharge =
-    selectedCharge ??
-    payableCharges.find((charge) => String(charge.studentChargeId) === formValues.studentChargeId)
+    selectedCharge ?? payableCharges.find((charge) => String(charge.studentChargeId) === studentChargeId)
 
   function openPaymentForm(charge?: StudentCharge) {
     setSelectedCharge(charge ?? null)
-    setFormValues(emptyFormValues(charge))
-    setFormErrors({})
+    reset(emptyFormValues(charge))
     savePaymentMutation.reset()
     setSuccessMessage(null)
     setIsFormOpen(true)
@@ -160,62 +173,40 @@ export function PaymentsPage() {
   function closePaymentForm() {
     setIsFormOpen(false)
     setSelectedCharge(null)
-    setFormErrors({})
     savePaymentMutation.reset()
   }
 
-  function updateField<Key extends keyof PaymentFormValues>(key: Key, value: PaymentFormValues[Key]) {
-    setFormValues((currentValues) => ({ ...currentValues, [key]: value }))
-    setFormErrors((currentErrors) => ({ ...currentErrors, [key]: undefined }))
+  function handleChargeChange(newStudentChargeId: string) {
+    const charge = payableCharges.find((item) => String(item.studentChargeId) === newStudentChargeId)
+
+    if (charge) {
+      setValue('amount', String(charge.balance))
+    }
   }
 
-  function handleChargeChange(studentChargeId: string) {
-    const charge = payableCharges.find((item) => String(item.studentChargeId) === studentChargeId)
-    setFormValues((currentValues) => ({
-      ...currentValues,
-      studentChargeId,
-      amount: charge ? String(charge.balance) : currentValues.amount,
-    }))
-    setFormErrors((currentErrors) => ({ ...currentErrors, studentChargeId: undefined, amount: undefined }))
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const errors: PaymentFormErrors = {}
+  const onSubmit = handleSubmit((values) => {
+    const amount = Number(values.amount)
     const charge = activeCharge
 
-    if (!formValues.studentChargeId) {
-      errors.studentChargeId = 'Selecciona un cargo.'
-    }
-
-    if (!formValues.paymentDate) {
-      errors.paymentDate = 'La fecha de pago es obligatoria.'
-    }
-
-    const amount = Number(formValues.amount)
-
-    if (!formValues.amount.trim() || amount <= 0) {
-      errors.amount = 'Indica un monto valido, mayor a 0.'
-    } else if (charge && amount > charge.balance) {
-      errors.amount = `El monto no puede superar el saldo pendiente (${formatCurrency(charge.balance)}).`
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
+    if (charge && amount > charge.balance) {
+      setError('amount', {
+        type: 'manual',
+        message: `El monto no puede superar el saldo pendiente (${formatCurrency(charge.balance)}).`,
+      })
       return
     }
 
     const request: PaymentRequest = {
-      paymentDate: formValues.paymentDate,
+      paymentDate: values.paymentDate,
       totalAmount: amount,
-      paymentMethod: formValues.paymentMethod,
-      referenceNumber: optionalValue(formValues.referenceNumber),
-      notes: optionalValue(formValues.notes),
-      allocations: [{ studentChargeId: Number(formValues.studentChargeId), amountAllocated: amount }],
+      paymentMethod: values.paymentMethod,
+      referenceNumber: optionalValue(values.referenceNumber),
+      notes: optionalValue(values.notes),
+      allocations: [{ studentChargeId: Number(values.studentChargeId), amountAllocated: amount }],
     }
 
     savePaymentMutation.mutate(request)
-  }
+  })
 
   return (
     <main className="page-content">
@@ -254,7 +245,7 @@ export function PaymentsPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
-          <form className="entity-form" onSubmit={handleSubmit}>
+          <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label className="entity-form-wide">
                 Cargo *
@@ -265,8 +256,9 @@ export function PaymentsPage() {
                   />
                 ) : (
                   <select
-                    onChange={(event) => handleChargeChange(event.target.value)}
-                    value={formValues.studentChargeId}
+                    {...register('studentChargeId', {
+                      onChange: (event) => handleChargeChange(event.target.value),
+                    })}
                   >
                     <option value="">Selecciona un cargo</option>
                     {payableCharges.map((charge) => (
@@ -278,7 +270,7 @@ export function PaymentsPage() {
                   </select>
                 )}
                 {formErrors.studentChargeId ? (
-                  <span className="field-error">{formErrors.studentChargeId}</span>
+                  <span className="field-error">{formErrors.studentChargeId.message}</span>
                 ) : null}
               </label>
               {activeCharge ? (
@@ -289,30 +281,19 @@ export function PaymentsPage() {
               ) : null}
               <label>
                 Fecha de pago *
-                <input
-                  onChange={(event) => updateField('paymentDate', event.target.value)}
-                  type="date"
-                  value={formValues.paymentDate}
-                />
-                {formErrors.paymentDate ? <span className="field-error">{formErrors.paymentDate}</span> : null}
+                <input type="date" {...register('paymentDate')} />
+                {formErrors.paymentDate ? (
+                  <span className="field-error">{formErrors.paymentDate.message}</span>
+                ) : null}
               </label>
               <label>
                 Monto *
-                <input
-                  min={0}
-                  onChange={(event) => updateField('amount', event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={formValues.amount}
-                />
-                {formErrors.amount ? <span className="field-error">{formErrors.amount}</span> : null}
+                <input min={0} step="0.01" type="number" {...register('amount')} />
+                {formErrors.amount ? <span className="field-error">{formErrors.amount.message}</span> : null}
               </label>
               <label>
                 Metodo de pago
-                <select
-                  onChange={(event) => updateField('paymentMethod', event.target.value as PaymentMethod)}
-                  value={formValues.paymentMethod}
-                >
+                <select {...register('paymentMethod')}>
                   {Object.entries(paymentMethodLabels).map(([method, label]) => (
                     <option key={method} value={method}>
                       {label}
@@ -320,23 +301,15 @@ export function PaymentsPage() {
                   ))}
                 </select>
               </label>
-              {formValues.paymentMethod === 'TRANSFER' ? (
+              {paymentMethod === 'TRANSFER' ? (
                 <label>
                   Numero de referencia
-                  <input
-                    maxLength={100}
-                    onChange={(event) => updateField('referenceNumber', event.target.value)}
-                    value={formValues.referenceNumber}
-                  />
+                  <input maxLength={100} {...register('referenceNumber')} />
                 </label>
               ) : null}
               <label className="entity-form-full">
                 Comentario administrativo
-                <textarea
-                  onChange={(event) => updateField('notes', event.target.value)}
-                  rows={2}
-                  value={formValues.notes}
-                />
+                <textarea rows={2} {...register('notes')} />
               </label>
             </div>
             {savePaymentMutation.error ? (
