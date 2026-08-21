@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-20.
+Ultima actualizacion: 2026-08-21.
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -45,26 +45,27 @@ Ultima actualizacion: 2026-08-20.
 - Estudiantes: boton "Eliminar" conectado con doble confirmacion (`ConfirmDialog` variant="danger", dos pasos) + `UndoToast` (nuevo componente, `src/components/ui/UndoToast.tsx`) que llama a `POST /api/students/{id}/restore` si se toca "Deshacer" dentro de 8 segundos. Verificado end-to-end contra el backend real (2026-08-21), incluyendo inspeccionar las requests: `DELETE /api/students/{id}` → `204`, luego `POST /api/students/{id}/restore` → `200`, y el estudiante vuelve a aparecer en la tabla. Mergeado a `main` (PR #28).
 - Backend: soft-delete + restore ahora tambien en Material, ScheduleSlot y Parent (mismo patron que estudiantes: `deletedAt`, `DELETE` pasa a soft-delete, `POST /{id}/restore`, `?includeDeleted=true`), rollout completo (`backend-preschool` PRs #42, #43, #44, 2026-08-21). En padres, `deletedAt` es independiente del campo `status` (activar/desactivar sigue siendo el toggle operativo de siempre). Detalle completo en `docs/backend-api-reference.md`.
 - Estudiantes: papelera para ver y restaurar eliminados. `src/components/ui/TrashPanel.tsx` (componente generico reutilizable, pensado para los demas modulos) conectado en `StudentsPage.tsx` detras de un boton "Papelera"; usa `GET /api/students?includeDeleted=true` (devuelve todos, se filtra `deletedAt != null` en el cliente porque el backend no separa "solo eliminados") y reutiliza `restoreStudentMutation`. Verificado en navegador contra el backend real: lista los eliminados con su fecha, restaurar los saca de la papelera y los devuelve a la tabla principal (confirmado con `POST /api/students/{id}/restore` → `200` en las requests reales).
-- Eliminar (doble confirmacion + `UndoToast`) y `TrashPanel` conectados tambien en Padres/Tutores (`deleteParent`/`restoreParent`, independiente del campo `status`), Materiales (`deleteMaterial`/`restoreMaterial`, etiqueta de papelera usa `translateBackendSeed`) y Horarios (`deleteSchedule`/`restoreSchedule`, etiqueta de papelera combina actividad + dia ya que un horario no tiene un campo "nombre" unico). Mismo patron exacto que Estudiantes en los 4 modulos. Verificado end-to-end contra el backend real en cada uno (doble confirmacion, soft-delete, deshacer, papelera + restaurar), inspeccionando las requests reales de cada modulo. Con esto quedan las 4 entidades con soft-delete en el backend (Student, Parent, Material, ScheduleSlot) completamente conectadas en el frontend.
+- Eliminar (doble confirmacion + `UndoToast`) y `TrashPanel` conectados tambien en Padres/Tutores (`deleteParent`/`restoreParent`, independiente del campo `status`), Materiales (`deleteMaterial`/`restoreMaterial`, etiqueta de papelera usa `translateBackendSeed`) y Horarios (`deleteSchedule`/`restoreSchedule`, etiqueta de papelera combina actividad + dia ya que un horario no tiene un campo "nombre" unico). Mismo patron exacto que Estudiantes en los 4 modulos. Verificado end-to-end contra el backend real en cada uno (doble confirmacion, soft-delete, deshacer, papelera + restaurar), inspeccionando las requests reales de cada modulo. Con esto quedan las 4 entidades con soft-delete en el backend (Student, Parent, Material, ScheduleSlot) completamente conectadas en el frontend. Los 5 branches apilados se pushearon y mergearon a `main` (PRs #28-#32, 2026-08-21).
+- Backend: `Parent` gano un tercer estado de ciclo de vida, "archivado" (`backend-preschool` PR #47, 2026-08-21), distinto de Student/Material/ScheduleSlot: en vez de purgarse a los 7 dias, un job diario minimiza el registro (conserva `firstName`/`lastName`/`email`/login, borra telefono/direccion/etc.) y lo conserva 6 anios para que una familia que regresa no pierda el historial de hijos vinculados. Nuevo `POST /api/parents/{id}/claim` para reactivar un archivado (distinto de `restore`, que sigue siendo solo el "deshacer" de los primeros 7 dias). Sin frontend todavia — implica que la papelera de Padres/Tutores necesitara, mas adelante, un flujo distinto para archivados (buscar por nombre/email, completar datos faltantes, llamar a `claim` en vez de `restore`). Detalle completo en `docs/backend-api-reference.md` y `CLAUDE.md`.
+- Pagos: historial de pagos por estudiante. `GET /api/payments/students/{studentId}` (`getPaymentsByStudent()` en `src/api/payments.api.ts`) conectado al boton "Ver historial de pagos" (icono ojo) de cada fila de cargo en `PaymentsPage.tsx`; abre un panel con la lista de pagos reales del estudiante (monto, metodo, fecha, referencia, notas). Mutuamente excluyente con el panel de registrar pago, mismo patron que los demas paneles del modulo. Verificado en navegador contra el backend real: pago con multiples asignaciones (Sofia Lindberg, $1,070 = suma de dos cargos), pago simple (Lucas Andersson, $1,500), y el estado vacio real "Sin pagos registrados para este estudiante" (Sofia Johansson) — los tres casos confirmados inspeccionando las requests reales (`GET /api/payments/students/{id}` → `200`).
 
-## Backend API — cambios pendientes de aprovechar (sync 2026-08-20)
+## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
 - **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
 - **Contactos de emergencia** (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`): no existe ningun modulo, tipo ni llamada en el frontend todavia.
-- **Reporte mensual de pagos** (`GET /api/payments/reports/monthly?month=YYYY-MM`): no hay ninguna pantalla ni llamada que lo consuma; encaja con el punto 2 de abajo (historial/reportes de pagos).
+- **Estado "archivado" de Parent** (`archivedAt`, `POST /api/parents/{id}/claim`): no hay UI para buscar/reactivar un tutor archivado (solo la papelera de 0-7 dias existe, que sigue funcionando igual). Ver nota en Estado Actual.
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
 
 ## Siguiente Punto Recomendado
 
-**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-21: eliminar + papelera ya esta conectado en las 4 pestañas que tienen soft-delete en el backend (estudiantes, padres/tutores, materiales, horarios), todas verificadas contra el backend real. Queda pendiente pushear y abrir los PRs (se dejaron todos apilados localmente a proposito, para hacerlo junto al final).
+**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-21: eliminar + papelera conectado en las 4 pestañas con soft-delete (estudiantes, padres/tutores, materiales, horarios) y ya pusheado/mergeado a `main` (PRs #28-#32). Historial de pagos por estudiante tambien completo y verificado contra el backend real.
 
 Prioridad, en orden:
 
-1. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly`.
-2. Modulo de contactos de emergencia por estudiante (no existe todavia; API ya lista: `GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`).
-3. Pushear y abrir los 5 PRs apilados (`feat/students-delete-confirmation` → `feat/students-trash-view` → `feat/parents-delete-trash` → `feat/materials-delete-trash` → `feat/schedules-delete-trash`), revisar CI, mergear en orden.
+1. Modulo de contactos de emergencia por estudiante (no existe todavia; API ya lista: `GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`).
+2. UI para tutor archivado (buscar por nombre/email, completar datos faltantes, `POST /api/parents/{id}/claim`) — nuevo desde backend PR #47, sin frontend todavia.
 
 Con menor prioridad, no urgente para el martes:
 
@@ -72,16 +73,6 @@ Con menor prioridad, no urgente para el martes:
 - Validar responsive real de dashboard y tablas principales.
 - Cuando se agreguen roles diferenciados por ruta, pasar `roles` a `ProtectedRoute` en `router.tsx` (el componente ya soporta mostrar `ForbiddenPage`, pero ningun route lo usa todavia).
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
-
-Branches listos, apilados, sin pushear (mergear en este orden):
-
-```text
-feat/students-delete-confirmation
-feat/students-trash-view
-feat/parents-delete-trash
-feat/materials-delete-trash
-feat/schedules-delete-trash
-```
 
 ## Fase 0 - Base Del Proyecto
 
@@ -148,7 +139,7 @@ feat/schedules-delete-trash
 - [x] Pagos: filtros por mes y estado.
 - [x] Pagos: busqueda local por estudiante o concepto.
 - [x] Pagos: registrar pago desde cargo.
-- [ ] Pagos: historial de pagos.
+- [x] Pagos: historial de pagos por estudiante (`GET /api/payments/students/{studentId}`), verificado contra el backend real.
 - [x] Materiales: tabla visual inicial.
 - [x] Materiales: adaptar campos reales del backend.
 - [x] Materiales: busqueda local por nombre, SKU o categoria.
@@ -212,14 +203,20 @@ chore/payments-form-rhf-zod
 fix/403-permission-screen
 feat/action-confirmations
 feat/students-server-filters
+feat/students-delete-confirmation
+feat/students-trash-view
+feat/parents-delete-trash
+feat/materials-delete-trash
+feat/schedules-delete-trash
+feat/payment-history
 ```
 
 Siguientes:
 
 ```text
-feat/students-pagination
-feat/payment-history
 feat/emergency-contacts
+feat/parent-archived-claim
+feat/students-pagination
 chore/tailwind-theme-tokens
 feat/schedule-week-view
 feat/responsive-polish

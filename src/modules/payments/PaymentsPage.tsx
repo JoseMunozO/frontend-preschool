@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { Eye, FileText, ListFilter, Plus, Search, X } from 'lucide-react'
-import { createPayment, getStudentCharges } from '../../api/payments.api'
+import { createPayment, getPaymentsByStudent, getStudentCharges } from '../../api/payments.api'
 import type { PaymentChargeStatus, PaymentMethod, PaymentRequest, StudentCharge } from '../../types/payments'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
@@ -110,6 +110,7 @@ export function PaymentsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedCharge, setSelectedCharge] = useState<StudentCharge | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [historyStudent, setHistoryStudent] = useState<{ studentId: number; studentName: string } | null>(null)
   const {
     register,
     handleSubmit,
@@ -129,6 +130,12 @@ export function PaymentsPage() {
     queryKey: ['student-charges', month, status],
     queryFn: () => getStudentCharges({ month, status }),
     retry: false,
+  })
+
+  const { data: historyData, isLoading: isHistoryLoading } = useQuery({
+    queryKey: ['payments', 'history', historyStudent?.studentId],
+    queryFn: () => getPaymentsByStudent(historyStudent!.studentId),
+    enabled: historyStudent !== null,
   })
 
   const savePaymentMutation = useMutation({
@@ -162,12 +169,23 @@ export function PaymentsPage() {
 
   const activeCharge =
     selectedCharge ?? payableCharges.find((charge) => String(charge.studentChargeId) === studentChargeId)
+  const historyPayments = historyData ?? []
+
+  function openPaymentHistory(charge: StudentCharge) {
+    setIsFormOpen(false)
+    setHistoryStudent({ studentId: charge.studentId, studentName: charge.studentName })
+  }
+
+  function closePaymentHistory() {
+    setHistoryStudent(null)
+  }
 
   function openPaymentForm(charge?: StudentCharge) {
     setSelectedCharge(charge ?? null)
     reset(emptyFormValues(charge))
     savePaymentMutation.reset()
     setSuccessMessage(null)
+    setHistoryStudent(null)
     setIsFormOpen(true)
   }
 
@@ -343,6 +361,49 @@ export function PaymentsPage() {
         </section>
       ) : null}
 
+      {historyStudent ? (
+        <section className="panel entity-form-panel" aria-labelledby="payment-history-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="payment-history-title">Historial de pagos</h3>
+              <p>{historyStudent.studentName}</p>
+            </div>
+            <button
+              aria-label="Cerrar historial"
+              className="icon-button"
+              onClick={closePaymentHistory}
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+
+          {isHistoryLoading ? <p>Cargando...</p> : null}
+
+          {!isHistoryLoading && historyPayments.length === 0 ? (
+            <p>Sin pagos registrados para este estudiante.</p>
+          ) : null}
+
+          {!isHistoryLoading && historyPayments.length > 0 ? (
+            <ul className="payment-history-list">
+              {historyPayments.map((payment) => (
+                <li className="payment-history-item" key={payment.paymentId}>
+                  <div className="payment-history-item-header">
+                    <strong>{formatCurrency(payment.totalAmount)}</strong>
+                    <span className="status-badge">{paymentMethodLabels[payment.paymentMethod]}</span>
+                    <span className="field-hint">{formatDate(payment.paymentDate)}</span>
+                  </div>
+                  {payment.referenceNumber ? (
+                    <p className="field-hint">Referencia: {payment.referenceNumber}</p>
+                  ) : null}
+                  {payment.notes ? <p className="field-hint">{payment.notes}</p> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="filters-row filters-row-payments" aria-label="Filtros de pagos">
         <input
           aria-label="Mes"
@@ -409,7 +470,7 @@ export function PaymentsPage() {
                 <td>{formatDate(charge.dueDate)}</td>
                 <td>
                   <div className="row-actions">
-                    <button title="Ver cargo" type="button">
+                    <button onClick={() => openPaymentHistory(charge)} title="Ver historial de pagos" type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
                     {payableStatuses.has(charge.status) ? (
