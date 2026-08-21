@@ -4,8 +4,24 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
-import { createStudent, deleteStudent, getStudents, restoreStudent, updateStudent } from '../../api/students.api'
-import type { StudentListItem, StudentRequest, StudentStatus } from '../../api/students.api'
+import {
+  createStudent,
+  createStudentEmergencyContact,
+  deleteStudent,
+  deleteStudentEmergencyContact,
+  getStudentEmergencyContacts,
+  getStudents,
+  restoreStudent,
+  updateStudent,
+  updateStudentEmergencyContact,
+} from '../../api/students.api'
+import type {
+  StudentEmergencyContact,
+  StudentEmergencyContactRequest,
+  StudentListItem,
+  StudentRequest,
+  StudentStatus,
+} from '../../api/students.api'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
@@ -15,6 +31,7 @@ import { translateBackendSeed } from '../../utils/displayText'
 const UNDO_WINDOW_MS = 8000
 
 const emptyStudents: StudentListItem[] = []
+const emptyContacts: StudentEmergencyContact[] = []
 
 const statusLabels: Record<StudentStatus, string> = {
   active: 'Activo',
@@ -102,6 +119,39 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
+const contactFormSchema = z.object({
+  fullName: z.string().trim().min(1, 'El nombre es obligatorio.'),
+  relationship: z.string().trim().min(1, 'La relacion es obligatoria.'),
+  phone: z.string().trim().min(1, 'El telefono es obligatorio.'),
+  alternatePhone: z.string(),
+  notes: z.string(),
+  primary: z.boolean(),
+})
+
+type ContactFormValues = z.infer<typeof contactFormSchema>
+
+function emptyContactValues(): ContactFormValues {
+  return {
+    fullName: '',
+    relationship: '',
+    phone: '',
+    alternatePhone: '',
+    notes: '',
+    primary: false,
+  }
+}
+
+function formValuesForContact(contact: StudentEmergencyContact): ContactFormValues {
+  return {
+    fullName: contact.fullName,
+    relationship: contact.relationship,
+    phone: contact.phone,
+    alternatePhone: contact.alternatePhone ?? '',
+    notes: contact.notes ?? '',
+    primary: contact.primary,
+  }
+}
+
 function formatStudentName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim()
 }
@@ -131,6 +181,10 @@ export function StudentsPage() {
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
   const [deletedStudent, setDeletedStudent] = useState<StudentListItem | null>(null)
   const [isTrashOpen, setIsTrashOpen] = useState(false)
+  const [contactsStudent, setContactsStudent] = useState<StudentListItem | null>(null)
+  const [contactFormOpen, setContactFormOpen] = useState(false)
+  const [editingContact, setEditingContact] = useState<StudentEmergencyContact | null>(null)
+  const [deleteContactTarget, setDeleteContactTarget] = useState<StudentEmergencyContact | null>(null)
   const {
     register,
     handleSubmit,
@@ -139,6 +193,16 @@ export function StudentsPage() {
   } = useForm<StudentFormValues>({
     resolver: zodResolver(studentFormSchema),
     defaultValues: emptyFormValues(),
+  })
+
+  const {
+    register: registerContact,
+    handleSubmit: handleContactSubmit,
+    reset: resetContactForm,
+    formState: { errors: contactErrors },
+  } = useForm<ContactFormValues>({
+    resolver: zodResolver(contactFormSchema),
+    defaultValues: emptyContactValues(),
   })
 
   useEffect(() => {
@@ -177,6 +241,17 @@ export function StudentsPage() {
     queryFn: () => getStudents({ includeDeleted: true }),
     enabled: isTrashOpen,
   })
+
+  const {
+    data: contactsData,
+    error: contactsError,
+    isLoading: isContactsLoading,
+  } = useQuery({
+    queryKey: ['students', contactsStudent?.studentId, 'emergency-contacts'],
+    queryFn: () => getStudentEmergencyContacts(contactsStudent!.studentId),
+    enabled: contactsStudent !== null,
+  })
+
   const saveStudentMutation = useMutation({
     mutationFn: ({
       studentId,
@@ -213,9 +288,51 @@ export function StudentsPage() {
     },
   })
 
+  const saveContactMutation = useMutation({
+    mutationFn: ({
+      contactId,
+      request,
+    }: {
+      contactId?: number
+      request: StudentEmergencyContactRequest
+    }) => {
+      if (!contactsStudent) {
+        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+      }
+
+      return contactId
+        ? updateStudentEmergencyContact(contactsStudent.studentId, contactId, request)
+        : createStudentEmergencyContact(contactsStudent.studentId, request)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['students', contactsStudent?.studentId, 'emergency-contacts'],
+      })
+      setContactFormOpen(false)
+      setEditingContact(null)
+    },
+  })
+
+  const deleteContactMutation = useMutation({
+    mutationFn: (contactId: number) => {
+      if (!contactsStudent) {
+        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+      }
+
+      return deleteStudentEmergencyContact(contactsStudent.studentId, contactId)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['students', contactsStudent?.studentId, 'emergency-contacts'],
+      })
+      setDeleteContactTarget(null)
+    },
+  })
+
   const students = data ?? emptyStudents
   const allGroups = allGroupsData ?? emptyStudents
   const trashedStudents = (trashData ?? emptyStudents).filter((student) => student.deletedAt)
+  const contacts = contactsData ?? emptyContacts
   const formGroups = useMemo(
     () =>
       Array.from(
@@ -234,11 +351,13 @@ export function StudentsPage() {
     saveStudentMutation.reset()
     setSuccessMessage(null)
     setIsTrashOpen(false)
+    setContactsStudent(null)
     setIsFormOpen(true)
   }
 
   function openTrash() {
     setIsFormOpen(false)
+    setContactsStudent(null)
     setIsTrashOpen(true)
   }
 
@@ -252,7 +371,42 @@ export function StudentsPage() {
     saveStudentMutation.reset()
     setSuccessMessage(null)
     setIsTrashOpen(false)
+    setContactsStudent(null)
     setIsFormOpen(true)
+  }
+
+  function openContactsPanel(student: StudentListItem) {
+    setIsFormOpen(false)
+    setIsTrashOpen(false)
+    setContactFormOpen(false)
+    setEditingContact(null)
+    setContactsStudent(student)
+  }
+
+  function closeContactsPanel() {
+    setContactsStudent(null)
+    setContactFormOpen(false)
+    setEditingContact(null)
+  }
+
+  function openNewContactForm() {
+    setEditingContact(null)
+    resetContactForm(emptyContactValues())
+    saveContactMutation.reset()
+    setContactFormOpen(true)
+  }
+
+  function openEditContactForm(contact: StudentEmergencyContact) {
+    setEditingContact(contact)
+    resetContactForm(formValuesForContact(contact))
+    saveContactMutation.reset()
+    setContactFormOpen(true)
+  }
+
+  function closeContactForm() {
+    setContactFormOpen(false)
+    setEditingContact(null)
+    saveContactMutation.reset()
   }
 
   function closeStudentForm() {
@@ -289,6 +443,19 @@ export function StudentsPage() {
     }
 
     saveStudentMutation.mutate({ studentId: editingStudent?.studentId, request })
+  })
+
+  const onContactSubmit = handleContactSubmit((values) => {
+    const request: StudentEmergencyContactRequest = {
+      fullName: values.fullName,
+      relationship: values.relationship,
+      phone: values.phone,
+      alternatePhone: optionalValue(values.alternatePhone),
+      notes: optionalValue(values.notes),
+      primary: values.primary,
+    }
+
+    saveContactMutation.mutate({ contactId: editingContact?.studentEmergencyContactId, request })
   })
 
   return (
@@ -457,6 +624,145 @@ export function StudentsPage() {
         />
       ) : null}
 
+      {contactsStudent ? (
+        <section className="panel entity-form-panel" aria-labelledby="emergency-contacts-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="emergency-contacts-title">
+                {contactFormOpen
+                  ? editingContact
+                    ? 'Editar contacto de emergencia'
+                    : 'Nuevo contacto de emergencia'
+                  : 'Contactos de emergencia'}
+              </h3>
+              <p>{formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}</p>
+            </div>
+            <button
+              aria-label="Cerrar"
+              className="icon-button"
+              onClick={closeContactsPanel}
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+
+          {contactFormOpen ? (
+            <form className="entity-form" onSubmit={onContactSubmit}>
+              <div className="entity-form-grid">
+                <label>
+                  Nombre completo *
+                  <input maxLength={150} {...registerContact('fullName')} />
+                  {contactErrors.fullName ? (
+                    <span className="field-error">{contactErrors.fullName.message}</span>
+                  ) : null}
+                </label>
+                <label>
+                  Relacion *
+                  <input maxLength={100} placeholder="Abuela, tio, vecino..." {...registerContact('relationship')} />
+                  {contactErrors.relationship ? (
+                    <span className="field-error">{contactErrors.relationship.message}</span>
+                  ) : null}
+                </label>
+                <label>
+                  Telefono *
+                  <input maxLength={30} {...registerContact('phone')} />
+                  {contactErrors.phone ? <span className="field-error">{contactErrors.phone.message}</span> : null}
+                </label>
+                <label>
+                  Telefono alternativo
+                  <input maxLength={30} {...registerContact('alternatePhone')} />
+                </label>
+                <label className="entity-form-full">
+                  Notas
+                  <textarea rows={2} {...registerContact('notes')} />
+                </label>
+                <label className="checkbox-field entity-form-full">
+                  <input type="checkbox" {...registerContact('primary')} />
+                  Contacto principal
+                </label>
+              </div>
+              {saveContactMutation.error ? (
+                <p className="form-error" role="alert">
+                  {saveContactMutation.error instanceof Error
+                    ? saveContactMutation.error.message
+                    : 'No se pudo guardar el contacto.'}
+                </p>
+              ) : null}
+              <footer className="form-actions">
+                <button
+                  className="secondary-button"
+                  disabled={saveContactMutation.isPending}
+                  onClick={closeContactForm}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+                <button className="primary-button" disabled={saveContactMutation.isPending} type="submit">
+                  {saveContactMutation.isPending
+                    ? 'Guardando...'
+                    : editingContact
+                      ? 'Guardar cambios'
+                      : 'Agregar contacto'}
+                </button>
+              </footer>
+            </form>
+          ) : (
+            <>
+              <div className="panel-actions-row">
+                <button className="secondary-button inline-button" onClick={openNewContactForm} type="button">
+                  <Plus size={16} aria-hidden="true" />
+                  Agregar contacto
+                </button>
+              </div>
+              {contactsError ? (
+                <p className="notice">
+                  {isForbiddenError(contactsError)
+                    ? 'No tienes permiso para ver los contactos de emergencia.'
+                    : 'No se pudieron cargar los contactos de emergencia.'}
+                </p>
+              ) : null}
+              {isContactsLoading ? <p>Cargando...</p> : null}
+              {!isContactsLoading && !contactsError && contacts.length === 0 ? (
+                <p>Sin contactos de emergencia registrados.</p>
+              ) : null}
+              {!isContactsLoading && contacts.length > 0 ? (
+                <ul className="contact-list">
+                  {contacts.map((contact) => (
+                    <li className="contact-item" key={contact.studentEmergencyContactId}>
+                      <div className="contact-item-header">
+                        <span className="contact-item-title">
+                          <strong>{contact.fullName}</strong>
+                          {contact.primary ? <span className="status-badge">Principal</span> : null}
+                        </span>
+                        <div className="row-actions">
+                          <button onClick={() => openEditContactForm(contact)} title="Editar" type="button">
+                            <Pencil size={16} aria-hidden="true" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteContactTarget(contact)}
+                            title="Eliminar"
+                            type="button"
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="field-hint">{contact.relationship}</p>
+                      <p className="field-hint">
+                        Tel: {contact.phone}
+                        {contact.alternatePhone ? ` / ${contact.alternatePhone}` : ''}
+                      </p>
+                      {contact.notes ? <p className="field-hint">{contact.notes}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          )}
+        </section>
+      ) : null}
+
       <section className="filters-row" aria-label="Filtros de estudiantes">
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
@@ -544,7 +850,11 @@ export function StudentsPage() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button title="Ver" type="button">
+                      <button
+                        onClick={() => openContactsPanel(student)}
+                        title="Ver contactos de emergencia"
+                        type="button"
+                      >
                         <Eye size={16} aria-hidden="true" />
                       </button>
                       <button onClick={() => openEditStudentForm(student)} title="Editar" type="button">
@@ -605,6 +915,26 @@ export function StudentsPage() {
         }}
         open={deleteTarget !== null}
         title={deleteStep === 1 ? 'Eliminar a este estudiante?' : 'Confirmar eliminacion'}
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel="Si, eliminar"
+        description={
+          deleteContactTarget
+            ? `Se eliminara el contacto ${deleteContactTarget.fullName}. Esta accion no se puede deshacer.`
+            : ''
+        }
+        isConfirming={deleteContactMutation.isPending}
+        onCancel={() => setDeleteContactTarget(null)}
+        onConfirm={() => {
+          if (deleteContactTarget) {
+            deleteContactMutation.mutate(deleteContactTarget.studentEmergencyContactId)
+          }
+        }}
+        open={deleteContactTarget !== null}
+        title="Eliminar contacto de emergencia?"
         variant="danger"
       />
 
