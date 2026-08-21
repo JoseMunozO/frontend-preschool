@@ -11,6 +11,7 @@ export type ParentListItem = {
   preferredLanguage?: string
   status: ParentStatus
   notes?: string
+  deletedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
