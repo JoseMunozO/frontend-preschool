@@ -1,20 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Eye, ListFilter, Pencil, Plus, Search, UserCheck, UserCircle, UserX, X } from 'lucide-react'
+import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCheck, UserCircle, UserX, X } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { TrashPanel } from '../../components/ui/TrashPanel'
+import { UndoToast } from '../../components/ui/UndoToast'
 import {
   activateParent,
   createParent,
   deactivateParent,
+  deleteParent,
   getParents,
   getParentStudents,
+  restoreParent,
   updateParent,
 } from '../../api/parents.api'
 import type { ParentListItem, ParentRequest, ParentStatus } from '../../types/parents'
 import { isForbiddenError } from '../../utils/apiErrors'
+
+const UNDO_WINDOW_MS = 8000
 
 const emptyParents: ParentListItem[] = []
 
@@ -88,6 +94,10 @@ export function ParentsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [confirmingStatusParent, setConfirmingStatusParent] = useState<ParentListItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ParentListItem | null>(null)
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
+  const [deletedParent, setDeletedParent] = useState<ParentListItem | null>(null)
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const {
     register,
     handleSubmit,
@@ -99,9 +109,24 @@ export function ParentsPage() {
   })
   const { data, error, isLoading } = useQuery({
     queryKey: ['parents'],
-    queryFn: getParents,
+    queryFn: () => getParents(),
     retry: false,
   })
+
+  const { data: trashData, isLoading: isTrashLoading } = useQuery({
+    queryKey: ['parents', 'trash'],
+    queryFn: () => getParents({ includeDeleted: true }),
+    enabled: isTrashOpen,
+  })
+
+  useEffect(() => {
+    if (!deletedParent) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => setDeletedParent(null), UNDO_WINDOW_MS)
+    return () => clearTimeout(timeoutId)
+  }, [deletedParent])
 
   const saveParentMutation = useMutation({
     mutationFn: ({ parentId, request }: { parentId?: number; request: ParentRequest }) =>
@@ -125,7 +150,26 @@ export function ParentsPage() {
     },
   })
 
+  const deleteParentMutation = useMutation({
+    mutationFn: (parentId: number) => deleteParent(parentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['parents'] })
+      setDeletedParent(deleteTarget)
+      setDeleteTarget(null)
+      setDeleteStep(1)
+    },
+  })
+
+  const restoreParentMutation = useMutation({
+    mutationFn: (parentId: number) => restoreParent(parentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['parents'] })
+      setDeletedParent(null)
+    },
+  })
+
   const parents = data ?? emptyParents
+  const trashedParents = (trashData ?? emptyParents).filter((parent) => parent.deletedAt)
 
   const childrenQueries = useQueries({
     queries: parents.map((parent) => ({
@@ -168,6 +212,7 @@ export function ParentsPage() {
     reset(emptyFormValues())
     saveParentMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -176,6 +221,7 @@ export function ParentsPage() {
     reset(formValuesForParent(parent))
     saveParentMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -183,6 +229,27 @@ export function ParentsPage() {
     setIsFormOpen(false)
     setEditingParent(null)
     saveParentMutation.reset()
+  }
+
+  function openDeleteConfirm(parent: ParentListItem) {
+    setDeleteTarget(parent)
+    setDeleteStep(1)
+    deleteParentMutation.reset()
+  }
+
+  function closeDeleteConfirm() {
+    setDeleteTarget(null)
+    setDeleteStep(1)
+    deleteParentMutation.reset()
+  }
+
+  function openTrash() {
+    setIsFormOpen(false)
+    setIsTrashOpen(true)
+  }
+
+  function closeTrash() {
+    setIsTrashOpen(false)
   }
 
   const onSubmit = handleSubmit((values) => {
@@ -208,10 +275,16 @@ export function ParentsPage() {
           <h2>Padres / Tutores</h2>
           <p>Administra la informacion de los padres o tutores.</p>
         </div>
-        <button className="primary-button inline-button" onClick={openNewParentForm} type="button">
-          <Plus size={17} aria-hidden="true" />
-          Nuevo padre / tutor
-        </button>
+        <div className="page-heading-actions">
+          <button className="secondary-button" onClick={openTrash} type="button">
+            <Trash2 size={17} aria-hidden="true" />
+            Papelera
+          </button>
+          <button className="primary-button inline-button" onClick={openNewParentForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            Nuevo padre / tutor
+          </button>
+        </div>
       </section>
 
       {successMessage ? (
@@ -334,6 +407,21 @@ export function ParentsPage() {
         </section>
       ) : null}
 
+      {isTrashOpen ? (
+        <TrashPanel
+          emptyMessage="No hay padres o tutores eliminados recientemente."
+          getDeletedAt={(parent) => parent.deletedAt}
+          getId={(parent) => parent.parentId}
+          getLabel={(parent) => formatParentName(parent.firstName, parent.lastName)}
+          isLoading={isTrashLoading}
+          items={trashedParents}
+          onClose={closeTrash}
+          onRestore={(parent) => restoreParentMutation.mutate(parent.parentId)}
+          restoringId={restoreParentMutation.isPending ? restoreParentMutation.variables : null}
+          title="Padres / tutores eliminados"
+        />
+      ) : null}
+
       <section className="filters-row filters-row-compact" aria-label="Filtros de padres o tutores">
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
@@ -408,6 +496,9 @@ export function ParentsPage() {
                           <UserCheck size={16} aria-hidden="true" />
                         )}
                       </button>
+                      <button onClick={() => openDeleteConfirm(parent)} title="Eliminar" type="button">
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -462,6 +553,42 @@ export function ParentsPage() {
             : 'Activar a este padre o tutor?'
         }
       />
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        description={
+          deleteTarget
+            ? deleteStep === 1
+              ? `Se eliminara a ${formatParentName(deleteTarget.firstName, deleteTarget.lastName)}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
+              : `Confirma que quieres eliminar a ${formatParentName(deleteTarget.firstName, deleteTarget.lastName)} ahora.`
+            : ''
+        }
+        isConfirming={deleteParentMutation.isPending}
+        onCancel={closeDeleteConfirm}
+        onConfirm={() => {
+          if (deleteStep === 1) {
+            setDeleteStep(2)
+            return
+          }
+
+          if (deleteTarget) {
+            deleteParentMutation.mutate(deleteTarget.parentId)
+          }
+        }}
+        open={deleteTarget !== null}
+        title={deleteStep === 1 ? 'Eliminar a este padre o tutor?' : 'Confirmar eliminacion'}
+        variant="danger"
+      />
+
+      {deletedParent ? (
+        <UndoToast
+          isActing={restoreParentMutation.isPending}
+          message={`${formatParentName(deletedParent.firstName, deletedParent.lastName)} fue eliminado.`}
+          onAction={() => restoreParentMutation.mutate(deletedParent.parentId)}
+          onDismiss={() => setDeletedParent(null)}
+        />
+      ) : null}
     </main>
   )
 }
