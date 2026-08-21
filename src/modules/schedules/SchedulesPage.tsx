@@ -1,13 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { CalendarDays, Eye, ListFilter, Pencil, Plus, Search, X } from 'lucide-react'
-import { createSchedule, getSchedules, updateSchedule } from '../../api/schedules.api'
+import { CalendarDays, Eye, ListFilter, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import {
+  createSchedule,
+  deleteSchedule,
+  getSchedules,
+  restoreSchedule,
+  updateSchedule,
+} from '../../api/schedules.api'
 import type { DayOfWeek, ScheduleItem, ScheduleRequest } from '../../types/schedules'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { TrashPanel } from '../../components/ui/TrashPanel'
+import { UndoToast } from '../../components/ui/UndoToast'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
+
+const UNDO_WINDOW_MS = 8000
 
 const emptySchedules: ScheduleItem[] = []
 
@@ -23,6 +34,10 @@ const dayLabels: Record<DayOfWeek, string> = {
 
 function formatTime(value?: string) {
   return value ? value.slice(0, 5) : '-'
+}
+
+function formatScheduleLabel(schedule: ScheduleItem) {
+  return `${schedule.activityTitle} (${dayLabels[schedule.dayOfWeek]})`
 }
 
 const scheduleFormSchema = z
@@ -87,6 +102,10 @@ export function SchedulesPage() {
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ScheduleItem | null>(null)
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
+  const [deletedSchedule, setDeletedSchedule] = useState<ScheduleItem | null>(null)
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const {
     register,
     handleSubmit,
@@ -103,6 +122,21 @@ export function SchedulesPage() {
     retry: false,
   })
 
+  const { data: trashData, isLoading: isTrashLoading } = useQuery({
+    queryKey: ['schedules', 'trash'],
+    queryFn: () => getSchedules({ includeDeleted: true }),
+    enabled: isTrashOpen,
+  })
+
+  useEffect(() => {
+    if (!deletedSchedule) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => setDeletedSchedule(null), UNDO_WINDOW_MS)
+    return () => clearTimeout(timeoutId)
+  }, [deletedSchedule])
+
   const saveScheduleMutation = useMutation({
     mutationFn: ({ scheduleSlotId, request }: { scheduleSlotId?: number; request: ScheduleRequest }) =>
       scheduleSlotId ? updateSchedule(scheduleSlotId, request) : createSchedule(request),
@@ -116,7 +150,26 @@ export function SchedulesPage() {
     },
   })
 
+  const deleteScheduleMutation = useMutation({
+    mutationFn: (scheduleSlotId: number) => deleteSchedule(scheduleSlotId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] })
+      setDeletedSchedule(deleteTarget)
+      setDeleteTarget(null)
+      setDeleteStep(1)
+    },
+  })
+
+  const restoreScheduleMutation = useMutation({
+    mutationFn: (scheduleSlotId: number) => restoreSchedule(scheduleSlotId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] })
+      setDeletedSchedule(null)
+    },
+  })
+
   const schedules = data ?? emptySchedules
+  const trashedSchedules = (trashData ?? emptySchedules).filter((schedule) => schedule.deletedAt)
   const groups = useMemo(
     () =>
       Array.from(
@@ -162,6 +215,7 @@ export function SchedulesPage() {
     reset(emptyFormValues())
     saveScheduleMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -170,6 +224,7 @@ export function SchedulesPage() {
     reset(formValuesForSchedule(schedule))
     saveScheduleMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -177,6 +232,27 @@ export function SchedulesPage() {
     setIsFormOpen(false)
     setEditingSchedule(null)
     saveScheduleMutation.reset()
+  }
+
+  function openDeleteConfirm(schedule: ScheduleItem) {
+    setDeleteTarget(schedule)
+    setDeleteStep(1)
+    deleteScheduleMutation.reset()
+  }
+
+  function closeDeleteConfirm() {
+    setDeleteTarget(null)
+    setDeleteStep(1)
+    deleteScheduleMutation.reset()
+  }
+
+  function openTrash() {
+    setIsFormOpen(false)
+    setIsTrashOpen(true)
+  }
+
+  function closeTrash() {
+    setIsTrashOpen(false)
   }
 
   const onSubmit = handleSubmit((values) => {
@@ -201,10 +277,16 @@ export function SchedulesPage() {
           <h2>Horarios</h2>
           <p>Organiza rutinas por grupo, dia, aula y responsable asignado.</p>
         </div>
-        <button className="primary-button inline-button" onClick={openNewScheduleForm} type="button">
-          <Plus size={17} aria-hidden="true" />
-          Nueva actividad
-        </button>
+        <div className="page-heading-actions">
+          <button className="secondary-button" onClick={openTrash} type="button">
+            <Trash2 size={17} aria-hidden="true" />
+            Papelera
+          </button>
+          <button className="primary-button inline-button" onClick={openNewScheduleForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            Nueva actividad
+          </button>
+        </div>
       </section>
 
       {successMessage ? (
@@ -328,6 +410,21 @@ export function SchedulesPage() {
         </section>
       ) : null}
 
+      {isTrashOpen ? (
+        <TrashPanel
+          emptyMessage="No hay actividades eliminadas recientemente."
+          getDeletedAt={(schedule) => schedule.deletedAt}
+          getId={(schedule) => schedule.scheduleSlotId}
+          getLabel={formatScheduleLabel}
+          isLoading={isTrashLoading}
+          items={trashedSchedules}
+          onClose={closeTrash}
+          onRestore={(schedule) => restoreScheduleMutation.mutate(schedule.scheduleSlotId)}
+          restoringId={restoreScheduleMutation.isPending ? restoreScheduleMutation.variables : null}
+          title="Actividades eliminadas"
+        />
+      ) : null}
+
       <section className="filters-row filters-row-schedules" aria-label="Filtros de horarios">
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
@@ -415,6 +512,9 @@ export function SchedulesPage() {
                     <button onClick={() => openEditScheduleForm(schedule)} title="Editar horario" type="button">
                       <Pencil size={16} aria-hidden="true" />
                     </button>
+                    <button onClick={() => openDeleteConfirm(schedule)} title="Eliminar" type="button">
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -443,6 +543,42 @@ export function SchedulesPage() {
           </div>
         </footer>
       </div>
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        description={
+          deleteTarget
+            ? deleteStep === 1
+              ? `Se eliminara ${formatScheduleLabel(deleteTarget)}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
+              : `Confirma que quieres eliminar ${formatScheduleLabel(deleteTarget)} ahora.`
+            : ''
+        }
+        isConfirming={deleteScheduleMutation.isPending}
+        onCancel={closeDeleteConfirm}
+        onConfirm={() => {
+          if (deleteStep === 1) {
+            setDeleteStep(2)
+            return
+          }
+
+          if (deleteTarget) {
+            deleteScheduleMutation.mutate(deleteTarget.scheduleSlotId)
+          }
+        }}
+        open={deleteTarget !== null}
+        title={deleteStep === 1 ? 'Eliminar esta actividad?' : 'Confirmar eliminacion'}
+        variant="danger"
+      />
+
+      {deletedSchedule ? (
+        <UndoToast
+          isActing={restoreScheduleMutation.isPending}
+          message={`${formatScheduleLabel(deletedSchedule)} fue eliminada.`}
+          onAction={() => restoreScheduleMutation.mutate(deletedSchedule.scheduleSlotId)}
+          onDismiss={() => setDeletedSchedule(null)}
+        />
+      ) : null}
     </main>
   )
 }
