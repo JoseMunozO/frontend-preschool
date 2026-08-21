@@ -44,6 +44,7 @@ Ultima actualizacion: 2026-08-20.
 - Backend: soft-delete + restore para estudiantes ya esta implementado y mergeado (`backend-preschool` PR #40, 2026-08-20 noche). `DELETE /api/students/{id}` marca `deletedAt` (mismo `204` externo), `POST /api/students/{id}/restore` limpia `deletedAt` dentro de una ventana de gracia de 7 dias (`200` con el Student, `404` si no existe/no esta eliminado, `409` si ya expiro), `GET /api/students?includeDeleted=true` muestra los eliminados recientes. Detalle completo en `docs/backend-api-reference.md`.
 - Estudiantes: boton "Eliminar" conectado con doble confirmacion (`ConfirmDialog` variant="danger", dos pasos) + `UndoToast` (nuevo componente, `src/components/ui/UndoToast.tsx`) que llama a `POST /api/students/{id}/restore` si se toca "Deshacer" dentro de 8 segundos. Verificado end-to-end contra el backend real (2026-08-21), incluyendo inspeccionar las requests: `DELETE /api/students/{id}` → `204`, luego `POST /api/students/{id}/restore` → `200`, y el estudiante vuelve a aparecer en la tabla. Mergeado a `main` (PR #28).
 - Backend: soft-delete + restore ahora tambien en Material, ScheduleSlot y Parent (mismo patron que estudiantes: `deletedAt`, `DELETE` pasa a soft-delete, `POST /{id}/restore`, `?includeDeleted=true`), rollout completo (`backend-preschool` PRs #42, #43, #44, 2026-08-21). En padres, `deletedAt` es independiente del campo `status` (activar/desactivar sigue siendo el toggle operativo de siempre). Detalle completo en `docs/backend-api-reference.md`.
+- Estudiantes: papelera para ver y restaurar eliminados. `src/components/ui/TrashPanel.tsx` (componente generico reutilizable, pensado para los demas modulos) conectado en `StudentsPage.tsx` detras de un boton "Papelera"; usa `GET /api/students?includeDeleted=true` (devuelve todos, se filtra `deletedAt != null` en el cliente porque el backend no separa "solo eliminados") y reutiliza `restoreStudentMutation`. Verificado en navegador contra el backend real: lista los eliminados con su fecha, restaurar los saca de la papelera y los devuelve a la tabla principal (confirmado con `POST /api/students/{id}/restore` → `200` en las requests reales).
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-20)
 
@@ -52,17 +53,17 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 - **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
 - **Contactos de emergencia** (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`): no existe ningun modulo, tipo ni llamada en el frontend todavia.
 - **Reporte mensual de pagos** (`GET /api/payments/reports/monthly?month=YYYY-MM`): no hay ninguna pantalla ni llamada que lo consuma; encaja con el punto 2 de abajo (historial/reportes de pagos).
-- **No existe eliminar (ni soft-delete) para padres/tutores, materiales, horarios ni pagos** — confirmado revisando el backend el 2026-08-20 noche: de todo el modelo, solo `Student`, `StudentNote` y `PhotoAlbumPhoto` tienen `deletedAt`. Padres/tutores solo tiene activar/desactivar (no es un "eliminar"); Materiales, Horarios y Pagos no tienen ningun endpoint `DELETE` todavia, ni soft ni hard. Antes de construir una "papelera" con restaurar en esos modulos (punto 1 de abajo) hay que pedirle a la sesion de backend que agregue el soft-delete + restore ahi tambien (mismo patron que estudiantes) — no es trabajo de frontend hasta que exista la API.
+- **Padres/tutores, Materiales y Horarios ya tienen soft-delete + restore en el backend, sin conectar en el frontend todavia** (rollout completo 2026-08-21, ver arriba). Falta: boton Eliminar con doble confirmacion + `UndoToast` (mismo patron que `StudentsPage.tsx`) y `TrashPanel` en `ParentsPage.tsx`, `MaterialsPage.tsx` y `SchedulesPage.tsx`. Pagos sigue sin ningun endpoint `DELETE` (no se pidio, tiene sentido para no perder historial financiero).
 
 ## Siguiente Punto Recomendado
 
-**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-20 (noche) tras dejar `feat/students-delete-confirmation` commiteado localmente (sin pushear/PR todavia).
+**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-21: items 1 y 2 de la lista de ayer ya estan hechos y verificados (ver Estado Actual); backend confirmo el rollout completo de soft-delete (item 3 de ayer, ya no bloquea nada).
 
-Prioridad para retomar manana, en orden:
+Prioridad, en orden:
 
-1. **Verificar el click real de "Deshacer" en `StudentsPage.tsx`** (probar en navegador que `POST /api/students/{id}/restore` restaura al estudiante y lo devuelve a la tabla) y, si funciona, pushear y abrir el PR de `feat/students-delete-confirmation`. Es lo mas cerca de terminarse.
-2. **Pantalla de "papelera" para estudiantes eliminados**: un boton/vista que use `GET /api/students?includeDeleted=true` para listar y restaurar estudiantes eliminados fuera de la ventana del toast de 8s (la restauracion via backend sigue disponible 7 dias completos, el toast es solo para el caso de "me equivoque ahora mismo"). Esto ya tiene API lista, se puede construir manana sin depender de nada mas.
-3. **Pedirle a la sesion de backend soft-delete + restore para padres/tutores y materiales** (mismo patron que estudiantes: campo `deletedAt`, `DELETE` pasa a soft-delete, `POST /{id}/restore`, `?includeDeleted=true`) — hoy ninguno de los dos tiene ni siquiera un endpoint `DELETE`. Sin esto, no se puede construir la "papelera" en esas pestañas como se pidio.
+1. **Conectar eliminar (doble confirmacion + `UndoToast`) y `TrashPanel` en Padres/Tutores** (`ParentsPage.tsx`) — mismo patron que `StudentsPage.tsx`. Recordar: `deletedAt` es independiente de `status`, no tocar el toggle activar/desactivar existente.
+2. **Lo mismo en Materiales** (`MaterialsPage.tsx`).
+3. **Lo mismo en Horarios** (`SchedulesPage.tsx`).
 4. Vista de historial de pagos por estudiante, aprovechando `GET /api/payments/reports/monthly` (no depende de nada bloqueado).
 5. Modulo de contactos de emergencia por estudiante (no existe todavia; API ya lista: `GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`).
 
@@ -71,12 +72,13 @@ Con menor prioridad, no urgente para el martes:
 - Implementar paginacion real de estudiantes (controles visuales sin logica todavia).
 - Validar responsive real de dashboard y tablas principales.
 - Cuando se agreguen roles diferenciados por ruta, pasar `roles` a `ProtectedRoute` en `router.tsx` (el componente ya soporta mostrar `ForbiddenPage`, pero ningun route lo usa todavia).
-- **Tailwind incremental — degradado a prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
+- **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
-Branch listo, sin pushear:
+Branches listos, sin pushear:
 
 ```text
 feat/students-delete-confirmation
+feat/students-trash-view
 ```
 
 ## Fase 0 - Base Del Proyecto
