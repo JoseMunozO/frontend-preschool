@@ -11,6 +11,7 @@ export type MaterialItem = {
   lowStock: boolean
   status: MaterialStatus
   notes?: string
+  deletedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }

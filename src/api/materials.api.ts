@@ -12,6 +12,7 @@ type GetMaterialsParams = {
   category?: string
   status?: MaterialStatus | 'ALL'
   lowStock?: boolean
+  includeDeleted?: boolean
 }
 
 export function getMaterials(params: GetMaterialsParams = {}) {
@@ -31,6 +32,10 @@ export function getMaterials(params: GetMaterialsParams = {}) {
 
   if (params.lowStock !== undefined) {
     searchParams.set('lowStock', String(params.lowStock))
+  }
+
+  if (params.includeDeleted) {
+    searchParams.set('includeDeleted', 'true')
   }
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
@@ -59,5 +64,17 @@ export function createMaterialMovement(materialId: number, request: MaterialMove
   return apiRequest<MaterialMovement>(`/api/materials/${materialId}/movements`, {
     method: 'POST',
     body: request,
+  })
+}
+
+export function deleteMaterial(materialId: number) {
+  return apiRequest<void>(`/api/materials/${materialId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function restoreMaterial(materialId: number) {
+  return apiRequest<MaterialItem>(`/api/materials/${materialId}/restore`, {
+    method: 'POST',
   })
 }

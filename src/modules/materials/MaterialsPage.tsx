@@ -1,10 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { ArrowLeftRight, Eye, ListFilter, PackagePlus, Pencil, Plus, Search, X } from 'lucide-react'
-import { createMaterial, createMaterialMovement, getMaterials, updateMaterial } from '../../api/materials.api'
+import { ArrowLeftRight, Eye, ListFilter, PackagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import {
+  createMaterial,
+  createMaterialMovement,
+  deleteMaterial,
+  getMaterials,
+  restoreMaterial,
+  updateMaterial,
+} from '../../api/materials.api'
 import type {
   MaterialItem,
   MaterialMovementRequest,
@@ -12,8 +19,13 @@ import type {
   MaterialRequest,
   MaterialStatus,
 } from '../../types/materials'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { TrashPanel } from '../../components/ui/TrashPanel'
+import { UndoToast } from '../../components/ui/UndoToast'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
+
+const UNDO_WINDOW_MS = 8000
 
 const emptyMaterials: MaterialItem[] = []
 
@@ -103,6 +115,10 @@ export function MaterialsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [movementMaterial, setMovementMaterial] = useState<MaterialItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<MaterialItem | null>(null)
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
+  const [deletedMaterial, setDeletedMaterial] = useState<MaterialItem | null>(null)
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
 
   const {
     register,
@@ -130,6 +146,21 @@ export function MaterialsPage() {
     retry: false,
   })
 
+  const { data: trashData, isLoading: isTrashLoading } = useQuery({
+    queryKey: ['materials', 'trash'],
+    queryFn: () => getMaterials({ includeDeleted: true }),
+    enabled: isTrashOpen,
+  })
+
+  useEffect(() => {
+    if (!deletedMaterial) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => setDeletedMaterial(null), UNDO_WINDOW_MS)
+    return () => clearTimeout(timeoutId)
+  }, [deletedMaterial])
+
   const saveMaterialMutation = useMutation({
     mutationFn: ({ materialId, request }: { materialId?: number; request: MaterialRequest }) =>
       materialId ? updateMaterial(materialId, request) : createMaterial(request),
@@ -154,7 +185,26 @@ export function MaterialsPage() {
     },
   })
 
+  const deleteMaterialMutation = useMutation({
+    mutationFn: (materialId: number) => deleteMaterial(materialId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['materials'] })
+      setDeletedMaterial(deleteTarget)
+      setDeleteTarget(null)
+      setDeleteStep(1)
+    },
+  })
+
+  const restoreMaterialMutation = useMutation({
+    mutationFn: (materialId: number) => restoreMaterial(materialId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['materials'] })
+      setDeletedMaterial(null)
+    },
+  })
+
   const materials = data ?? emptyMaterials
+  const trashedMaterials = (trashData ?? emptyMaterials).filter((material) => material.deletedAt)
   const categories = useMemo(
     () =>
       Array.from(
@@ -188,6 +238,7 @@ export function MaterialsPage() {
     reset(emptyFormValues())
     saveMaterialMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -196,6 +247,7 @@ export function MaterialsPage() {
     reset(formValuesForMaterial(material))
     saveMaterialMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -203,6 +255,27 @@ export function MaterialsPage() {
     setIsFormOpen(false)
     setEditingMaterial(null)
     saveMaterialMutation.reset()
+  }
+
+  function openDeleteConfirm(material: MaterialItem) {
+    setDeleteTarget(material)
+    setDeleteStep(1)
+    deleteMaterialMutation.reset()
+  }
+
+  function closeDeleteConfirm() {
+    setDeleteTarget(null)
+    setDeleteStep(1)
+    deleteMaterialMutation.reset()
+  }
+
+  function openTrash() {
+    setIsFormOpen(false)
+    setIsTrashOpen(true)
+  }
+
+  function closeTrash() {
+    setIsTrashOpen(false)
   }
 
   const onSubmit = handleSubmit((values) => {
@@ -255,10 +328,16 @@ export function MaterialsPage() {
           <h2>Material Escolar</h2>
           <p>Administra inventario, stock minimo y necesidades de reposicion.</p>
         </div>
-        <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
-          <Plus size={17} aria-hidden="true" />
-          Nuevo material
-        </button>
+        <div className="page-heading-actions">
+          <button className="secondary-button" onClick={openTrash} type="button">
+            <Trash2 size={17} aria-hidden="true" />
+            Papelera
+          </button>
+          <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            Nuevo material
+          </button>
+        </div>
       </section>
 
       {successMessage ? (
@@ -432,6 +511,21 @@ export function MaterialsPage() {
         </section>
       ) : null}
 
+      {isTrashOpen ? (
+        <TrashPanel
+          emptyMessage="No hay materiales eliminados recientemente."
+          getDeletedAt={(material) => material.deletedAt}
+          getId={(material) => material.materialId}
+          getLabel={(material) => translateBackendSeed(material.name) ?? material.name}
+          isLoading={isTrashLoading}
+          items={trashedMaterials}
+          onClose={closeTrash}
+          onRestore={(material) => restoreMaterialMutation.mutate(material.materialId)}
+          restoringId={restoreMaterialMutation.isPending ? restoreMaterialMutation.variables : null}
+          title="Materiales eliminados"
+        />
+      ) : null}
+
       <section className="filters-row filters-row-materials" aria-label="Filtros de materiales">
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
@@ -522,6 +616,9 @@ export function MaterialsPage() {
                     <button onClick={() => openMovementForm(material)} title="Registrar movimiento" type="button">
                       <ArrowLeftRight size={16} aria-hidden="true" />
                     </button>
+                    <button onClick={() => openDeleteConfirm(material)} title="Eliminar" type="button">
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -550,6 +647,42 @@ export function MaterialsPage() {
           </div>
         </footer>
       </div>
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        description={
+          deleteTarget
+            ? deleteStep === 1
+              ? `Se eliminara ${translateBackendSeed(deleteTarget.name) ?? deleteTarget.name}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
+              : `Confirma que quieres eliminar ${translateBackendSeed(deleteTarget.name) ?? deleteTarget.name} ahora.`
+            : ''
+        }
+        isConfirming={deleteMaterialMutation.isPending}
+        onCancel={closeDeleteConfirm}
+        onConfirm={() => {
+          if (deleteStep === 1) {
+            setDeleteStep(2)
+            return
+          }
+
+          if (deleteTarget) {
+            deleteMaterialMutation.mutate(deleteTarget.materialId)
+          }
+        }}
+        open={deleteTarget !== null}
+        title={deleteStep === 1 ? 'Eliminar este material?' : 'Confirmar eliminacion'}
+        variant="danger"
+      />
+
+      {deletedMaterial ? (
+        <UndoToast
+          isActing={restoreMaterialMutation.isPending}
+          message={`${translateBackendSeed(deletedMaterial.name) ?? deletedMaterial.name} fue eliminado.`}
+          onAction={() => restoreMaterialMutation.mutate(deletedMaterial.materialId)}
+          onDismiss={() => setDeletedMaterial(null)}
+        />
+      ) : null}
     </main>
   )
 }
