@@ -7,6 +7,7 @@ import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lu
 import { createStudent, deleteStudent, getStudents, restoreStudent, updateStudent } from '../../api/students.api'
 import type { StudentListItem, StudentRequest, StudentStatus } from '../../api/students.api'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
@@ -129,6 +130,7 @@ export function StudentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<StudentListItem | null>(null)
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
   const [deletedStudent, setDeletedStudent] = useState<StudentListItem | null>(null)
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const {
     register,
     handleSubmit,
@@ -169,6 +171,12 @@ export function StudentsPage() {
     queryFn: () => getStudents(),
     staleTime: Infinity,
   })
+
+  const { data: trashData, isLoading: isTrashLoading } = useQuery({
+    queryKey: ['students', 'trash'],
+    queryFn: () => getStudents({ includeDeleted: true }),
+    enabled: isTrashOpen,
+  })
   const saveStudentMutation = useMutation({
     mutationFn: ({
       studentId,
@@ -207,6 +215,7 @@ export function StudentsPage() {
 
   const students = data ?? emptyStudents
   const allGroups = allGroupsData ?? emptyStudents
+  const trashedStudents = (trashData ?? emptyStudents).filter((student) => student.deletedAt)
   const formGroups = useMemo(
     () =>
       Array.from(
@@ -224,7 +233,17 @@ export function StudentsPage() {
     reset(emptyFormValues())
     saveStudentMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
+  }
+
+  function openTrash() {
+    setIsFormOpen(false)
+    setIsTrashOpen(true)
+  }
+
+  function closeTrash() {
+    setIsTrashOpen(false)
   }
 
   function openEditStudentForm(student: StudentListItem) {
@@ -232,6 +251,7 @@ export function StudentsPage() {
     reset(formValuesForStudent(student))
     saveStudentMutation.reset()
     setSuccessMessage(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -278,10 +298,16 @@ export function StudentsPage() {
           <h2>Estudiantes</h2>
           <p>Administra la informacion de los estudiantes.</p>
         </div>
-        <button className="primary-button inline-button" onClick={openNewStudentForm} type="button">
-          <Plus size={17} aria-hidden="true" />
-          Nuevo estudiante
-        </button>
+        <div className="page-heading-actions">
+          <button className="secondary-button" onClick={openTrash} type="button">
+            <Trash2 size={17} aria-hidden="true" />
+            Papelera
+          </button>
+          <button className="primary-button inline-button" onClick={openNewStudentForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            Nuevo estudiante
+          </button>
+        </div>
       </section>
 
       {successMessage ? (
@@ -414,6 +440,21 @@ export function StudentsPage() {
             </footer>
           </form>
         </section>
+      ) : null}
+
+      {isTrashOpen ? (
+        <TrashPanel
+          emptyMessage="No hay estudiantes eliminados recientemente."
+          getDeletedAt={(student) => student.deletedAt}
+          getId={(student) => student.studentId}
+          getLabel={(student) => formatStudentName(student.firstName, student.lastName)}
+          isLoading={isTrashLoading}
+          items={trashedStudents}
+          onClose={closeTrash}
+          onRestore={(student) => restoreStudentMutation.mutate(student.studentId)}
+          restoringId={restoreStudentMutation.isPending ? restoreStudentMutation.variables : null}
+          title="Estudiantes eliminados"
+        />
       ) : null}
 
       <section className="filters-row" aria-label="Filtros de estudiantes">
