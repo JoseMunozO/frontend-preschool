@@ -4,6 +4,7 @@ import type { DayOfWeek, ScheduleItem, ScheduleRequest } from '../types/schedule
 type GetSchedulesParams = {
   dayOfWeek?: DayOfWeek | 'ALL'
   groupId?: number | string
+  includeDeleted?: boolean
 }
 
 export function getSchedules(params: GetSchedulesParams = {}) {
@@ -15,6 +16,10 @@ export function getSchedules(params: GetSchedulesParams = {}) {
 
   if (params.dayOfWeek && params.dayOfWeek !== 'ALL') {
     searchParams.set('dayOfWeek', params.dayOfWeek)
+  }
+
+  if (params.includeDeleted) {
+    searchParams.set('includeDeleted', 'true')
   }
 
   const query = searchParams.toString()
@@ -33,5 +38,17 @@ export function updateSchedule(scheduleSlotId: number, request: ScheduleRequest)
   return apiRequest<ScheduleItem>(`/api/schedules/${scheduleSlotId}`, {
     method: 'PUT',
     body: request,
+  })
+}
+
+export function deleteSchedule(scheduleSlotId: number) {
+  return apiRequest<void>(`/api/schedules/${scheduleSlotId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function restoreSchedule(scheduleSlotId: number) {
+  return apiRequest<ScheduleItem>(`/api/schedules/${scheduleSlotId}/restore`, {
+    method: 'POST',
   })
 }

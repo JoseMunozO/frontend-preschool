@@ -19,6 +19,7 @@ export type ScheduleItem = {
   activityTitle: string
   roomName?: string
   notes?: string
+  deletedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
