@@ -39,3 +39,28 @@ export type PaymentRequest = {
   notes?: string
   allocations: PaymentAllocationRequest[]
 }
+
+export type PaymentAllocation = {
+  paymentAllocationId: number
+  studentChargeId: number
+  studentId: number
+  studentName: string
+  amountAllocated: number
+  createdAt?: string
+}
+
+export type Payment = {
+  paymentId: number
+  parentId?: number
+  parentName?: string
+  receivedByStaffId?: number
+  receivedByStaffName?: string
+  paymentDate: string
+  totalAmount: number
+  paymentMethod: PaymentMethod
+  referenceNumber?: string
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
+  allocations: PaymentAllocation[]
+}
