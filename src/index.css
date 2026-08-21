@@ -247,6 +247,58 @@ a {
   background: #c53a3e;
 }
 
+.undo-toast {
+  align-items: center;
+  background: var(--sidebar);
+  border-radius: 8px;
+  bottom: 24px;
+  box-shadow: var(--shadow);
+  color: #ffffff;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  left: 50%;
+  padding: 14px 16px 14px 20px;
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 60;
+}
+
+.undo-toast-actions {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.undo-toast-action {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #b6acff;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.undo-toast-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.undo-toast-close {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.undo-toast-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .form-error,
 .notice {
   background: var(--red-soft);

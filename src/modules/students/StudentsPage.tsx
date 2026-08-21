@@ -4,10 +4,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
-import { createStudent, getStudents, updateStudent } from '../../api/students.api'
+import { createStudent, deleteStudent, getStudents, restoreStudent, updateStudent } from '../../api/students.api'
 import type { StudentListItem, StudentRequest, StudentStatus } from '../../api/students.api'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { UndoToast } from '../../components/ui/UndoToast'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
+
+const UNDO_WINDOW_MS = 8000
 
 const emptyStudents: StudentListItem[] = []
 
@@ -122,6 +126,9 @@ export function StudentsPage() {
   const [editingStudent, setEditingStudent] = useState<StudentListItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<StudentListItem | null>(null)
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
+  const [deletedStudent, setDeletedStudent] = useState<StudentListItem | null>(null)
   const {
     register,
     handleSubmit,
@@ -136,6 +143,15 @@ export function StudentsPage() {
     const timeoutId = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(timeoutId)
   }, [search])
+
+  useEffect(() => {
+    if (!deletedStudent) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => setDeletedStudent(null), UNDO_WINDOW_MS)
+    return () => clearTimeout(timeoutId)
+  }, [deletedStudent])
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['students', { search: debouncedSearch, groupId: groupFilter, status: statusFilter }],
@@ -168,6 +184,24 @@ export function StudentsPage() {
       )
       setIsFormOpen(false)
       setEditingStudent(null)
+    },
+  })
+
+  const deleteStudentMutation = useMutation({
+    mutationFn: (studentId: number) => deleteStudent(studentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['students'] })
+      setDeletedStudent(deleteTarget)
+      setDeleteTarget(null)
+      setDeleteStep(1)
+    },
+  })
+
+  const restoreStudentMutation = useMutation({
+    mutationFn: (studentId: number) => restoreStudent(studentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['students'] })
+      setDeletedStudent(null)
     },
   })
 
@@ -205,6 +239,18 @@ export function StudentsPage() {
     setIsFormOpen(false)
     setEditingStudent(null)
     saveStudentMutation.reset()
+  }
+
+  function openDeleteConfirm(student: StudentListItem) {
+    setDeleteTarget(student)
+    setDeleteStep(1)
+    deleteStudentMutation.reset()
+  }
+
+  function closeDeleteConfirm() {
+    setDeleteTarget(null)
+    setDeleteStep(1)
+    deleteStudentMutation.reset()
   }
 
   const onSubmit = handleSubmit((values) => {
@@ -463,7 +509,7 @@ export function StudentsPage() {
                       <button onClick={() => openEditStudentForm(student)} title="Editar" type="button">
                         <Pencil size={16} aria-hidden="true" />
                       </button>
-                      <button title="Eliminar" type="button">
+                      <button onClick={() => openDeleteConfirm(student)} title="Eliminar" type="button">
                         <Trash2 size={16} aria-hidden="true" />
                       </button>
                     </div>
@@ -493,6 +539,42 @@ export function StudentsPage() {
           </div>
         </footer>
       </div>
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        description={
+          deleteTarget
+            ? deleteStep === 1
+              ? `Se eliminara a ${formatStudentName(deleteTarget.firstName, deleteTarget.lastName)}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
+              : `Confirma que quieres eliminar a ${formatStudentName(deleteTarget.firstName, deleteTarget.lastName)} ahora.`
+            : ''
+        }
+        isConfirming={deleteStudentMutation.isPending}
+        onCancel={closeDeleteConfirm}
+        onConfirm={() => {
+          if (deleteStep === 1) {
+            setDeleteStep(2)
+            return
+          }
+
+          if (deleteTarget) {
+            deleteStudentMutation.mutate(deleteTarget.studentId)
+          }
+        }}
+        open={deleteTarget !== null}
+        title={deleteStep === 1 ? 'Eliminar a este estudiante?' : 'Confirmar eliminacion'}
+        variant="danger"
+      />
+
+      {deletedStudent ? (
+        <UndoToast
+          isActing={restoreStudentMutation.isPending}
+          message={`${formatStudentName(deletedStudent.firstName, deletedStudent.lastName)} fue eliminado.`}
+          onAction={() => restoreStudentMutation.mutate(deletedStudent.studentId)}
+          onDismiss={() => setDeletedStudent(null)}
+        />
+      ) : null}
     </main>
   )
 }
