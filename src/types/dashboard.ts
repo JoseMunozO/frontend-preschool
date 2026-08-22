@@ -58,3 +58,20 @@ export type DashboardSummary = {
   administration: DashboardAdminSummary
   finance: DashboardFinanceSummary
 }
+
+export type DashboardAttendanceSummary = {
+  presentCount: number
+  absentCount: number
+  sickCount: number
+  lateCount: number
+  unmarkedCount: number
+}
+
+export type TeacherDashboardSummary = {
+  date: string
+  activeStudents: number
+  todayScheduleSlots: number
+  todaySchedule: DashboardScheduleItem[]
+  upcomingBirthdays: DashboardBirthday[]
+  todayAttendanceSummary: DashboardAttendanceSummary
+}

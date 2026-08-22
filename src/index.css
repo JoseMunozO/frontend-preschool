@@ -510,8 +510,16 @@ a {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.stats-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .work-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.work-grid-single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .stat-card,
@@ -601,6 +609,81 @@ a {
 .stat-card-yellow .stat-icon {
   background: rgba(255, 204, 79, 0.26);
   color: var(--yellow);
+}
+
+.stat-card-danger {
+  background: var(--red-soft);
+}
+
+.stat-card-danger .stat-icon {
+  background: rgba(229, 72, 77, 0.16);
+  color: var(--red);
+}
+
+.teacher-timeline {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 52px 1fr;
+}
+
+.teacher-timeline-hours {
+  position: relative;
+}
+
+.teacher-timeline-hour {
+  color: var(--text-muted);
+  font-size: 12px;
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.teacher-timeline-track {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  position: relative;
+}
+
+.teacher-timeline-block {
+  background: var(--purple-soft);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  display: grid;
+  gap: 2px;
+  left: 8px;
+  overflow: hidden;
+  padding: 6px 10px;
+  position: absolute;
+  right: 8px;
+}
+
+.teacher-timeline-block strong {
+  font-size: 13px;
+}
+
+.teacher-timeline-block span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.teacher-timeline-break {
+  align-items: center;
+  background: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--border) 6px, var(--border) 7px);
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+}
+
+.teacher-timeline-break span {
+  background: var(--surface);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
 }
 
 .panel {
