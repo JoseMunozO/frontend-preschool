@@ -51,24 +51,23 @@ Ultima actualizacion: 2026-08-22.
 - Backend: `PUT /api/payments/charges/{studentChargeId}` para editar o cancelar un cargo existente sin registrar un pago (`backend-preschool` PR #49, 2026-08-21). Reemplazo completo (no patch), salvo `status`: si se omite, el estado actual no se toca (evita pisar un `PAID`/`PARTIALLY_PAID` calculado automaticamente); es la unica forma de mover un cargo a `CANCELLED`. Sin frontend todavia — no hay UI para editar/cancelar un cargo ya creado. Detalle completo en `docs/backend-api-reference.md`.
 - Estudiantes: modulo de contactos de emergencia. El boton "Ver" (icono ojo) de cada fila abre un panel con CRUD completo (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`, funciones nuevas en `src/api/students.api.ts`). Formulario RHF+Zod (nombre completo, relacion, telefono, telefono alternativo, notas, contacto principal); eliminar usa `ConfirmDialog` de un solo paso ya que este recurso no tiene soft-delete/restore en el backend (es borrado real). Panel mutuamente excluyente con el formulario de estudiante y la papelera. Verificado end-to-end contra el backend real: estado vacio, crear (`POST` → `201`), editar (`PUT` → `200`), eliminar (`DELETE` → `204`), y validaciones de campos obligatorios.
 - Padres/tutores: UI para tutor archivado. Boton "Archivados" en `ParentsPage.tsx` abre un panel (reutiliza la misma query `['parents', 'trash']` con `includeDeleted=true` que ya usaba la papelera, separando por `archivedAt` en vez de agregar una llamada nueva). La papelera existente (`TrashPanel`) ahora filtra explicitamente `deletedAt && !archivedAt` para no mezclar archivados con eliminados recientes de 0-7 dias (antes se hubiera podido intentar `restore` sobre un archivado y fallar con `409`). Cada archivado tiene un boton "Reclamar" que abre el mismo formulario de padre/tutor en un tercer modo (`claimTarget`, junto a crear/editar), prefilled con nombre y correo (los unicos datos que sobreviven al archivado), sin campo de contrasena (igual que editar), y llama a `POST /api/parents/{id}/claim` (`claimParent()` nueva en `parents.api.ts`) en vez de `PUT`. Mensajes especificos para `404` (ya no esta archivado) y `409` (pasaron mas de 6 anios). `ParentListItem` gano `archivedAt`. Verificado end-to-end contra el backend real simulando el job de archivado (backdate manual de `deleted_at`/`archived_at` en la base local, ya que el job real corre a los 7 dias): aparece en "Archivados" separado de "Papelera", reclamar con telefono nuevo llama a `claim` → `200`, y el tutor reaparece activo en la tabla principal con `deletedAt`/`archivedAt` en `null`.
+- Pagos: editar y cancelar/reactivar un cargo existente. Nuevos botones "Editar" (Pencil) y "Cancelar cargo"/"Reactivar" (Ban/RotateCcw, segun estado) por fila en `PaymentsPage.tsx`, ademas de los ya existentes "Ver historial" y "Registrar pago". Editar abre un panel con formulario RHF+Zod (fecha de vencimiento, monto, inicio/fin de periodo, descripcion — regla cruzada de periodo via `superRefine`, mismo patron que horarios); `studentId`/`chargeTypeId` no son editables en la UI y se reenvian sin cambios (el `PUT` del backend es reemplazo completo, no patch). Cancelar/reactivar reutiliza `ConfirmDialog` (variant `danger` para cancelar, `default` para reactivar) y llama al mismo `PUT` solo con `status` distinto, construyendo el resto del payload a partir del cargo actual (`chargeRequestFromCharge()`) para no pisar los demas campos — el resto de campos se omite unicamente cuando de verdad no se quieren tocar. `updateCharge()` nuevo en `payments.api.ts`, `StudentChargeRequest` nuevo en `types/payments.ts`. Verificado end-to-end contra el backend real: editar monto ($950 → $975, `PUT` → `200`, estado `PENDING` no se toco), cancelar (`PUT` con `status: CANCELLED` → `200`, desaparece el boton "Registrar pago"), reactivar (`PUT` con `status: PENDING` → `200`, "Registrar pago" vuelve a aparecer). Datos de prueba revertidos a su valor original al terminar.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
 - **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
-- **Editar/cancelar cargo** (`PUT /api/payments/charges/{studentChargeId}`): sin UI todavia; solo se puede crear un cargo, no editarlo ni cancelarlo despues.
+- **Vincular/desvincular estudiante y padre/tutor** (`POST`/`DELETE /api/parents/{parentId}/students`): solo la lectura esta conectada (`getParentStudents()`, `getStudentGuardians()`, usadas para mostrar conteos/listas); no hay boton ni formulario en ningun modulo para crear o quitar el vinculo. El shape exacto del body del `POST` no esta confirmado en `docs/backend-api-reference.md` (solo se documenta la respuesta `StudentGuardian`) — revisar Swagger antes de construir la UI.
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
 
 ## Siguiente Punto Recomendado
 
-**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado (buscar/reclamar) completa y verificada end-to-end contra el backend real (ver Estado Actual). Queda un solo pendiente de la lista original antes del martes.
-
-Prioridad, en orden:
-
-1. UI para editar/cancelar un cargo existente (`PUT /api/payments/charges/{studentChargeId}`) — nuevo desde backend PR #49, sin frontend todavia.
+**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado (buscar/reclamar) y de editar/cancelar/reactivar cargo completas y verificadas end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
 
 Con menor prioridad, no urgente para el martes:
+
+- Vincular/desvincular estudiante y padre/tutor (`POST`/`DELETE /api/parents/{parentId}/students`) — sin UI, ver nota en la seccion de arriba.
 
 - Implementar paginacion real de estudiantes (controles visuales sin logica todavia).
 - Validar responsive real de dashboard y tablas principales.
@@ -142,6 +141,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Pagos: busqueda local por estudiante o concepto.
 - [x] Pagos: registrar pago desde cargo.
 - [x] Pagos: historial de pagos por estudiante (`GET /api/payments/students/{studentId}`), verificado contra el backend real.
+- [x] Pagos: editar y cancelar/reactivar un cargo existente (`PUT /api/payments/charges/{studentChargeId}`), verificado contra el backend real.
 - [x] Materiales: tabla visual inicial.
 - [x] Materiales: adaptar campos reales del backend.
 - [x] Materiales: busqueda local por nombre, SKU o categoria.
@@ -213,12 +213,13 @@ feat/schedules-delete-trash
 feat/payment-history
 feat/emergency-contacts
 feat/parent-archived-claim
+feat/charge-edit-cancel
 ```
 
 Siguientes:
 
 ```text
-feat/charge-edit-cancel
+feat/parent-student-link
 feat/students-pagination
 chore/tailwind-theme-tokens
 feat/schedule-week-view
