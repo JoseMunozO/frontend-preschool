@@ -230,6 +230,18 @@ a {
   color: var(--text-muted);
 }
 
+.dialog-panel-wide {
+  max-height: 90vh;
+  max-width: 640px;
+  overflow-y: auto;
+}
+
+.profile-summary {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
 .danger-button {
   align-items: center;
   background: var(--red);
