@@ -65,6 +65,10 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 **Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado (buscar/reclamar) y de editar/cancelar/reactivar cargo completas y verificadas end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
 
+Prioridad, en orden:
+
+1. **Contactos de emergencia: mostrar tutores legales como contactos automaticos.** Pedido directo de Jose (2026-08-22): en el panel de contactos de emergencia de un estudiante, los padres/tutores ya vinculados deberian aparecer primero automaticamente (sin que el profesor los tenga que tipear a mano), seguidos de los contactos manuales que ya existen hoy. Coordinado con la sesion de `backend-preschool`: fusion en el frontend, sin endpoint combinado nuevo ni campo `source` — `GET /api/students/{id}` ya devuelve `guardians[]` completo (confirmado en `StudentService.java`, mismo `mapToResponse()` que el listado), asi que no hace falta ningun cambio de backend. Trabajo del lado frontend: agregar `guardians: StudentGuardianSummary[]` al tipo de estudiante en `src/api/students.api.ts` (hoy solo tiene `primaryGuardianName`, ver nota debajo) y renderizar esas filas como solo lectura (sin editar/eliminar, ya que modificar un tutor sigue siendo responsabilidad del modulo de Padres/Tutores) antes de la lista editable de `emergencyContacts[]` en `StudentsPage.tsx`.
+
 Con menor prioridad, no urgente para el martes:
 
 - Vincular/desvincular estudiante y padre/tutor (`POST`/`DELETE /api/parents/{parentId}/students`) — sin UI, ver nota en la seccion de arriba.
