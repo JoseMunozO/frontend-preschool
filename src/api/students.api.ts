@@ -4,6 +4,18 @@ import { apiRequest } from './client'
 
 export type StudentStatus = 'active' | 'inactive' | 'pending' | 'graduated'
 
+export type StudentGuardianSummary = {
+  parentId: number
+  parentName: string
+  email?: string | null
+  phone?: string | null
+  relationshipType: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'RELATIVE' | 'OTHER'
+  primaryContact: boolean
+  billingContact: boolean
+  authorizedPickup: boolean
+  livesWithStudent: boolean
+}
+
 export type StudentListItem = {
   studentId: number
   studentCode?: string
@@ -14,6 +26,7 @@ export type StudentListItem = {
   groupId?: number
   groupName?: string
   primaryGuardianName?: string
+  guardians?: StudentGuardianSummary[]
   status: StudentStatus
   enrollmentDate?: string
   withdrawalDate?: string

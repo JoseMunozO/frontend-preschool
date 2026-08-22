@@ -682,6 +682,13 @@ a {
   padding: 0;
 }
 
+.panel-section-label {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 4px 0 -2px;
+}
+
 .contact-item {
   background: var(--surface-muted);
   border: 1px solid var(--border);

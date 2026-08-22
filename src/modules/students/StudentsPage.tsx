@@ -18,6 +18,7 @@ import {
 import type {
   StudentEmergencyContact,
   StudentEmergencyContactRequest,
+  StudentGuardianSummary,
   StudentListItem,
   StudentRequest,
   StudentStatus,
@@ -32,6 +33,7 @@ const UNDO_WINDOW_MS = 8000
 
 const emptyStudents: StudentListItem[] = []
 const emptyContacts: StudentEmergencyContact[] = []
+const emptyGuardians: StudentGuardianSummary[] = []
 
 const statusLabels: Record<StudentStatus, string> = {
   active: 'Activo',
@@ -41,6 +43,14 @@ const statusLabels: Record<StudentStatus, string> = {
 }
 
 const statusDangerValues = new Set(['inactive'])
+
+const guardianRelationshipLabels: Record<StudentGuardianSummary['relationshipType'], string> = {
+  FATHER: 'Padre',
+  MOTHER: 'Madre',
+  GUARDIAN: 'Tutor legal',
+  RELATIVE: 'Familiar',
+  OTHER: 'Otro',
+}
 
 const studentFormSchema = z
   .object({
@@ -333,6 +343,11 @@ export function StudentsPage() {
   const allGroups = allGroupsData ?? emptyStudents
   const trashedStudents = (trashData ?? emptyStudents).filter((student) => student.deletedAt)
   const contacts = contactsData ?? emptyContacts
+  const guardians = contactsStudent?.guardians ?? emptyGuardians
+  const sortedGuardians = useMemo(
+    () => [...guardians].sort((a, b) => Number(b.primaryContact) - Number(a.primaryContact)),
+    [guardians],
+  )
   const formGroups = useMemo(
     () =>
       Array.from(
@@ -715,6 +730,29 @@ export function StudentsPage() {
                   Agregar contacto
                 </button>
               </div>
+              {sortedGuardians.length > 0 ? (
+                <>
+                  <p className="panel-section-label">Tutores legales</p>
+                  <ul className="contact-list">
+                    {sortedGuardians.map((guardian) => (
+                      <li className="contact-item" key={guardian.parentId}>
+                        <div className="contact-item-header">
+                          <span className="contact-item-title">
+                            <strong>{guardian.parentName}</strong>
+                            {guardian.primaryContact ? <span className="status-badge">Principal</span> : null}
+                          </span>
+                        </div>
+                        <p className="field-hint">{guardianRelationshipLabels[guardian.relationshipType]}</p>
+                        <p className="field-hint">
+                          Tel: {guardian.phone ?? 'Sin telefono'}
+                          {guardian.email ? ` / ${guardian.email}` : ''}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="panel-section-label">Contactos adicionales</p>
+                </>
+              ) : null}
               {contactsError ? (
                 <p className="notice">
                   {isForbiddenError(contactsError)
