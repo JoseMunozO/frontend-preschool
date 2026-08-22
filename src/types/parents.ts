@@ -12,6 +12,7 @@ export type ParentListItem = {
   status: ParentStatus
   notes?: string
   deletedAt?: string | null
+  archivedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
