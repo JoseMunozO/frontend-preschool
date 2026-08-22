@@ -3,13 +3,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { Plus, ShieldCheck, UserCircle, X } from 'lucide-react'
+import { Plus, RotateCcw, ShieldCheck, Trash2, UserCircle, X } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { getRoles } from '../../api/roles.api'
 import type { Role, RoleCode } from '../../api/roles.api'
-import { createStaff, getStaffList, assignRole, removeRole } from '../../api/staff.api'
+import {
+  assignRole,
+  createStaff,
+  deleteStaff,
+  getStaffList,
+  removeRole,
+  restoreStaff,
+} from '../../api/staff.api'
 import type { StaffMember, StaffRequest } from '../../api/staff.api'
 import { useAuthStore } from '../../auth/auth.store'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { isForbiddenError } from '../../utils/apiErrors'
 
 const emptyStaff: StaffMember[] = []
@@ -88,6 +96,11 @@ function roleErrorMessage(error: unknown) {
   return 'No se pudo actualizar el rol.'
 }
 
+function staffMaxRank(staff: StaffMember) {
+  const ranks = staff.roles.map((role) => role.rankLevel)
+  return ranks.length > 0 ? Math.max(...ranks) : 0
+}
+
 export function StaffPage() {
   const queryClient = useQueryClient()
   const session = useAuthStore((state) => state.session)
@@ -95,6 +108,9 @@ export function StaffPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [manageRolesStaffId, setManageRolesStaffId] = useState<number | null>(null)
   const [roleError, setRoleError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const {
     register,
     handleSubmit,
@@ -109,7 +125,7 @@ export function StaffPage() {
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['staff'],
-    queryFn: getStaffList,
+    queryFn: () => getStaffList(),
     retry: false,
   })
 
@@ -119,8 +135,15 @@ export function StaffPage() {
     staleTime: Infinity,
   })
 
+  const { data: trashData, isLoading: isTrashLoading } = useQuery({
+    queryKey: ['staff', 'trash'],
+    queryFn: () => getStaffList({ includeDeleted: true }),
+    enabled: isTrashOpen,
+  })
+
   const staffList = data ?? emptyStaff
   const roles = rolesData ?? emptyRoles
+  const trashedStaff = (trashData ?? emptyStaff).filter((staff) => staff.deletedAt)
   const managingStaff = staffList.find((staff) => staff.staffId === manageRolesStaffId) ?? null
 
   const currentMaxRank = useMemo(() => {
@@ -152,11 +175,31 @@ export function StaffPage() {
     },
   })
 
+  const deleteStaffMutation = useMutation({
+    mutationFn: (staffId: number) => deleteStaff(staffId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['staff'] })
+      setDeleteTarget(null)
+      setDeleteError(null)
+    },
+    onError: (mutationError) => {
+      setDeleteError(roleErrorMessage(mutationError))
+    },
+  })
+
+  const restoreStaffMutation = useMutation({
+    mutationFn: (staffId: number) => restoreStaff(staffId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['staff'] })
+    },
+  })
+
   function openNewStaffForm() {
     reset(emptyFormValues())
     createStaffMutation.reset()
     setSuccessMessage(null)
     setManageRolesStaffId(null)
+    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -169,12 +212,34 @@ export function StaffPage() {
     setManageRolesStaffId(staff.staffId)
     setRoleError(null)
     setIsFormOpen(false)
+    setIsTrashOpen(false)
     setSuccessMessage(null)
   }
 
   function closeManageRoles() {
     setManageRolesStaffId(null)
     setRoleError(null)
+  }
+
+  function openDeleteConfirm(staff: StaffMember) {
+    setDeleteTarget(staff)
+    setDeleteError(null)
+    deleteStaffMutation.reset()
+  }
+
+  function closeDeleteConfirm() {
+    setDeleteTarget(null)
+    setDeleteError(null)
+  }
+
+  function openTrash() {
+    setIsFormOpen(false)
+    setManageRolesStaffId(null)
+    setIsTrashOpen(true)
+  }
+
+  function closeTrash() {
+    setIsTrashOpen(false)
   }
 
   function toggleRole(role: Role, hasRole: boolean) {
@@ -210,6 +275,10 @@ export function StaffPage() {
           <p>Administra los puestos de trabajo y los roles de acceso al sistema.</p>
         </div>
         <div className="page-heading-actions">
+          <button className="secondary-button" onClick={openTrash} type="button">
+            <Trash2 size={17} aria-hidden="true" />
+            Papelera
+          </button>
           <button className="primary-button inline-button" onClick={openNewStaffForm} type="button">
             <Plus size={17} aria-hidden="true" />
             Nuevo puesto
@@ -392,6 +461,53 @@ export function StaffPage() {
         </section>
       ) : null}
 
+      {isTrashOpen ? (
+        <section className="panel trash-panel" aria-labelledby="staff-trash-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="staff-trash-title">Personal dado de baja</h3>
+              <p>
+                No hay limite de tiempo para reactivar — se puede hacer en cualquier momento, no se purga
+                nunca.
+              </p>
+            </div>
+            <button aria-label="Cerrar papelera" className="icon-button" onClick={closeTrash} type="button">
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+
+          {isTrashLoading ? <p>Cargando...</p> : null}
+
+          {!isTrashLoading && trashedStaff.length === 0 ? <p>No hay personal dado de baja.</p> : null}
+
+          {!isTrashLoading && trashedStaff.length > 0 ? (
+            <ul className="trash-list">
+              {trashedStaff.map((staff) => {
+                const isRestoring = restoreStaffMutation.isPending && restoreStaffMutation.variables === staff.staffId
+
+                return (
+                  <li className="trash-list-item" key={staff.staffId}>
+                    <div>
+                      <strong>{formatStaffName(staff)}</strong>
+                      <span className="field-hint">{staff.positionTitle ?? 'Sin puesto'}</span>
+                    </div>
+                    <button
+                      className="secondary-button"
+                      disabled={isRestoring}
+                      onClick={() => restoreStaffMutation.mutate(staff.staffId)}
+                      type="button"
+                    >
+                      <RotateCcw size={16} aria-hidden="true" />
+                      {isRestoring ? 'Reactivando...' : 'Reactivar'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
       <div className="table-shell" aria-busy={isLoading}>
         <table>
           <thead>
@@ -436,6 +552,14 @@ export function StaffPage() {
                         <ShieldCheck size={16} aria-hidden="true" />
                       </button>
                     ) : null}
+                    <button
+                      disabled={staffMaxRank(staff) > currentMaxRank}
+                      onClick={() => openDeleteConfirm(staff)}
+                      title="Dar de baja"
+                      type="button"
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -448,6 +572,40 @@ export function StaffPage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel="Si, dar de baja"
+        description={
+          deleteTarget ? (
+            <>
+              {`Se dara de baja a ${formatStaffName(deleteTarget)}. `}
+              {deleteTarget.userId
+                ? 'Su cuenta de acceso quedara desactivada. '
+                : ''}
+              Se puede reactivar en cualquier momento, sin limite de tiempo.
+              {deleteError ? (
+                <span className="field-error" role="alert">
+                  {' '}
+                  {deleteError}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            ''
+          )
+        }
+        isConfirming={deleteStaffMutation.isPending}
+        onCancel={closeDeleteConfirm}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteStaffMutation.mutate(deleteTarget.staffId)
+          }
+        }}
+        open={deleteTarget !== null}
+        title="Dar de baja a este puesto?"
+        variant="danger"
+      />
     </main>
   )
 }

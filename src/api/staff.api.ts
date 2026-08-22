@@ -17,6 +17,7 @@ export type StaffMember = {
   status: StaffStatus
   notes?: string | null
   roles: Role[]
+  deletedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -34,8 +35,31 @@ export type StaffRequest = {
   roles?: RoleCode[]
 }
 
-export function getStaffList() {
-  return apiRequest<StaffMember[]>('/api/staff')
+type GetStaffListParams = {
+  includeDeleted?: boolean
+}
+
+export function getStaffList(params: GetStaffListParams = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.includeDeleted) {
+    searchParams.set('includeDeleted', 'true')
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+  return apiRequest<StaffMember[]>(`/api/staff${query}`)
+}
+
+export function deleteStaff(staffId: number) {
+  return apiRequest<void>(`/api/staff/${staffId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function restoreStaff(staffId: number) {
+  return apiRequest<StaffMember>(`/api/staff/${staffId}/restore`, {
+    method: 'POST',
+  })
 }
 
 export function createStaff(request: StaffRequest) {
