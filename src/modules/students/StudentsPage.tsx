@@ -7,19 +7,26 @@ import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lu
 import {
   createStudent,
   createStudentEmergencyContact,
+  createStudentNote,
   deleteStudent,
   deleteStudentEmergencyContact,
+  deleteStudentNote,
   getStudentEmergencyContacts,
+  getStudentNotes,
   getStudents,
   restoreStudent,
   updateStudent,
   updateStudentEmergencyContact,
+  updateStudentNote,
 } from '../../api/students.api'
 import type {
   StudentEmergencyContact,
   StudentEmergencyContactRequest,
   StudentGuardianSummary,
   StudentListItem,
+  StudentNote,
+  StudentNoteRequest,
+  StudentNoteType,
   StudentRequest,
   StudentStatus,
 } from '../../api/students.api'
@@ -34,6 +41,16 @@ const UNDO_WINDOW_MS = 8000
 const emptyStudents: StudentListItem[] = []
 const emptyContacts: StudentEmergencyContact[] = []
 const emptyGuardians: StudentGuardianSummary[] = []
+const emptyNotes: StudentNote[] = []
+
+const noteTypeLabels: Record<StudentNoteType, string> = {
+  PEDAGOGICAL: 'Pedagogico',
+  BEHAVIOR: 'Comportamiento',
+  INCIDENT: 'Incidente',
+  HEALTH: 'Salud',
+  FAMILY_FOLLOW_UP: 'Seguimiento familiar',
+  ADMINISTRATIVE: 'Administrativo',
+}
 
 const statusLabels: Record<StudentStatus, string> = {
   active: 'Activo',
@@ -162,6 +179,41 @@ function formValuesForContact(contact: StudentEmergencyContact): ContactFormValu
   }
 }
 
+const noteFormSchema = z.object({
+  noteType: z.enum(['PEDAGOGICAL', 'BEHAVIOR', 'INCIDENT', 'HEALTH', 'FAMILY_FOLLOW_UP', 'ADMINISTRATIVE']),
+  content: z.string().trim().min(1, 'El comentario no puede estar vacio.'),
+})
+
+type NoteFormValues = z.infer<typeof noteFormSchema>
+
+function emptyNoteValues(): NoteFormValues {
+  return {
+    noteType: 'PEDAGOGICAL',
+    content: '',
+  }
+}
+
+function formValuesForNote(note: StudentNote): NoteFormValues {
+  return {
+    noteType: note.noteType,
+    content: note.content,
+  }
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return '-'
+  }
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
 function formatStudentName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim()
 }
@@ -195,6 +247,9 @@ export function StudentsPage() {
   const [contactFormOpen, setContactFormOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<StudentEmergencyContact | null>(null)
   const [deleteContactTarget, setDeleteContactTarget] = useState<StudentEmergencyContact | null>(null)
+  const [noteFormOpen, setNoteFormOpen] = useState(false)
+  const [editingNote, setEditingNote] = useState<StudentNote | null>(null)
+  const [deleteNoteTarget, setDeleteNoteTarget] = useState<StudentNote | null>(null)
   const {
     register,
     handleSubmit,
@@ -213,6 +268,16 @@ export function StudentsPage() {
   } = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: emptyContactValues(),
+  })
+
+  const {
+    register: registerNote,
+    handleSubmit: handleNoteSubmit,
+    reset: resetNoteForm,
+    formState: { errors: noteErrors },
+  } = useForm<NoteFormValues>({
+    resolver: zodResolver(noteFormSchema),
+    defaultValues: emptyNoteValues(),
   })
 
   useEffect(() => {
@@ -259,6 +324,16 @@ export function StudentsPage() {
   } = useQuery({
     queryKey: ['students', contactsStudent?.studentId, 'emergency-contacts'],
     queryFn: () => getStudentEmergencyContacts(contactsStudent!.studentId),
+    enabled: contactsStudent !== null,
+  })
+
+  const {
+    data: notesData,
+    error: notesError,
+    isLoading: isNotesLoading,
+  } = useQuery({
+    queryKey: ['students', contactsStudent?.studentId, 'notes'],
+    queryFn: () => getStudentNotes(contactsStudent!.studentId),
     enabled: contactsStudent !== null,
   })
 
@@ -339,10 +414,50 @@ export function StudentsPage() {
     },
   })
 
+  const saveNoteMutation = useMutation({
+    mutationFn: ({ noteId, request }: { noteId?: number; request: StudentNoteRequest }) => {
+      if (!contactsStudent) {
+        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+      }
+
+      return noteId
+        ? updateStudentNote(contactsStudent.studentId, noteId, request)
+        : createStudentNote(contactsStudent.studentId, request)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['students', contactsStudent?.studentId, 'notes'],
+      })
+      setNoteFormOpen(false)
+      setEditingNote(null)
+    },
+  })
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (noteId: number) => {
+      if (!contactsStudent) {
+        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+      }
+
+      return deleteStudentNote(contactsStudent.studentId, noteId)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['students', contactsStudent?.studentId, 'notes'],
+      })
+      setDeleteNoteTarget(null)
+    },
+  })
+
   const students = data ?? emptyStudents
   const allGroups = allGroupsData ?? emptyStudents
   const trashedStudents = (trashData ?? emptyStudents).filter((student) => student.deletedAt)
   const contacts = contactsData ?? emptyContacts
+  const notes = notesData ?? emptyNotes
+  const sortedNotes = useMemo(
+    () => [...notes].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')),
+    [notes],
+  )
   const guardians = contactsStudent?.guardians ?? emptyGuardians
   const sortedGuardians = useMemo(
     () => [...guardians].sort((a, b) => Number(b.primaryContact) - Number(a.primaryContact)),
@@ -402,12 +517,15 @@ export function StudentsPage() {
     setContactsStudent(null)
     setContactFormOpen(false)
     setEditingContact(null)
+    setNoteFormOpen(false)
+    setEditingNote(null)
   }
 
   function openNewContactForm() {
     setEditingContact(null)
     resetContactForm(emptyContactValues())
     saveContactMutation.reset()
+    setNoteFormOpen(false)
     setContactFormOpen(true)
   }
 
@@ -415,6 +533,7 @@ export function StudentsPage() {
     setEditingContact(contact)
     resetContactForm(formValuesForContact(contact))
     saveContactMutation.reset()
+    setNoteFormOpen(false)
     setContactFormOpen(true)
   }
 
@@ -422,6 +541,28 @@ export function StudentsPage() {
     setContactFormOpen(false)
     setEditingContact(null)
     saveContactMutation.reset()
+  }
+
+  function openNewNoteForm() {
+    setEditingNote(null)
+    resetNoteForm(emptyNoteValues())
+    saveNoteMutation.reset()
+    setContactFormOpen(false)
+    setNoteFormOpen(true)
+  }
+
+  function openEditNoteForm(note: StudentNote) {
+    setEditingNote(note)
+    resetNoteForm(formValuesForNote(note))
+    saveNoteMutation.reset()
+    setContactFormOpen(false)
+    setNoteFormOpen(true)
+  }
+
+  function closeNoteForm() {
+    setNoteFormOpen(false)
+    setEditingNote(null)
+    saveNoteMutation.reset()
   }
 
   function closeStudentForm() {
@@ -471,6 +612,15 @@ export function StudentsPage() {
     }
 
     saveContactMutation.mutate({ contactId: editingContact?.studentEmergencyContactId, request })
+  })
+
+  const onNoteSubmit = handleNoteSubmit((values) => {
+    const request: StudentNoteRequest = {
+      noteType: values.noteType,
+      content: values.content,
+    }
+
+    saveNoteMutation.mutate({ noteId: editingNote?.studentNoteId, request })
   })
 
   return (
@@ -655,9 +805,13 @@ export function StudentsPage() {
                   ? editingContact
                     ? 'Editar contacto de emergencia'
                     : 'Nuevo contacto de emergencia'
-                  : formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}
+                  : noteFormOpen
+                    ? editingNote
+                      ? 'Editar comentario'
+                      : 'Nuevo comentario'
+                    : formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}
               </h3>
-              {!contactFormOpen ? (
+              {!contactFormOpen && !noteFormOpen ? (
                 <p className="profile-summary">
                   {contactsStudent.groupName ? translateBackendSeed(contactsStudent.groupName) : 'Sin grupo'}
                   {' · '}
@@ -675,7 +829,7 @@ export function StudentsPage() {
             </button>
           </header>
 
-          {!contactFormOpen && (contactsStudent.allergies || contactsStudent.medicalNotes) ? (
+          {!contactFormOpen && !noteFormOpen && (contactsStudent.allergies || contactsStudent.medicalNotes) ? (
             <div className="profile-summary">
               {contactsStudent.allergies ? (
                 <p>
@@ -747,6 +901,50 @@ export function StudentsPage() {
                     : editingContact
                       ? 'Guardar cambios'
                       : 'Agregar contacto'}
+                </button>
+              </footer>
+            </form>
+          ) : noteFormOpen ? (
+            <form className="entity-form" onSubmit={onNoteSubmit}>
+              <div className="entity-form-grid">
+                <label>
+                  Tipo *
+                  <select {...registerNote('noteType')}>
+                    {Object.entries(noteTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="entity-form-full">
+                  Comentario *
+                  <textarea rows={4} {...registerNote('content')} />
+                  {noteErrors.content ? <span className="field-error">{noteErrors.content.message}</span> : null}
+                </label>
+              </div>
+              {saveNoteMutation.error ? (
+                <p className="form-error" role="alert">
+                  {saveNoteMutation.error instanceof Error
+                    ? saveNoteMutation.error.message
+                    : 'No se pudo guardar el comentario.'}
+                </p>
+              ) : null}
+              <footer className="form-actions">
+                <button
+                  className="secondary-button"
+                  disabled={saveNoteMutation.isPending}
+                  onClick={closeNoteForm}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+                <button className="primary-button" disabled={saveNoteMutation.isPending} type="submit">
+                  {saveNoteMutation.isPending
+                    ? 'Guardando...'
+                    : editingNote
+                      ? 'Guardar cambios'
+                      : 'Agregar comentario'}
                 </button>
               </footer>
             </form>
@@ -825,7 +1023,47 @@ export function StudentsPage() {
                 </ul>
               ) : null}
               <p className="panel-section-label">Comentarios</p>
-              <p className="field-hint">Proximamente.</p>
+              <div className="panel-actions-row">
+                <button className="secondary-button inline-button" onClick={openNewNoteForm} type="button">
+                  <Plus size={16} aria-hidden="true" />
+                  Agregar comentario
+                </button>
+              </div>
+              {notesError ? (
+                <p className="notice">
+                  {isForbiddenError(notesError)
+                    ? 'No tienes permiso para ver los comentarios.'
+                    : 'No se pudieron cargar los comentarios.'}
+                </p>
+              ) : null}
+              {isNotesLoading ? <p>Cargando...</p> : null}
+              {!isNotesLoading && !notesError && sortedNotes.length === 0 ? (
+                <p>Sin comentarios registrados.</p>
+              ) : null}
+              {!isNotesLoading && sortedNotes.length > 0 ? (
+                <ul className="contact-list">
+                  {sortedNotes.map((note) => (
+                    <li className="contact-item" key={note.studentNoteId}>
+                      <div className="contact-item-header">
+                        <span className="contact-item-title">
+                          <strong>{noteTypeLabels[note.noteType]}</strong>
+                          <span className="field-hint">{formatDateTime(note.createdAt)}</span>
+                        </span>
+                        <div className="row-actions">
+                          <button onClick={() => openEditNoteForm(note)} title="Editar" type="button">
+                            <Pencil size={16} aria-hidden="true" />
+                          </button>
+                          <button onClick={() => setDeleteNoteTarget(note)} title="Eliminar" type="button">
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="field-hint">{note.authorEmail}</p>
+                      <p>{note.content}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </>
           )}
           </section>
@@ -1004,6 +1242,22 @@ export function StudentsPage() {
         }}
         open={deleteContactTarget !== null}
         title="Eliminar contacto de emergencia?"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel="Si, eliminar"
+        description="Se eliminara este comentario. Esta accion no se puede deshacer."
+        isConfirming={deleteNoteMutation.isPending}
+        onCancel={() => setDeleteNoteTarget(null)}
+        onConfirm={() => {
+          if (deleteNoteTarget) {
+            deleteNoteMutation.mutate(deleteNoteTarget.studentNoteId)
+          }
+        }}
+        open={deleteNoteTarget !== null}
+        title="Eliminar este comentario?"
         variant="danger"
       />
 
