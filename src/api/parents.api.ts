@@ -58,3 +58,10 @@ export function restoreParent(parentId: number) {
     method: 'POST',
   })
 }
+
+export function claimParent(parentId: number, request: ParentRequest) {
+  return apiRequest<ParentListItem>(`/api/parents/${parentId}/claim`, {
+    method: 'POST',
+    body: request,
+  })
+}

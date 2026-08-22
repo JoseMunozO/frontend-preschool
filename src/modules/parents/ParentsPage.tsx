@@ -3,12 +3,26 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCheck, UserCircle, UserX, X } from 'lucide-react'
+import {
+  Archive,
+  Eye,
+  ListFilter,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  UserCheck,
+  UserCircle,
+  UserPlus,
+  UserX,
+  X,
+} from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import {
   activateParent,
+  claimParent,
   createParent,
   deactivateParent,
   deleteParent,
@@ -17,6 +31,7 @@ import {
   restoreParent,
   updateParent,
 } from '../../api/parents.api'
+import { ApiError } from '../../api/client'
 import type { ParentListItem, ParentRequest, ParentStatus } from '../../types/parents'
 import { isForbiddenError } from '../../utils/apiErrors'
 
@@ -78,6 +93,32 @@ function formValuesForParent(parent: ParentListItem): ParentFormValues {
   }
 }
 
+function claimFormValues(parent: ParentListItem): ParentFormValues {
+  return {
+    firstName: parent.firstName,
+    lastName: parent.lastName,
+    email: parent.email ?? '',
+    phone: '',
+    address: '',
+    preferredLanguage: '',
+    status: 'ACTIVE',
+    notes: '',
+    password: '',
+  }
+}
+
+function claimErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.status === 409) {
+    return 'Ya pasaron mas de 6 anios desde que se archivo: no se puede reclamar.'
+  }
+
+  if (error instanceof ApiError && error.status === 404) {
+    return 'Este padre o tutor ya no esta archivado.'
+  }
+
+  return 'No se pudo reactivar al padre o tutor.'
+}
+
 function optionalValue(value: string) {
   const trimmedValue = value.trim()
   return trimmedValue || undefined
@@ -98,6 +139,8 @@ export function ParentsPage() {
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
   const [deletedParent, setDeletedParent] = useState<ParentListItem | null>(null)
   const [isTrashOpen, setIsTrashOpen] = useState(false)
+  const [isArchivedOpen, setIsArchivedOpen] = useState(false)
+  const [claimTarget, setClaimTarget] = useState<ParentListItem | null>(null)
   const {
     register,
     handleSubmit,
@@ -116,7 +159,7 @@ export function ParentsPage() {
   const { data: trashData, isLoading: isTrashLoading } = useQuery({
     queryKey: ['parents', 'trash'],
     queryFn: () => getParents({ includeDeleted: true }),
-    enabled: isTrashOpen,
+    enabled: isTrashOpen || isArchivedOpen,
   })
 
   useEffect(() => {
@@ -168,8 +211,20 @@ export function ParentsPage() {
     },
   })
 
+  const claimParentMutation = useMutation({
+    mutationFn: ({ parentId, request }: { parentId: number; request: ParentRequest }) =>
+      claimParent(parentId, request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['parents'] })
+      setSuccessMessage('Padre o tutor reactivado correctamente.')
+      setIsFormOpen(false)
+      setClaimTarget(null)
+    },
+  })
+
   const parents = data ?? emptyParents
-  const trashedParents = (trashData ?? emptyParents).filter((parent) => parent.deletedAt)
+  const trashedParents = (trashData ?? emptyParents).filter((parent) => parent.deletedAt && !parent.archivedAt)
+  const archivedParents = (trashData ?? emptyParents).filter((parent) => parent.archivedAt)
 
   const childrenQueries = useQueries({
     queries: parents.map((parent) => ({
@@ -207,28 +262,55 @@ export function ParentsPage() {
     })
   }, [parents, search])
 
+  const filteredArchivedParents = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase()
+
+    return archivedParents.filter((parent) => {
+      const name = formatParentName(parent.firstName, parent.lastName).toLowerCase()
+      const email = parent.email?.toLowerCase() ?? ''
+
+      return !normalizedSearch || name.includes(normalizedSearch) || email.includes(normalizedSearch)
+    })
+  }, [archivedParents, search])
+
   function openNewParentForm() {
     setEditingParent(null)
+    setClaimTarget(null)
     reset(emptyFormValues())
     saveParentMutation.reset()
     setSuccessMessage(null)
     setIsTrashOpen(false)
+    setIsArchivedOpen(false)
     setIsFormOpen(true)
   }
 
   function openEditParentForm(parent: ParentListItem) {
     setEditingParent(parent)
+    setClaimTarget(null)
     reset(formValuesForParent(parent))
     saveParentMutation.reset()
     setSuccessMessage(null)
     setIsTrashOpen(false)
+    setIsArchivedOpen(false)
+    setIsFormOpen(true)
+  }
+
+  function openClaimForm(parent: ParentListItem) {
+    setEditingParent(null)
+    setClaimTarget(parent)
+    reset(claimFormValues(parent))
+    claimParentMutation.reset()
+    setSuccessMessage(null)
+    setIsArchivedOpen(false)
     setIsFormOpen(true)
   }
 
   function closeParentForm() {
     setIsFormOpen(false)
     setEditingParent(null)
+    setClaimTarget(null)
     saveParentMutation.reset()
+    claimParentMutation.reset()
   }
 
   function openDeleteConfirm(parent: ParentListItem) {
@@ -245,11 +327,22 @@ export function ParentsPage() {
 
   function openTrash() {
     setIsFormOpen(false)
+    setIsArchivedOpen(false)
     setIsTrashOpen(true)
   }
 
   function closeTrash() {
     setIsTrashOpen(false)
+  }
+
+  function openArchived() {
+    setIsFormOpen(false)
+    setIsTrashOpen(false)
+    setIsArchivedOpen(true)
+  }
+
+  function closeArchived() {
+    setIsArchivedOpen(false)
   }
 
   const onSubmit = handleSubmit((values) => {
@@ -265,6 +358,11 @@ export function ParentsPage() {
       password: optionalValue(values.password),
     }
 
+    if (claimTarget) {
+      claimParentMutation.mutate({ parentId: claimTarget.parentId, request })
+      return
+    }
+
     saveParentMutation.mutate({ parentId: editingParent?.parentId, request })
   })
 
@@ -276,6 +374,10 @@ export function ParentsPage() {
           <p>Administra la informacion de los padres o tutores.</p>
         </div>
         <div className="page-heading-actions">
+          <button className="secondary-button" onClick={openArchived} type="button">
+            <Archive size={17} aria-hidden="true" />
+            Archivados
+          </button>
           <button className="secondary-button" onClick={openTrash} type="button">
             <Trash2 size={17} aria-hidden="true" />
             Papelera
@@ -304,13 +406,23 @@ export function ParentsPage() {
         <section className="panel entity-form-panel" aria-labelledby="parent-form-title">
           <header className="form-panel-heading">
             <div>
-              <h3 id="parent-form-title">{editingParent ? 'Editar padre / tutor' : 'Nuevo padre / tutor'}</h3>
-              <p>Completa los datos de contacto del responsable.</p>
+              <h3 id="parent-form-title">
+                {claimTarget
+                  ? 'Reactivar padre / tutor archivado'
+                  : editingParent
+                    ? 'Editar padre / tutor'
+                    : 'Nuevo padre / tutor'}
+              </h3>
+              <p>
+                {claimTarget
+                  ? 'Nombre y correo ya estan guardados. Completa el resto de los datos de contacto para reactivarlo.'
+                  : 'Completa los datos de contacto del responsable.'}
+              </p>
             </div>
             <button
               aria-label="Cerrar formulario"
               className="icon-button"
-              disabled={saveParentMutation.isPending}
+              disabled={saveParentMutation.isPending || claimParentMutation.isPending}
               onClick={closeParentForm}
               type="button"
             >
@@ -358,7 +470,7 @@ export function ParentsPage() {
                 Direccion
                 <input maxLength={255} {...register('address')} />
               </label>
-              {!editingParent ? (
+              {!editingParent && !claimTarget ? (
                 <label>
                   Contrasena de acceso
                   <input
@@ -379,7 +491,12 @@ export function ParentsPage() {
                 <textarea rows={2} {...register('notes')} />
               </label>
             </div>
-            {saveParentMutation.error ? (
+            {claimTarget && claimParentMutation.error ? (
+              <p className="form-error" role="alert">
+                {claimErrorMessage(claimParentMutation.error)}
+              </p>
+            ) : null}
+            {!claimTarget && saveParentMutation.error ? (
               <p className="form-error" role="alert">
                 {saveParentMutation.error instanceof Error
                   ? saveParentMutation.error.message
@@ -389,18 +506,26 @@ export function ParentsPage() {
             <footer className="form-actions">
               <button
                 className="secondary-button"
-                disabled={saveParentMutation.isPending}
+                disabled={saveParentMutation.isPending || claimParentMutation.isPending}
                 onClick={closeParentForm}
                 type="button"
               >
                 Cancelar
               </button>
-              <button className="primary-button" disabled={saveParentMutation.isPending} type="submit">
-                {saveParentMutation.isPending
-                  ? 'Guardando...'
-                  : editingParent
-                    ? 'Guardar cambios'
-                    : 'Crear padre / tutor'}
+              <button
+                className="primary-button"
+                disabled={saveParentMutation.isPending || claimParentMutation.isPending}
+                type="submit"
+              >
+                {claimTarget
+                  ? claimParentMutation.isPending
+                    ? 'Reactivando...'
+                    : 'Reactivar padre / tutor'
+                  : saveParentMutation.isPending
+                    ? 'Guardando...'
+                    : editingParent
+                      ? 'Guardar cambios'
+                      : 'Crear padre / tutor'}
               </button>
             </footer>
           </form>
@@ -420,6 +545,47 @@ export function ParentsPage() {
           restoringId={restoreParentMutation.isPending ? restoreParentMutation.variables : null}
           title="Padres / tutores eliminados"
         />
+      ) : null}
+
+      {isArchivedOpen ? (
+        <section className="panel trash-panel" aria-labelledby="archived-panel-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="archived-panel-title">Padres / tutores archivados</h3>
+              <p>
+                Familias que no restauraron a tiempo (mas de 7 dias). Solo se conserva nombre, correo y su
+                cuenta de acceso; el resto de los datos se limpio. Se pueden reactivar hasta 6 anios despues
+                de archivarse.
+              </p>
+            </div>
+            <button aria-label="Cerrar archivados" className="icon-button" onClick={closeArchived} type="button">
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+
+          {isTrashLoading ? <p>Cargando...</p> : null}
+
+          {!isTrashLoading && filteredArchivedParents.length === 0 ? (
+            <p>No hay padres o tutores archivados que coincidan con la busqueda.</p>
+          ) : null}
+
+          {!isTrashLoading && filteredArchivedParents.length > 0 ? (
+            <ul className="trash-list">
+              {filteredArchivedParents.map((parent) => (
+                <li className="trash-list-item" key={parent.parentId}>
+                  <div>
+                    <strong>{formatParentName(parent.firstName, parent.lastName)}</strong>
+                    <span className="field-hint">{parent.email ?? 'Sin correo'}</span>
+                  </div>
+                  <button className="secondary-button" onClick={() => openClaimForm(parent)} type="button">
+                    <UserPlus size={16} aria-hidden="true" />
+                    Reclamar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
       ) : null}
 
       <section className="filters-row filters-row-compact" aria-label="Filtros de padres o tutores">

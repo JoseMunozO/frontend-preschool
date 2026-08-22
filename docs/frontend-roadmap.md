@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-21.
+Ultima actualizacion: 2026-08-22.
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -50,24 +50,23 @@ Ultima actualizacion: 2026-08-21.
 - Pagos: historial de pagos por estudiante. `GET /api/payments/students/{studentId}` (`getPaymentsByStudent()` en `src/api/payments.api.ts`) conectado al boton "Ver historial de pagos" (icono ojo) de cada fila de cargo en `PaymentsPage.tsx`; abre un panel con la lista de pagos reales del estudiante (monto, metodo, fecha, referencia, notas). Mutuamente excluyente con el panel de registrar pago, mismo patron que los demas paneles del modulo. Verificado en navegador contra el backend real: pago con multiples asignaciones (Sofia Lindberg, $1,070 = suma de dos cargos), pago simple (Lucas Andersson, $1,500), y el estado vacio real "Sin pagos registrados para este estudiante" (Sofia Johansson) — los tres casos confirmados inspeccionando las requests reales (`GET /api/payments/students/{id}` → `200`). Mergeado a `main` (PR #33).
 - Backend: `PUT /api/payments/charges/{studentChargeId}` para editar o cancelar un cargo existente sin registrar un pago (`backend-preschool` PR #49, 2026-08-21). Reemplazo completo (no patch), salvo `status`: si se omite, el estado actual no se toca (evita pisar un `PAID`/`PARTIALLY_PAID` calculado automaticamente); es la unica forma de mover un cargo a `CANCELLED`. Sin frontend todavia — no hay UI para editar/cancelar un cargo ya creado. Detalle completo en `docs/backend-api-reference.md`.
 - Estudiantes: modulo de contactos de emergencia. El boton "Ver" (icono ojo) de cada fila abre un panel con CRUD completo (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`, funciones nuevas en `src/api/students.api.ts`). Formulario RHF+Zod (nombre completo, relacion, telefono, telefono alternativo, notas, contacto principal); eliminar usa `ConfirmDialog` de un solo paso ya que este recurso no tiene soft-delete/restore en el backend (es borrado real). Panel mutuamente excluyente con el formulario de estudiante y la papelera. Verificado end-to-end contra el backend real: estado vacio, crear (`POST` → `201`), editar (`PUT` → `200`), eliminar (`DELETE` → `204`), y validaciones de campos obligatorios.
+- Padres/tutores: UI para tutor archivado. Boton "Archivados" en `ParentsPage.tsx` abre un panel (reutiliza la misma query `['parents', 'trash']` con `includeDeleted=true` que ya usaba la papelera, separando por `archivedAt` en vez de agregar una llamada nueva). La papelera existente (`TrashPanel`) ahora filtra explicitamente `deletedAt && !archivedAt` para no mezclar archivados con eliminados recientes de 0-7 dias (antes se hubiera podido intentar `restore` sobre un archivado y fallar con `409`). Cada archivado tiene un boton "Reclamar" que abre el mismo formulario de padre/tutor en un tercer modo (`claimTarget`, junto a crear/editar), prefilled con nombre y correo (los unicos datos que sobreviven al archivado), sin campo de contrasena (igual que editar), y llama a `POST /api/parents/{id}/claim` (`claimParent()` nueva en `parents.api.ts`) en vez de `PUT`. Mensajes especificos para `404` (ya no esta archivado) y `409` (pasaron mas de 6 anios). `ParentListItem` gano `archivedAt`. Verificado end-to-end contra el backend real simulando el job de archivado (backdate manual de `deleted_at`/`archived_at` en la base local, ya que el job real corre a los 7 dias): aparece en "Archivados" separado de "Papelera", reclamar con telefono nuevo llama a `claim` → `200`, y el tutor reaparece activo en la tabla principal con `deletedAt`/`archivedAt` en `null`.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
 - **`guardians[]` en `StudentListItem`**: el tipo en `src/api/students.api.ts` solo tiene `primaryGuardianName`, no el array `guardians` que el backend ya devuelve en list y detail. Agregarlo eliminaria la necesidad de una llamada aparte a `getStudentGuardians()` en varios casos (incluyendo, potencialmente, simplificar el patron usado para la cuenta de hijos en `ParentsPage.tsx`).
-- **Estado "archivado" de Parent** (`archivedAt`, `POST /api/parents/{id}/claim`): no hay UI para buscar/reactivar un tutor archivado (solo la papelera de 0-7 dias existe, que sigue funcionando igual). Ver nota en Estado Actual.
 - **Editar/cancelar cargo** (`PUT /api/payments/charges/{studentChargeId}`): sin UI todavia; solo se puede crear un cargo, no editarlo ni cancelarlo despues.
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
 
 ## Siguiente Punto Recomendado
 
-**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-21: eliminar + papelera conectado en las 4 pestañas con soft-delete (estudiantes, padres/tutores, materiales, horarios) y ya pusheado/mergeado a `main` (PRs #28-#32). Historial de pagos por estudiante y contactos de emergencia tambien completos y verificados contra el backend real.
+**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado (buscar/reclamar) completa y verificada end-to-end contra el backend real (ver Estado Actual). Queda un solo pendiente de la lista original antes del martes.
 
 Prioridad, en orden:
 
-1. UI para tutor archivado (buscar por nombre/email, completar datos faltantes, `POST /api/parents/{id}/claim`) — nuevo desde backend PR #47, sin frontend todavia.
-2. UI para editar/cancelar un cargo existente (`PUT /api/payments/charges/{studentChargeId}`) — nuevo desde backend PR #49, sin frontend todavia.
+1. UI para editar/cancelar un cargo existente (`PUT /api/payments/charges/{studentChargeId}`) — nuevo desde backend PR #49, sin frontend todavia.
 
 Con menor prioridad, no urgente para el martes:
 
@@ -136,6 +135,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Padres/tutores: adaptar campos reales del backend.
 - [x] Padres/tutores: busqueda local por nombre, correo o telefono.
 - [x] Padres/tutores: mostrar cantidad de hijos (`GET /api/parents/{parentId}/students` por tutor en `ParentsPage.tsx`).
+- [x] Padres/tutores: buscar y reactivar tutor archivado (`POST /api/parents/{id}/claim`).
 - [x] Pagos: tabla visual inicial.
 - [x] Pagos: adaptar campos reales de cargos del backend.
 - [x] Pagos: filtros por mes y estado.
@@ -212,12 +212,12 @@ feat/materials-delete-trash
 feat/schedules-delete-trash
 feat/payment-history
 feat/emergency-contacts
+feat/parent-archived-claim
 ```
 
 Siguientes:
 
 ```text
-feat/parent-archived-claim
 feat/charge-edit-cancel
 feat/students-pagination
 chore/tailwind-theme-tokens
