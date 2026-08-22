@@ -38,7 +38,7 @@ Ultima actualizacion: 2026-08-22.
 - Estilos de formulario de entidad generalizados y reutilizados entre modulos.
 - Padres/tutores: cantidad de hijos mostrada en la tabla, vía `GET /api/parents/{parentId}/students` por tutor (`useQueries` en `ParentsPage.tsx`). Mergeado a `main` (PR #18).
 - Formularios de entidad (padres/tutores, estudiantes, materiales + movimientos, horarios, pagos) migrados de `useState`/validacion manual a React Hook Form + Zod (`useForm` + `zodResolver`); reglas cruzadas dentro del formulario via `superRefine`, y la regla de pagos que depende del cargo seleccionado (dato externo al formulario) via `setError` manual en el submit. Mismos campos, mensajes y estilos visuales que antes. Mergeado a `main` (PRs #19-#22, #24).
-- Manejo de `403` distinto de `401`: `isForbiddenError()` en `src/utils/apiErrors.ts` detecta `ApiError` con `status === 403`; cada modulo (dashboard, estudiantes, padres/tutores, pagos, materiales, horarios) muestra un mensaje especifico "No tienes permiso para..." en vez del error generico. `ProtectedRoute` tambien muestra una pantalla `ForbiddenPage` ("No tienes permiso") cuando `roles` no coincide con el usuario, aunque ningun route todavia pasa `roles` (mecanismo listo, sin usar aun). Verificado con un usuario `TEACHER` real contra el backend.
+- Manejo de `403` distinto de `401`: `isForbiddenError()` en `src/utils/apiErrors.ts` detecta `ApiError` con `status === 403`; cada modulo (dashboard, estudiantes, padres/tutores, pagos, materiales, horarios) muestra un mensaje especifico "No tienes permiso para..." en vez del error generico. `ProtectedRoute` tambien muestra una pantalla `ForbiddenPage` ("No tienes permiso") cuando `roles` no coincide con el usuario; desde el rollout de rol `TEACHER` (ver mas abajo) la ruta `/payments` ya pasa `roles={financeRoles}`, primer uso real del mecanismo. Verificado con un usuario `TEACHER` real contra el backend.
 - Confirmacion para accion sensible de padres/tutores: `src/components/ui/ConfirmDialog.tsx` (reutilizable) conectado a activar/desactivar en `ParentsPage.tsx`.
 - Estudiantes: filtros migrados a server-side (`getStudents({ search, groupId, status })` en `src/api/students.api.ts`, `GET /api/students?search=&groupId=&status=`). Busqueda con debounce de 300ms. El selector de grupo (tabla y formulario) usa una query separada sin filtrar (`['students', 'groups-lookup']`, `staleTime: Infinity`) para no perder opciones cuando la tabla esta filtrada — no hay endpoint de grupos dedicado. Verificado en navegador inspeccionando las requests reales (`?search=Lucas`, `?groupId=1`, `?groupId=1&status=pending`).
 - Backend: soft-delete + restore para estudiantes ya esta implementado y mergeado (`backend-preschool` PR #40, 2026-08-20 noche). `DELETE /api/students/{id}` marca `deletedAt` (mismo `204` externo), `POST /api/students/{id}/restore` limpia `deletedAt` dentro de una ventana de gracia de 7 dias (`200` con el Student, `404` si no existe/no esta eliminado, `409` si ya expiro), `GET /api/students?includeDeleted=true` muestra los eliminados recientes. Detalle completo en `docs/backend-api-reference.md`.
@@ -54,6 +54,12 @@ Ultima actualizacion: 2026-08-22.
 - Pagos: editar y cancelar/reactivar un cargo existente. Nuevos botones "Editar" (Pencil) y "Cancelar cargo"/"Reactivar" (Ban/RotateCcw, segun estado) por fila en `PaymentsPage.tsx`, ademas de los ya existentes "Ver historial" y "Registrar pago". Editar abre un panel con formulario RHF+Zod (fecha de vencimiento, monto, inicio/fin de periodo, descripcion — regla cruzada de periodo via `superRefine`, mismo patron que horarios); `studentId`/`chargeTypeId` no son editables en la UI y se reenvian sin cambios (el `PUT` del backend es reemplazo completo, no patch). Cancelar/reactivar reutiliza `ConfirmDialog` (variant `danger` para cancelar, `default` para reactivar) y llama al mismo `PUT` solo con `status` distinto, construyendo el resto del payload a partir del cargo actual (`chargeRequestFromCharge()`) para no pisar los demas campos — el resto de campos se omite unicamente cuando de verdad no se quieren tocar. `updateCharge()` nuevo en `payments.api.ts`, `StudentChargeRequest` nuevo en `types/payments.ts`. Verificado end-to-end contra el backend real: editar monto ($950 → $975, `PUT` → `200`, estado `PENDING` no se toco), cancelar (`PUT` con `status: CANCELLED` → `200`, desaparece el boton "Registrar pago"), reactivar (`PUT` con `status: PENDING` → `200`, "Registrar pago" vuelve a aparecer). Datos de prueba revertidos a su valor original al terminar. Mergeado a `main` (PR #36).
 - Contactos de emergencia: tutores legales como contactos automaticos. El panel de "Contactos de emergencia" en `StudentsPage.tsx` ahora tiene una seccion "Tutores legales" arriba de los contactos manuales, poblada desde `guardians: StudentGuardianSummary[]` (nuevo campo en `StudentListItem`, `src/api/students.api.ts`) — sin llamada extra al backend, porque `GET /api/students` y `GET /api/students/{id}` ya la traen embebida (confirmado con la sesion de `backend-preschool`, cero cambios de backend). Filas de solo lectura (sin editar/eliminar, eso sigue siendo responsabilidad del modulo de Padres/Tutores), ordenadas con el/los tutor(es) marcados `primaryContact` primero y una etiqueta "Principal", igual que ya hacia la lista manual. Debajo, la lista editable de siempre bajo el titulo "Contactos adicionales". Verificado end-to-end contra el backend real logueado como `TEACHER`: Lucas Andersson (1 tutor, principal) y Maya Garcia (2 tutores, el marcado `primaryContact` aparece primero con la etiqueta) — datos reales del seed, sin necesitar datos de prueba. Mergeado a `main` (PR #37).
 - Backend: `GET /api/parents` ahora permite `TEACHER` (antes solo `SUPER_ADMIN`/`ADMIN`/`DIRECTOR`), pedido de Jose para que un profesor pueda ver a los tutores de sus propios estudiantes. El backend filtra el resultado el solo: para `TEACHER` solo aparecen los padres/tutores de estudiantes en grupos con asignacion activa hoy (`staff_group_assignments`); sin grupo asignado, la lista viene vacia. `status`/`search`/`includeDeleted` siguen funcionando igual sobre ese subconjunto ya filtrado. `GET /api/parents/{parentId}` y `GET /api/parents/{parentId}/students` no cambiaron. Cero cambios de frontend: la navegacion y la ruta de "Padres / Tutores" nunca estuvieron ocultas por rol (`Sidebar.tsx` no filtra por rol, `router.tsx` no pasa `roles` a `ProtectedRoute` en ninguna ruta), asi que el 403 que veia antes un `TEACHER` era solo el resultado real de la llamada, manejado por el `isForbiddenError()` existente en `ParentsPage.tsx`. Verificado end-to-end en el navegador logueado como `TEACHER` contra el backend real: la tabla carga sin el aviso de permiso y muestra "5 de 5 tutores" (excluye correctamente al padre de Maya Garcia, en un grupo no asignado a ese profesor).
+- Rol `TEACHER`: navegacion, perfil de estudiante y dashboard propios. Pedido directo de Jose (`docs/modificaciones.md`, no versionado), coordinado con la sesion de `backend-preschool`. Cuatro branches apiladas, mergeadas a `main` (PRs #38-#41):
+  - **Nav/acciones por rol** (PR #38): `ProtectedRoute roles={financeRoles}` ahora si se usa en la ruta `/payments` (el mecanismo ya existia sin usar); `Sidebar.tsx` oculta el link "Pagos" con `hasAnyRole(financeRoles)`. En Estudiantes/Padres/Materiales/Horarios, los botones de crear/editar/eliminar/papelera (y en Padres, archivar/activar-desactivar) se ocultan del todo para roles fuera de `adminRoles` — no se muestran deshabilitados. El icono de hamburguesa en `Topbar.tsx` se dejo intacto (Jose pidio no tocarlo).
+  - **Perfil del niño en popup** (PR #39): el boton "Ver" de Estudiantes paso de abrir un panel lateral a un modal centrado (mismo patron `dialog-overlay`/`dialog-panel` de `ConfirmDialog`, variante ancha `.dialog-panel-wide`), con nombre/grupo/nacimiento, alergias y notas medicas (`allergies`/`medicalNotes`, ya existian en `StudentListItem` pero nunca se mostraban), y las secciones de tutores legales + contactos de emergencia manuales movidas tal cual desde el panel anterior.
+  - **Comentarios/historial** (PR #40): `getStudentNotes`/`createStudentNote`/`updateStudentNote`/`deleteStudentNote` nuevas en `students.api.ts`, contra `/api/students/{id}/notes` (endpoint que ya existia en el backend, sin usar en el frontend). Selector con los 6 `StudentNoteType` del backend. Permisos ya resueltos en el backend (`TEACHER` solo ve/escribe notas de estudiantes en su grupo con asignacion activa) — cero logica de rol nueva en frontend, mismo `isForbiddenError()` de siempre.
+  - **Dashboard de profesor** (PR #41): nuevo `TeacherDashboard.tsx`, elegido por `DashboardHome.tsx` segun rol (`TEACHER` sin `adminRoles`/`financeRoles`) en la ruta index. Consume `GET /api/dashboard/teacher-summary` (resulto ser uno de 4 endpoints de dashboard por rol que ya existian en el backend, no documentados hasta ahora). Tarjetas: estudiantes activos, cumpleanos proximos (`upcomingBirthdays`), ninos enfermos hoy (`todayAttendanceSummary.sickCount`, tono rojo si > 0). El panel "Pagos del mes" + "Actividades de hoy" de `AdminDashboard` se reemplazan por un timeline proporcional del horario del dia (`todaySchedule`, bloques a escala por horario/duracion, huecos entre actividades marcados como "Descanso").
+  - Verificado end-to-end contra el backend real logueado como `TEACHER`/`assistant@school.com` y como `admin@school.com` (sin cambios para ese rol). El timeline poblado se verifico parcheando temporalmente `window.fetch` en el navegador (hoy sabado no habia horario real que renderizar).
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
@@ -64,15 +70,14 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 ## Siguiente Punto Recomendado
 
-**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado (buscar/reclamar), de editar/cancelar/reactivar cargo, y de tutores legales como contactos de emergencia automaticos, completas y verificadas end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
+**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado, editar/cancelar cargo, tutores como contactos de emergencia, y la ronda completa de rol `TEACHER` (nav/acciones por rol, perfil de estudiante en popup, comentarios, dashboard de profesor) — todo completo y verificado end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
 
 Con menor prioridad, no urgente para el martes:
 
 - Vincular/desvincular estudiante y padre/tutor (`POST`/`DELETE /api/parents/{parentId}/students`) — sin UI, ver nota en la seccion de arriba.
-
+- Asistencia: el backend ya tiene el contrato completo (`GET/POST /api/attendance?groupId=&date=`, coordinado con `backend-preschool`), pero todavia no hay UI para que un profesor marque asistencia — solo se consume el agregado `todayAttendanceSummary` en el dashboard de profesor. El nav "Asistencia" sigue siendo un `PlaceholderPage`.
 - Implementar paginacion real de estudiantes (controles visuales sin logica todavia).
 - Validar responsive real de dashboard y tablas principales.
-- Cuando se agreguen roles diferenciados por ruta, pasar `roles` a `ProtectedRoute` en `router.tsx` (el componente ya soporta mostrar `ForbiddenPage`, pero ningun route lo usa todavia).
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
 ## Fase 0 - Base Del Proyecto
@@ -118,7 +123,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Mostrar pagos pendientes y atrasados.
 - [x] Mostrar materiales bajos.
 - [x] Mostrar actividades del dia.
-- [ ] Mostrar cumpleanos proximos si el backend lo expone.
+- [x] Mostrar cumpleanos proximos si el backend lo expone (en `TeacherDashboard.tsx`, via `GET /api/dashboard/teacher-summary`; `AdminDashboard.tsx` no lo muestra, no fue pedido ahi).
 - [x] Reemplazar datos demo principales por datos reales.
 - [x] Validar visualmente con datos reales en navegador.
 
@@ -175,7 +180,8 @@ Con menor prioridad, no urgente para el martes:
 
 - [x] Estados de carga.
 - [x] Estados vacios.
-- [x] Manejo de errores API: `isForbiddenError()` distingue `403` de otros errores en los 6 modulos con `useQuery`, mostrando "No tienes permiso para..." en vez del mensaje generico. `ProtectedRoute` muestra `ForbiddenPage` si el rol no coincide (mecanismo listo, sin rutas usandolo aun — ver Siguiente Punto Recomendado). Verificado con un usuario `TEACHER` real.
+- [x] Manejo de errores API: `isForbiddenError()` distingue `403` de otros errores en los 6 modulos con `useQuery`, mostrando "No tienes permiso para..." en vez del mensaje generico. `ProtectedRoute` muestra `ForbiddenPage` si el rol no coincide; la ruta `/payments` ya usa `roles={financeRoles}`. Verificado con un usuario `TEACHER` real.
+- [x] Acciones ocultas por rol: en Estudiantes/Padres/Materiales/Horarios, crear/editar/eliminar/papelera se ocultan (no deshabilitan) para roles fuera de `adminRoles`, via `useAuthStore().hasAnyRole()`. Verificado con `TEACHER` y `admin@school.com`.
 - [x] Confirmaciones para acciones sensibles: `ConfirmDialog` reutilizable conectado a activar/desactivar padre/tutor, y a eliminar (doble confirmacion) en las 4 entidades con soft-delete (estudiantes, padres/tutores, materiales, horarios), cada una con `UndoToast` + `TrashPanel`.
 - [x] Filtros por modulo.
 - [ ] Tests de formularios y flujos criticos.
@@ -215,12 +221,18 @@ feat/payment-history
 feat/emergency-contacts
 feat/parent-archived-claim
 feat/charge-edit-cancel
+feat/student-guardians-as-emergency-contacts
+feat/role-based-nav-and-actions
+feat/student-profile-modal
+feat/student-notes-comments
+feat/teacher-dashboard
 ```
 
 Siguientes:
 
 ```text
 feat/parent-student-link
+feat/attendance-taking
 feat/students-pagination
 chore/tailwind-theme-tokens
 feat/schedule-week-view
