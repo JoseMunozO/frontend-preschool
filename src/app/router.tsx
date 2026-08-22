@@ -2,7 +2,7 @@ import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../auth/ProtectedRoute'
 import { financeRoles } from '../auth/roleAccess'
 import { LoginPage } from '../auth/LoginPage'
-import { AdminDashboard } from '../dashboards/AdminDashboard'
+import { DashboardHome } from '../dashboards/DashboardHome'
 import { AppLayout } from '../layouts/AppLayout'
 import { MaterialsPage } from '../modules/materials/MaterialsPage'
 import { ParentsPage } from '../modules/parents/ParentsPage'
@@ -22,7 +22,7 @@ export const router = createBrowserRouter([
       {
         element: <AppLayout />,
         children: [
-          { index: true, element: <AdminDashboard /> },
+          { index: true, element: <DashboardHome /> },
           { path: 'students', element: <StudentsPage /> },
           { path: 'parents', element: <ParentsPage /> },
           {
