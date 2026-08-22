@@ -1039,6 +1039,16 @@ td {
   font-size: 13px;
 }
 
+td select,
+td input[type='text'] {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
 .student-avatar {
   align-items: center;
   color: #a4abb8;
