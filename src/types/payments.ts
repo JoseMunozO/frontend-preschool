@@ -24,6 +24,17 @@ export type StudentCharge = {
   updatedAt?: string
 }
 
+export type StudentChargeRequest = {
+  studentId: number
+  chargeTypeId: number
+  dueDate: string
+  billingPeriodStart?: string
+  billingPeriodEnd?: string
+  amountDue: number
+  status?: PaymentChargeStatus
+  description?: string
+}
+
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER'
 
 export type PaymentAllocationRequest = {

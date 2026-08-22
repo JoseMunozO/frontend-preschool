@@ -3,9 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { Eye, FileText, ListFilter, Plus, Search, X } from 'lucide-react'
-import { createPayment, getPaymentsByStudent, getStudentCharges } from '../../api/payments.api'
-import type { PaymentChargeStatus, PaymentMethod, PaymentRequest, StudentCharge } from '../../types/payments'
+import { Ban, Eye, FileText, ListFilter, Pencil, Plus, RotateCcw, Search, X } from 'lucide-react'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { createPayment, getPaymentsByStudent, getStudentCharges, updateCharge } from '../../api/payments.api'
+import type {
+  PaymentChargeStatus,
+  PaymentMethod,
+  PaymentRequest,
+  StudentCharge,
+  StudentChargeRequest,
+} from '../../types/payments'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
@@ -102,6 +109,54 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
+const chargeEditFormSchema = z
+  .object({
+    dueDate: z.string().min(1, 'La fecha de vencimiento es obligatoria.'),
+    billingPeriodStart: z.string(),
+    billingPeriodEnd: z.string(),
+    amountDue: z
+      .string()
+      .refine((value) => value.trim() !== '' && Number(value) > 0, 'Indica un monto valido, mayor a 0.'),
+    description: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.billingPeriodStart && values.billingPeriodEnd && values.billingPeriodStart > values.billingPeriodEnd) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'El periodo debe terminar despues de que empieza.',
+        path: ['billingPeriodEnd'],
+      })
+    }
+  })
+
+type ChargeEditFormValues = z.infer<typeof chargeEditFormSchema>
+
+function editFormValuesForCharge(charge: StudentCharge): ChargeEditFormValues {
+  return {
+    dueDate: charge.dueDate,
+    billingPeriodStart: charge.billingPeriodStart ?? '',
+    billingPeriodEnd: charge.billingPeriodEnd ?? '',
+    amountDue: String(charge.amountDue),
+    description: charge.description ?? '',
+  }
+}
+
+function chargeRequestFromCharge(
+  charge: StudentCharge,
+  overrides: Partial<StudentChargeRequest> = {},
+): StudentChargeRequest {
+  return {
+    studentId: charge.studentId,
+    chargeTypeId: charge.chargeTypeId,
+    dueDate: charge.dueDate,
+    billingPeriodStart: charge.billingPeriodStart ?? undefined,
+    billingPeriodEnd: charge.billingPeriodEnd ?? undefined,
+    amountDue: charge.amountDue,
+    description: charge.description ?? undefined,
+    ...overrides,
+  }
+}
+
 export function PaymentsPage() {
   const queryClient = useQueryClient()
   const [month, setMonth] = useState(getCurrentMonth())
@@ -111,6 +166,9 @@ export function PaymentsPage() {
   const [selectedCharge, setSelectedCharge] = useState<StudentCharge | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [historyStudent, setHistoryStudent] = useState<{ studentId: number; studentName: string } | null>(null)
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false)
+  const [editingCharge, setEditingCharge] = useState<StudentCharge | null>(null)
+  const [confirmingStatusCharge, setConfirmingStatusCharge] = useState<StudentCharge | null>(null)
   const {
     register,
     handleSubmit,
@@ -125,6 +183,21 @@ export function PaymentsPage() {
   })
   const studentChargeId = useWatch({ control, name: 'studentChargeId' })
   const paymentMethod = useWatch({ control, name: 'paymentMethod' })
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    reset: resetEdit,
+    formState: { errors: editFormErrors },
+  } = useForm<ChargeEditFormValues>({
+    resolver: zodResolver(chargeEditFormSchema),
+    defaultValues: {
+      dueDate: '',
+      billingPeriodStart: '',
+      billingPeriodEnd: '',
+      amountDue: '',
+      description: '',
+    },
+  })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['student-charges', month, status],
@@ -147,6 +220,30 @@ export function PaymentsPage() {
       setSuccessMessage('Pago registrado correctamente.')
       setIsFormOpen(false)
       setSelectedCharge(null)
+    },
+  })
+
+  const updateChargeMutation = useMutation({
+    mutationFn: ({ studentChargeId: id, request }: { studentChargeId: number; request: StudentChargeRequest }) =>
+      updateCharge(id, request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'student-charges',
+      })
+      setSuccessMessage('Cargo actualizado correctamente.')
+      setIsEditFormOpen(false)
+      setEditingCharge(null)
+    },
+  })
+
+  const statusChangeMutation = useMutation({
+    mutationFn: ({ charge, status }: { charge: StudentCharge; status: PaymentChargeStatus }) =>
+      updateCharge(charge.studentChargeId, chargeRequestFromCharge(charge, { status })),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'student-charges',
+      })
+      setConfirmingStatusCharge(null)
     },
   })
 
@@ -173,6 +270,7 @@ export function PaymentsPage() {
 
   function openPaymentHistory(charge: StudentCharge) {
     setIsFormOpen(false)
+    setIsEditFormOpen(false)
     setHistoryStudent({ studentId: charge.studentId, studentName: charge.studentName })
   }
 
@@ -186,6 +284,7 @@ export function PaymentsPage() {
     savePaymentMutation.reset()
     setSuccessMessage(null)
     setHistoryStudent(null)
+    setIsEditFormOpen(false)
     setIsFormOpen(true)
   }
 
@@ -193,6 +292,23 @@ export function PaymentsPage() {
     setIsFormOpen(false)
     setSelectedCharge(null)
     savePaymentMutation.reset()
+  }
+
+  function openEditForm(charge: StudentCharge) {
+    setEditingCharge(charge)
+    resetEdit(editFormValuesForCharge(charge))
+    updateChargeMutation.reset()
+    setSuccessMessage(null)
+    setHistoryStudent(null)
+    setIsFormOpen(false)
+    setSelectedCharge(null)
+    setIsEditFormOpen(true)
+  }
+
+  function closeEditForm() {
+    setIsEditFormOpen(false)
+    setEditingCharge(null)
+    updateChargeMutation.reset()
   }
 
   function handleChargeChange(newStudentChargeId: string) {
@@ -225,6 +341,24 @@ export function PaymentsPage() {
     }
 
     savePaymentMutation.mutate(request)
+  })
+
+  const onSubmitEdit = handleSubmitEdit((values) => {
+    if (!editingCharge) {
+      return
+    }
+
+    const request: StudentChargeRequest = {
+      studentId: editingCharge.studentId,
+      chargeTypeId: editingCharge.chargeTypeId,
+      dueDate: values.dueDate,
+      billingPeriodStart: optionalValue(values.billingPeriodStart),
+      billingPeriodEnd: optionalValue(values.billingPeriodEnd),
+      amountDue: Number(values.amountDue),
+      description: optionalValue(values.description),
+    }
+
+    updateChargeMutation.mutate({ studentChargeId: editingCharge.studentChargeId, request })
   })
 
   return (
@@ -361,6 +495,81 @@ export function PaymentsPage() {
         </section>
       ) : null}
 
+      {isEditFormOpen && editingCharge ? (
+        <section className="panel entity-form-panel" aria-labelledby="charge-edit-form-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="charge-edit-form-title">Editar cargo</h3>
+              <p>
+                {editingCharge.studentName} - {translateBackendSeed(editingCharge.chargeTypeName)}
+              </p>
+            </div>
+            <button
+              aria-label="Cerrar formulario"
+              className="icon-button"
+              disabled={updateChargeMutation.isPending}
+              onClick={closeEditForm}
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+          <form className="entity-form" onSubmit={onSubmitEdit}>
+            <div className="entity-form-grid">
+              <label>
+                Fecha de vencimiento *
+                <input type="date" {...registerEdit('dueDate')} />
+                {editFormErrors.dueDate ? (
+                  <span className="field-error">{editFormErrors.dueDate.message}</span>
+                ) : null}
+              </label>
+              <label>
+                Monto *
+                <input min={0} step="0.01" type="number" {...registerEdit('amountDue')} />
+                {editFormErrors.amountDue ? (
+                  <span className="field-error">{editFormErrors.amountDue.message}</span>
+                ) : null}
+              </label>
+              <label>
+                Inicio de periodo
+                <input type="date" {...registerEdit('billingPeriodStart')} />
+              </label>
+              <label>
+                Fin de periodo
+                <input type="date" {...registerEdit('billingPeriodEnd')} />
+                {editFormErrors.billingPeriodEnd ? (
+                  <span className="field-error">{editFormErrors.billingPeriodEnd.message}</span>
+                ) : null}
+              </label>
+              <label className="entity-form-full">
+                Descripcion
+                <textarea rows={2} {...registerEdit('description')} />
+              </label>
+            </div>
+            {updateChargeMutation.error ? (
+              <p className="form-error" role="alert">
+                {updateChargeMutation.error instanceof Error
+                  ? updateChargeMutation.error.message
+                  : 'No se pudo actualizar el cargo.'}
+              </p>
+            ) : null}
+            <footer className="form-actions">
+              <button
+                className="secondary-button"
+                disabled={updateChargeMutation.isPending}
+                onClick={closeEditForm}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={updateChargeMutation.isPending} type="submit">
+                {updateChargeMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </footer>
+          </form>
+        </section>
+      ) : null}
+
       {historyStudent ? (
         <section className="panel entity-form-panel" aria-labelledby="payment-history-title">
           <header className="form-panel-heading">
@@ -478,6 +687,20 @@ export function PaymentsPage() {
                         <FileText size={16} aria-hidden="true" />
                       </button>
                     ) : null}
+                    <button onClick={() => openEditForm(charge)} title="Editar" type="button">
+                      <Pencil size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      onClick={() => setConfirmingStatusCharge(charge)}
+                      title={charge.status === 'CANCELLED' ? 'Reactivar' : 'Cancelar cargo'}
+                      type="button"
+                    >
+                      {charge.status === 'CANCELLED' ? (
+                        <RotateCcw size={16} aria-hidden="true" />
+                      ) : (
+                        <Ban size={16} aria-hidden="true" />
+                      )}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -506,6 +729,31 @@ export function PaymentsPage() {
           </div>
         </footer>
       </div>
+
+      <ConfirmDialog
+        cancelLabel="Cerrar"
+        confirmLabel={confirmingStatusCharge?.status === 'CANCELLED' ? 'Reactivar' : 'Si, cancelar cargo'}
+        description={
+          confirmingStatusCharge
+            ? confirmingStatusCharge.status === 'CANCELLED'
+              ? `${confirmingStatusCharge.studentName} - ${translateBackendSeed(confirmingStatusCharge.chargeTypeName)} volvera a estar pendiente y podra recibir pagos.`
+              : `${confirmingStatusCharge.studentName} - ${translateBackendSeed(confirmingStatusCharge.chargeTypeName)} quedara cancelado y no podra recibir pagos hasta que lo reactives.`
+            : ''
+        }
+        isConfirming={statusChangeMutation.isPending}
+        onCancel={() => setConfirmingStatusCharge(null)}
+        onConfirm={() => {
+          if (confirmingStatusCharge) {
+            statusChangeMutation.mutate({
+              charge: confirmingStatusCharge,
+              status: confirmingStatusCharge.status === 'CANCELLED' ? 'PENDING' : 'CANCELLED',
+            })
+          }
+        }}
+        open={confirmingStatusCharge !== null}
+        title={confirmingStatusCharge?.status === 'CANCELLED' ? 'Reactivar este cargo?' : 'Cancelar este cargo?'}
+        variant={confirmingStatusCharge?.status === 'CANCELLED' ? 'default' : 'danger'}
+      />
     </main>
   )
 }
