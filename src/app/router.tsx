@@ -4,6 +4,7 @@ import { adminRoles, financeRoles } from '../auth/roleAccess'
 import { LoginPage } from '../auth/LoginPage'
 import { DashboardHome } from '../dashboards/DashboardHome'
 import { AppLayout } from '../layouts/AppLayout'
+import { AttendancePage } from '../modules/attendance/AttendancePage'
 import { MaterialsPage } from '../modules/materials/MaterialsPage'
 import { ParentsPage } from '../modules/parents/ParentsPage'
 import { PaymentsPage } from '../modules/payments/PaymentsPage'
@@ -38,15 +39,7 @@ export const router = createBrowserRouter([
             element: <ProtectedRoute roles={adminRoles} />,
             children: [{ index: true, element: <StaffPage /> }],
           },
-          {
-            path: 'attendance',
-            element: (
-              <PlaceholderPage
-                description="Registro diario de asistencia por grupo y estudiante."
-                title="Asistencia"
-              />
-            ),
-          },
+          { path: 'attendance', element: <AttendancePage /> },
           {
             path: 'reports',
             element: (
