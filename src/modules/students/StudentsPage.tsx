@@ -645,7 +645,14 @@ export function StudentsPage() {
       ) : null}
 
       {contactsStudent ? (
-        <section className="panel entity-form-panel" aria-labelledby="emergency-contacts-title">
+        <div className="dialog-overlay" onClick={closeContactsPanel} role="presentation">
+          <section
+            aria-labelledby="emergency-contacts-title"
+            aria-modal="true"
+            className="panel entity-form-panel dialog-panel-wide"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
           <header className="form-panel-heading">
             <div>
               <h3 id="emergency-contacts-title">
@@ -653,9 +660,15 @@ export function StudentsPage() {
                   ? editingContact
                     ? 'Editar contacto de emergencia'
                     : 'Nuevo contacto de emergencia'
-                  : 'Contactos de emergencia'}
+                  : formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}
               </h3>
-              <p>{formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}</p>
+              {!contactFormOpen ? (
+                <p className="profile-summary">
+                  {contactsStudent.groupName ? translateBackendSeed(contactsStudent.groupName) : 'Sin grupo'}
+                  {' · '}
+                  Nacimiento: {formatDate(contactsStudent.birthDate)}
+                </p>
+              ) : null}
             </div>
             <button
               aria-label="Cerrar"
@@ -666,6 +679,21 @@ export function StudentsPage() {
               <X size={20} aria-hidden="true" />
             </button>
           </header>
+
+          {!contactFormOpen && (contactsStudent.allergies || contactsStudent.medicalNotes) ? (
+            <div className="profile-summary">
+              {contactsStudent.allergies ? (
+                <p>
+                  <strong>Alergias:</strong> {contactsStudent.allergies}
+                </p>
+              ) : null}
+              {contactsStudent.medicalNotes ? (
+                <p>
+                  <strong>Notas medicas:</strong> {contactsStudent.medicalNotes}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {contactFormOpen ? (
             <form className="entity-form" onSubmit={onContactSubmit}>
@@ -801,9 +829,12 @@ export function StudentsPage() {
                   ))}
                 </ul>
               ) : null}
+              <p className="panel-section-label">Comentarios</p>
+              <p className="field-hint">Proximamente.</p>
             </>
           )}
-        </section>
+          </section>
+        </div>
       ) : null}
 
       <section className="filters-row" aria-label="Filtros de estudiantes">
