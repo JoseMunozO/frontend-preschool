@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../auth/ProtectedRoute'
-import { financeRoles } from '../auth/roleAccess'
+import { adminRoles, financeRoles } from '../auth/roleAccess'
 import { LoginPage } from '../auth/LoginPage'
 import { DashboardHome } from '../dashboards/DashboardHome'
 import { AppLayout } from '../layouts/AppLayout'
@@ -9,6 +9,7 @@ import { ParentsPage } from '../modules/parents/ParentsPage'
 import { PaymentsPage } from '../modules/payments/PaymentsPage'
 import { SchedulesPage } from '../modules/schedules/SchedulesPage'
 import { PlaceholderPage } from '../modules/shared/PlaceholderPage'
+import { StaffPage } from '../modules/staff/StaffPage'
 import { StudentsPage } from '../modules/students/StudentsPage'
 
 export const router = createBrowserRouter([
@@ -32,6 +33,11 @@ export const router = createBrowserRouter([
           },
           { path: 'materials', element: <MaterialsPage /> },
           { path: 'schedules', element: <SchedulesPage /> },
+          {
+            path: 'staff',
+            element: <ProtectedRoute roles={adminRoles} />,
+            children: [{ index: true, element: <StaffPage /> }],
+          },
           {
             path: 'attendance',
             element: (

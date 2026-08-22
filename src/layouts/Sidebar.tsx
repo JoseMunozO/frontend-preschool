@@ -9,10 +9,11 @@ import {
   GraduationCap,
   Home,
   Settings,
+  UserCog,
   UsersRound,
 } from 'lucide-react'
 import { useAuthStore } from '../auth/auth.store'
-import { financeRoles } from '../auth/roleAccess'
+import { adminRoles, financeRoles } from '../auth/roleAccess'
 
 const navItems = [
   { to: '/', label: 'Inicio', icon: Home },
@@ -22,6 +23,7 @@ const navItems = [
   { to: '/materials', label: 'Material Escolar', icon: Boxes },
   { to: '/schedules', label: 'Horarios', icon: CalendarDays },
   { to: '/attendance', label: 'Asistencia', icon: ClipboardList },
+  { to: '/staff', label: 'Personal', icon: UserCog, roles: adminRoles },
   { to: '/reports', label: 'Reportes', icon: FileText },
   { to: '/settings', label: 'Configuracion', icon: Settings },
 ]
