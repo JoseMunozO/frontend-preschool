@@ -60,6 +60,8 @@ Ultima actualizacion: 2026-08-22.
   - **Comentarios/historial** (PR #40): `getStudentNotes`/`createStudentNote`/`updateStudentNote`/`deleteStudentNote` nuevas en `students.api.ts`, contra `/api/students/{id}/notes` (endpoint que ya existia en el backend, sin usar en el frontend). Selector con los 6 `StudentNoteType` del backend. Permisos ya resueltos en el backend (`TEACHER` solo ve/escribe notas de estudiantes en su grupo con asignacion activa) — cero logica de rol nueva en frontend, mismo `isForbiddenError()` de siempre.
   - **Dashboard de profesor** (PR #41): nuevo `TeacherDashboard.tsx`, elegido por `DashboardHome.tsx` segun rol (`TEACHER` sin `adminRoles`/`financeRoles`) en la ruta index. Consume `GET /api/dashboard/teacher-summary` (resulto ser uno de 4 endpoints de dashboard por rol que ya existian en el backend, no documentados hasta ahora). Tarjetas: estudiantes activos, cumpleanos proximos (`upcomingBirthdays`), ninos enfermos hoy (`todayAttendanceSummary.sickCount`, tono rojo si > 0). El panel "Pagos del mes" + "Actividades de hoy" de `AdminDashboard` se reemplazan por un timeline proporcional del horario del dia (`todaySchedule`, bloques a escala por horario/duracion, huecos entre actividades marcados como "Descanso").
   - Verificado end-to-end contra el backend real logueado como `TEACHER`/`assistant@school.com` y como `admin@school.com` (sin cambios para ese rol). El timeline poblado se verifico parcheando temporalmente `window.fetch` en el navegador (hoy sabado no habia horario real que renderizar).
+- Asistencia: pagina real en `/attendance` (PR #42), reemplaza el `PlaceholderPage` de siempre. `src/api/attendance.api.ts` nuevo (`getAttendance`/`saveAttendance`) contra `GET`/`POST /api/attendance`. Selector de grupo reutiliza el mismo patron de `groups-lookup` client-side que ya usaba `StudentsPage` (no hay endpoint de "mis grupos"; el backend igual limita a `TEACHER` a sus grupos asignados con `403` si elige otro). Tabla con estado (Presente/Ausente/Enfermo/Tarde), notas y quien registro cada fila; guardado en lote solo de las filas con estado marcado; "Marcar todos presentes" solo llena las que estan sin marcar. Verificado end-to-end contra el backend real: cargo el roster real de un grupo (incluyendo un registro "Enfermo" preexistente), edito y guardo un cambio, confirmo que persistio, lo revirtio.
+- Personal: alta de puestos de trabajo y administracion de roles por rango (PR #43). Pedido directo de Jose, coordinado con `backend-preschool` (rango numerico por rol: `SUPER_ADMIN=100` > `ADMIN`/`DIRECTOR=90` > `TEACHER`/`FINANCE=10` > `PARENT=0`; nadie puede otorgar/quitar un rol de rango superior al propio, nunca se puede quitar el ultimo `SUPER_ADMIN`). Nuevo `src/api/roles.api.ts` (`getRoles`, ahora con `rankLevel`) y `src/api/staff.api.ts` (`getStaffList`/`createStaff`/`assignRole`/`removeRole`/`deleteStaff`/`restoreStaff`). Nueva pagina `StaffPage.tsx` detras de un nav "Personal" y ruta `/staff`, ambos gateados a `adminRoles` (igual que el backend). "Nuevo puesto" crea personal con cuenta de acceso opcional (correo/contrasena/roles solo obligatorios juntos); "Gestionar roles" activa/desactiva roles con switches deshabilitados por encima del rango propio del admin logueado; "Dar de baja"/"Papelera" desactiva un puesto (y su login si tiene) sin limite de tiempo para reactivar — no reutiliza el componente `TrashPanel` compartido porque ese tiene hardcodeado el texto de "7 dias", que no aplica aca. Durante las pruebas goteo un bug real no documentado: `positionTitle`/`staffType` son obligatorios en el backend aunque no haya cuenta de acceso — ya validado en el frontend tambien. Verificado end-to-end contra el backend real: activar/desactivar un rol persiste, `SUPER_ADMIN` deshabilitado para un `ADMIN`, `TEACHER` bloqueado con `403` en `/staff` sin el link en el nav, ciclo completo de dar de baja → papelera → reactivar.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
@@ -70,12 +72,11 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 ## Siguiente Punto Recomendado
 
-**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado, editar/cancelar cargo, tutores como contactos de emergencia, y la ronda completa de rol `TEACHER` (nav/acciones por rol, perfil de estudiante en popup, comentarios, dashboard de profesor) — todo completo y verificado end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
+**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado, editar/cancelar cargo, tutores como contactos de emergencia, la ronda completa de rol `TEACHER` (nav/acciones por rol, perfil de estudiante en popup, comentarios, dashboard de profesor), la pagina real de asistencia, y personal/roles por rango — todo completo y verificado end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
 
 Con menor prioridad, no urgente para el martes:
 
 - Vincular/desvincular estudiante y padre/tutor (`POST`/`DELETE /api/parents/{parentId}/students`) — sin UI, ver nota en la seccion de arriba.
-- Asistencia: el backend ya tiene el contrato completo (`GET/POST /api/attendance?groupId=&date=`, coordinado con `backend-preschool`), pero todavia no hay UI para que un profesor marque asistencia — solo se consume el agregado `todayAttendanceSummary` en el dashboard de profesor. El nav "Asistencia" sigue siendo un `PlaceholderPage`.
 - Implementar paginacion real de estudiantes (controles visuales sin logica todavia).
 - Validar responsive real de dashboard y tablas principales.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
@@ -161,6 +162,8 @@ Con menor prioridad, no urgente para el martes:
 - [x] Horarios: crear/editar actividades.
 - [ ] Horarios: vista semanal o calendario visual.
 - [x] Contactos de emergencia: CRUD completo por estudiante (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`), verificado contra el backend real.
+- [x] Asistencia: pagina real por grupo/fecha con guardado en lote (`GET/POST /api/attendance`), verificada contra el backend real.
+- [x] Personal: alta de puestos, administracion de roles por rango, y dar de baja/reactivar (`GET/POST /api/staff`, `DELETE/POST /api/staff/{id}(/restore)`, `GET /api/roles`, `POST/DELETE /api/users/{userId}/roles`), verificado contra el backend real.
 
 ## Fase 5 - Formularios
 
@@ -226,13 +229,14 @@ feat/role-based-nav-and-actions
 feat/student-profile-modal
 feat/student-notes-comments
 feat/teacher-dashboard
+feat/attendance-taking
+feat/staff-roles-admin
 ```
 
 Siguientes:
 
 ```text
 feat/parent-student-link
-feat/attendance-taking
 feat/students-pagination
 chore/tailwind-theme-tokens
 feat/schedule-week-view
