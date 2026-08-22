@@ -674,6 +674,48 @@ a {
   gap: 10px;
 }
 
+.contact-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.contact-item {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.contact-item-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.contact-item-title {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.panel-actions-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.checkbox-field {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px;
+}
+
 .form-panel-heading {
   align-items: start;
   display: flex;

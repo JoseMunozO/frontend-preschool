@@ -53,6 +53,29 @@ export type StudentGuardian = {
   updatedAt?: string
 }
 
+export type StudentEmergencyContact = {
+  studentEmergencyContactId: number
+  studentId: number
+  studentName: string
+  fullName: string
+  relationship: string
+  phone: string
+  alternatePhone?: string | null
+  notes?: string | null
+  primary: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type StudentEmergencyContactRequest = {
+  fullName: string
+  relationship: string
+  phone: string
+  alternatePhone?: string | null
+  notes?: string | null
+  primary?: boolean | null
+}
+
 type GetStudentsParams = {
   search?: string
   groupId?: number | string
@@ -110,5 +133,33 @@ export function deleteStudent(studentId: number) {
 export function restoreStudent(studentId: number) {
   return apiRequest<StudentListItem>(`/api/students/${studentId}/restore`, {
     method: 'POST',
+  })
+}
+
+export function getStudentEmergencyContacts(studentId: number) {
+  return apiRequest<StudentEmergencyContact[]>(`/api/students/${studentId}/emergency-contacts`)
+}
+
+export function createStudentEmergencyContact(studentId: number, request: StudentEmergencyContactRequest) {
+  return apiRequest<StudentEmergencyContact>(`/api/students/${studentId}/emergency-contacts`, {
+    method: 'POST',
+    body: request,
+  })
+}
+
+export function updateStudentEmergencyContact(
+  studentId: number,
+  contactId: number,
+  request: StudentEmergencyContactRequest,
+) {
+  return apiRequest<StudentEmergencyContact>(`/api/students/${studentId}/emergency-contacts/${contactId}`, {
+    method: 'PUT',
+    body: request,
+  })
+}
+
+export function deleteStudentEmergencyContact(studentId: number, contactId: number) {
+  return apiRequest<void>(`/api/students/${studentId}/emergency-contacts/${contactId}`, {
+    method: 'DELETE',
   })
 }
