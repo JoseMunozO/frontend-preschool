@@ -15,6 +15,8 @@ import type { DayOfWeek, ScheduleItem, ScheduleRequest } from '../../types/sched
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
+import { useAuthStore } from '../../auth/auth.store'
+import { adminRoles } from '../../auth/roleAccess'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
@@ -96,6 +98,7 @@ function optionalValue(value: string) {
 
 export function SchedulesPage() {
   const queryClient = useQueryClient()
+  const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
   const [search, setSearch] = useState('')
   const [dayFilter, setDayFilter] = useState<DayOfWeek | 'ALL'>('ALL')
   const [groupFilter, setGroupFilter] = useState('all')
@@ -277,16 +280,18 @@ export function SchedulesPage() {
           <h2>Horarios</h2>
           <p>Organiza rutinas por grupo, dia, aula y responsable asignado.</p>
         </div>
-        <div className="page-heading-actions">
-          <button className="secondary-button" onClick={openTrash} type="button">
-            <Trash2 size={17} aria-hidden="true" />
-            Papelera
-          </button>
-          <button className="primary-button inline-button" onClick={openNewScheduleForm} type="button">
-            <Plus size={17} aria-hidden="true" />
-            Nueva actividad
-          </button>
-        </div>
+        {canManage ? (
+          <div className="page-heading-actions">
+            <button className="secondary-button" onClick={openTrash} type="button">
+              <Trash2 size={17} aria-hidden="true" />
+              Papelera
+            </button>
+            <button className="primary-button inline-button" onClick={openNewScheduleForm} type="button">
+              <Plus size={17} aria-hidden="true" />
+              Nueva actividad
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {successMessage ? (
@@ -509,12 +514,16 @@ export function SchedulesPage() {
                     <button title="Ver horario" type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
-                    <button onClick={() => openEditScheduleForm(schedule)} title="Editar horario" type="button">
-                      <Pencil size={16} aria-hidden="true" />
-                    </button>
-                    <button onClick={() => openDeleteConfirm(schedule)} title="Eliminar" type="button">
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
+                    {canManage ? (
+                      <>
+                        <button onClick={() => openEditScheduleForm(schedule)} title="Editar horario" type="button">
+                          <Pencil size={16} aria-hidden="true" />
+                        </button>
+                        <button onClick={() => openDeleteConfirm(schedule)} title="Eliminar" type="button">
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </td>
               </tr>

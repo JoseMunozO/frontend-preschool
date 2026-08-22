@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../auth/ProtectedRoute'
+import { financeRoles } from '../auth/roleAccess'
 import { LoginPage } from '../auth/LoginPage'
 import { AdminDashboard } from '../dashboards/AdminDashboard'
 import { AppLayout } from '../layouts/AppLayout'
@@ -24,7 +25,11 @@ export const router = createBrowserRouter([
           { index: true, element: <AdminDashboard /> },
           { path: 'students', element: <StudentsPage /> },
           { path: 'parents', element: <ParentsPage /> },
-          { path: 'payments', element: <PaymentsPage /> },
+          {
+            path: 'payments',
+            element: <ProtectedRoute roles={financeRoles} />,
+            children: [{ index: true, element: <PaymentsPage /> }],
+          },
           { path: 'materials', element: <MaterialsPage /> },
           { path: 'schedules', element: <SchedulesPage /> },
           {
