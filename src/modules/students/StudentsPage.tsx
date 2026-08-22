@@ -26,6 +26,8 @@ import type {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
+import { useAuthStore } from '../../auth/auth.store'
+import { adminRoles } from '../../auth/roleAccess'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
@@ -180,6 +182,7 @@ function formatDate(value?: string) {
 
 export function StudentsPage() {
   const queryClient = useQueryClient()
+  const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('all')
@@ -480,16 +483,18 @@ export function StudentsPage() {
           <h2>Estudiantes</h2>
           <p>Administra la informacion de los estudiantes.</p>
         </div>
-        <div className="page-heading-actions">
-          <button className="secondary-button" onClick={openTrash} type="button">
-            <Trash2 size={17} aria-hidden="true" />
-            Papelera
-          </button>
-          <button className="primary-button inline-button" onClick={openNewStudentForm} type="button">
-            <Plus size={17} aria-hidden="true" />
-            Nuevo estudiante
-          </button>
-        </div>
+        {canManage ? (
+          <div className="page-heading-actions">
+            <button className="secondary-button" onClick={openTrash} type="button">
+              <Trash2 size={17} aria-hidden="true" />
+              Papelera
+            </button>
+            <button className="primary-button inline-button" onClick={openNewStudentForm} type="button">
+              <Plus size={17} aria-hidden="true" />
+              Nuevo estudiante
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {successMessage ? (
@@ -895,12 +900,16 @@ export function StudentsPage() {
                       >
                         <Eye size={16} aria-hidden="true" />
                       </button>
-                      <button onClick={() => openEditStudentForm(student)} title="Editar" type="button">
-                        <Pencil size={16} aria-hidden="true" />
-                      </button>
-                      <button onClick={() => openDeleteConfirm(student)} title="Eliminar" type="button">
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
+                      {canManage ? (
+                        <>
+                          <button onClick={() => openEditStudentForm(student)} title="Editar" type="button">
+                            <Pencil size={16} aria-hidden="true" />
+                          </button>
+                          <button onClick={() => openDeleteConfirm(student)} title="Eliminar" type="button">
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

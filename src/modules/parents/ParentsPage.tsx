@@ -20,6 +20,8 @@ import {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
+import { useAuthStore } from '../../auth/auth.store'
+import { adminRoles } from '../../auth/roleAccess'
 import {
   activateParent,
   claimParent,
@@ -130,6 +132,7 @@ function formatParentName(firstName: string, lastName: string) {
 
 export function ParentsPage() {
   const queryClient = useQueryClient()
+  const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
   const [search, setSearch] = useState('')
   const [editingParent, setEditingParent] = useState<ParentListItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -373,20 +376,22 @@ export function ParentsPage() {
           <h2>Padres / Tutores</h2>
           <p>Administra la informacion de los padres o tutores.</p>
         </div>
-        <div className="page-heading-actions">
-          <button className="secondary-button" onClick={openArchived} type="button">
-            <Archive size={17} aria-hidden="true" />
-            Archivados
-          </button>
-          <button className="secondary-button" onClick={openTrash} type="button">
-            <Trash2 size={17} aria-hidden="true" />
-            Papelera
-          </button>
-          <button className="primary-button inline-button" onClick={openNewParentForm} type="button">
-            <Plus size={17} aria-hidden="true" />
-            Nuevo padre / tutor
-          </button>
-        </div>
+        {canManage ? (
+          <div className="page-heading-actions">
+            <button className="secondary-button" onClick={openArchived} type="button">
+              <Archive size={17} aria-hidden="true" />
+              Archivados
+            </button>
+            <button className="secondary-button" onClick={openTrash} type="button">
+              <Trash2 size={17} aria-hidden="true" />
+              Papelera
+            </button>
+            <button className="primary-button inline-button" onClick={openNewParentForm} type="button">
+              <Plus size={17} aria-hidden="true" />
+              Nuevo padre / tutor
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {successMessage ? (
@@ -647,24 +652,28 @@ export function ParentsPage() {
                       <button title="Ver" type="button">
                         <Eye size={16} aria-hidden="true" />
                       </button>
-                      <button onClick={() => openEditParentForm(parent)} title="Editar" type="button">
-                        <Pencil size={16} aria-hidden="true" />
-                      </button>
-                      <button
-                        disabled={toggleStatusMutation.isPending}
-                        onClick={() => setConfirmingStatusParent(parent)}
-                        title={parent.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
-                        type="button"
-                      >
-                        {parent.status === 'ACTIVE' ? (
-                          <UserX size={16} aria-hidden="true" />
-                        ) : (
-                          <UserCheck size={16} aria-hidden="true" />
-                        )}
-                      </button>
-                      <button onClick={() => openDeleteConfirm(parent)} title="Eliminar" type="button">
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
+                      {canManage ? (
+                        <>
+                          <button onClick={() => openEditParentForm(parent)} title="Editar" type="button">
+                            <Pencil size={16} aria-hidden="true" />
+                          </button>
+                          <button
+                            disabled={toggleStatusMutation.isPending}
+                            onClick={() => setConfirmingStatusParent(parent)}
+                            title={parent.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
+                            type="button"
+                          >
+                            {parent.status === 'ACTIVE' ? (
+                              <UserX size={16} aria-hidden="true" />
+                            ) : (
+                              <UserCheck size={16} aria-hidden="true" />
+                            )}
+                          </button>
+                          <button onClick={() => openDeleteConfirm(parent)} title="Eliminar" type="button">
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

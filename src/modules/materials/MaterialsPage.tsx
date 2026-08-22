@@ -22,6 +22,8 @@ import type {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
+import { useAuthStore } from '../../auth/auth.store'
+import { adminRoles } from '../../auth/roleAccess'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
@@ -108,6 +110,7 @@ function emptyMovementValues(): MovementFormValues {
 
 export function MaterialsPage() {
   const queryClient = useQueryClient()
+  const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all')
@@ -328,16 +331,18 @@ export function MaterialsPage() {
           <h2>Material Escolar</h2>
           <p>Administra inventario, stock minimo y necesidades de reposicion.</p>
         </div>
-        <div className="page-heading-actions">
-          <button className="secondary-button" onClick={openTrash} type="button">
-            <Trash2 size={17} aria-hidden="true" />
-            Papelera
-          </button>
-          <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
-            <Plus size={17} aria-hidden="true" />
-            Nuevo material
-          </button>
-        </div>
+        {canManage ? (
+          <div className="page-heading-actions">
+            <button className="secondary-button" onClick={openTrash} type="button">
+              <Trash2 size={17} aria-hidden="true" />
+              Papelera
+            </button>
+            <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
+              <Plus size={17} aria-hidden="true" />
+              Nuevo material
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {successMessage ? (
@@ -610,15 +615,19 @@ export function MaterialsPage() {
                     <button title="Ver" type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
-                    <button onClick={() => openEditMaterialForm(material)} title="Editar" type="button">
-                      <Pencil size={16} aria-hidden="true" />
-                    </button>
+                    {canManage ? (
+                      <button onClick={() => openEditMaterialForm(material)} title="Editar" type="button">
+                        <Pencil size={16} aria-hidden="true" />
+                      </button>
+                    ) : null}
                     <button onClick={() => openMovementForm(material)} title="Registrar movimiento" type="button">
                       <ArrowLeftRight size={16} aria-hidden="true" />
                     </button>
-                    <button onClick={() => openDeleteConfirm(material)} title="Eliminar" type="button">
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
+                    {canManage ? (
+                      <button onClick={() => openDeleteConfirm(material)} title="Eliminar" type="button">
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

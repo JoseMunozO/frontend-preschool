@@ -11,12 +11,14 @@ import {
   Settings,
   UsersRound,
 } from 'lucide-react'
+import { useAuthStore } from '../auth/auth.store'
+import { financeRoles } from '../auth/roleAccess'
 
 const navItems = [
   { to: '/', label: 'Inicio', icon: Home },
   { to: '/students', label: 'Estudiantes', icon: GraduationCap },
   { to: '/parents', label: 'Padres / Tutores', icon: UsersRound },
-  { to: '/payments', label: 'Pagos', icon: CreditCard },
+  { to: '/payments', label: 'Pagos', icon: CreditCard, roles: financeRoles },
   { to: '/materials', label: 'Material Escolar', icon: Boxes },
   { to: '/schedules', label: 'Horarios', icon: CalendarDays },
   { to: '/attendance', label: 'Asistencia', icon: ClipboardList },
@@ -25,6 +27,9 @@ const navItems = [
 ]
 
 export function Sidebar() {
+  const hasAnyRole = useAuthStore((state) => state.hasAnyRole)
+  const visibleNavItems = navItems.filter((item) => !item.roles || hasAnyRole(item.roles))
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -34,7 +39,7 @@ export function Sidebar() {
         <span>Mi Preescolar</span>
       </div>
       <nav className="sidebar-nav" aria-label="Principal">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon
 
           return (
