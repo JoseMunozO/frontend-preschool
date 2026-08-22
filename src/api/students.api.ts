@@ -89,6 +89,32 @@ export type StudentEmergencyContactRequest = {
   primary?: boolean | null
 }
 
+export type StudentNoteType =
+  | 'PEDAGOGICAL'
+  | 'BEHAVIOR'
+  | 'INCIDENT'
+  | 'HEALTH'
+  | 'FAMILY_FOLLOW_UP'
+  | 'ADMINISTRATIVE'
+
+export type StudentNote = {
+  studentNoteId: number
+  studentId: number
+  studentName: string
+  authorUserId: number
+  authorEmail: string
+  noteType: StudentNoteType
+  content: string
+  moderated: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type StudentNoteRequest = {
+  noteType: StudentNoteType
+  content: string
+}
+
 type GetStudentsParams = {
   search?: string
   groupId?: number | string
@@ -173,6 +199,30 @@ export function updateStudentEmergencyContact(
 
 export function deleteStudentEmergencyContact(studentId: number, contactId: number) {
   return apiRequest<void>(`/api/students/${studentId}/emergency-contacts/${contactId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function getStudentNotes(studentId: number) {
+  return apiRequest<StudentNote[]>(`/api/students/${studentId}/notes`)
+}
+
+export function createStudentNote(studentId: number, request: StudentNoteRequest) {
+  return apiRequest<StudentNote>(`/api/students/${studentId}/notes`, {
+    method: 'POST',
+    body: request,
+  })
+}
+
+export function updateStudentNote(studentId: number, noteId: number, request: StudentNoteRequest) {
+  return apiRequest<StudentNote>(`/api/students/${studentId}/notes/${noteId}`, {
+    method: 'PUT',
+    body: request,
+  })
+}
+
+export function deleteStudentNote(studentId: number, noteId: number) {
+  return apiRequest<void>(`/api/students/${studentId}/notes/${noteId}`, {
     method: 'DELETE',
   })
 }
