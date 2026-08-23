@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { History, X } from 'lucide-react'
 import { ApiError } from '../../api/client'
-import { getAttendance, saveAttendance } from '../../api/attendance.api'
+import { getAttendance, getStudentAttendanceHistory, saveAttendance } from '../../api/attendance.api'
 import type { AttendanceStatus, StudentAttendance } from '../../api/attendance.api'
 import { getStudents } from '../../api/students.api'
 import type { StudentListItem } from '../../api/students.api'
@@ -29,6 +30,14 @@ function todayInputValue() {
   return localDate.toISOString().slice(0, 10)
 }
 
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(`${value}T00:00:00`))
+}
+
 function saveAttendanceErrorMessage(error: unknown) {
   if (error instanceof ApiError && error.status === 409) {
     return 'Ese dia ya quedo archivado y no se puede editar.'
@@ -51,6 +60,9 @@ export function AttendancePage() {
   const [date, setDate] = useState(todayInputValue())
   const [entries, setEntries] = useState<Record<number, LocalEntry>>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [historyStudent, setHistoryStudent] = useState<StudentAttendance | null>(null)
+  const [historyFrom, setHistoryFrom] = useState('')
+  const [historyTo, setHistoryTo] = useState('')
   const today = todayInputValue()
   const isToday = date === today
 
@@ -120,6 +132,32 @@ export function AttendancePage() {
   const saveErrorMessage = saveAttendanceMutation.isError
     ? saveAttendanceErrorMessage(saveAttendanceMutation.error)
     : null
+
+  const {
+    data: historyData,
+    error: historyError,
+    isLoading: isHistoryLoading,
+  } = useQuery({
+    queryKey: ['attendance-history', historyStudent?.studentId, historyFrom, historyTo],
+    queryFn: () =>
+      getStudentAttendanceHistory(historyStudent!.studentId, {
+        from: historyFrom || undefined,
+        to: historyTo || undefined,
+      }),
+    enabled: historyStudent !== null,
+  })
+
+  const history = historyData ?? emptyRoster
+
+  function openHistoryPanel(student: StudentAttendance) {
+    setHistoryStudent(student)
+    setHistoryFrom('')
+    setHistoryTo('')
+  }
+
+  function closeHistoryPanel() {
+    setHistoryStudent(null)
+  }
 
   function updateStatus(studentId: number, status: AttendanceStatus | '') {
     setSuccessMessage(null)
@@ -233,6 +271,7 @@ export function AttendancePage() {
                 <th>Estado</th>
                 <th>Notas</th>
                 <th>Registrado por</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -267,12 +306,19 @@ export function AttendancePage() {
                       />
                     </td>
                     <td>{item.recordedByEmail ?? '-'}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button onClick={() => openHistoryPanel(item)} title="Ver historial de asistencia" type="button">
+                          <History size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
               {!isRosterLoading && roster.length === 0 ? (
                 <tr>
-                  <td colSpan={4}>Sin estudiantes en este grupo.</td>
+                  <td colSpan={5}>Sin estudiantes en este grupo.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -287,6 +333,87 @@ export function AttendancePage() {
               {saveAttendanceMutation.isPending ? 'Guardando...' : 'Guardar asistencia'}
             </button>
           </footer>
+        </div>
+      ) : null}
+
+      {historyStudent ? (
+        <div className="dialog-overlay" onClick={closeHistoryPanel} role="presentation">
+          <section
+            aria-labelledby="attendance-history-title"
+            aria-modal="true"
+            className="panel entity-form-panel dialog-panel-wide"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="form-panel-heading">
+              <div>
+                <h3 id="attendance-history-title">Historial de asistencia</h3>
+                <p className="profile-summary">{historyStudent.studentName}</p>
+              </div>
+              <button aria-label="Cerrar" className="icon-button" onClick={closeHistoryPanel} type="button">
+                <X size={20} aria-hidden="true" />
+              </button>
+            </header>
+
+            <section className="filters-row filters-row-compact" aria-label="Filtros de historial">
+              <input
+                aria-label="Desde"
+                max={historyTo || today}
+                onChange={(event) => setHistoryFrom(event.target.value)}
+                type="date"
+                value={historyFrom}
+              />
+              <input
+                aria-label="Hasta"
+                max={today}
+                min={historyFrom || undefined}
+                onChange={(event) => setHistoryTo(event.target.value)}
+                type="date"
+                value={historyTo}
+              />
+            </section>
+            <p className="empty-copy">
+              {historyFrom || historyTo
+                ? null
+                : 'Mostrando los ultimos 30 dias. Elige un rango de fechas para acotar la busqueda.'}
+            </p>
+
+            {historyError ? (
+              <div className="notice">
+                {isForbiddenError(historyError)
+                  ? 'No tienes permiso para ver el historial de este estudiante.'
+                  : 'No se pudo cargar el historial de asistencia.'}
+              </div>
+            ) : (
+              <div className="table-shell" aria-busy={isHistoryLoading}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Estado</th>
+                      <th>Notas</th>
+                      <th>Registrado por</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((item) => (
+                      <tr key={item.date}>
+                        <td>{formatDate(item.date)}</td>
+                        <td>{item.status ? statusLabels[item.status] : 'Sin marcar'}</td>
+                        <td>{item.notes ?? '-'}</td>
+                        <td>{item.recordedByEmail ?? '-'}</td>
+                      </tr>
+                    ))}
+                    {!isHistoryLoading && history.length === 0 ? (
+                      <tr>
+                        <td colSpan={4}>Sin registros de asistencia en el rango seleccionado.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       ) : null}
     </main>
