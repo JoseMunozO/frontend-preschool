@@ -388,7 +388,14 @@ export function PaymentsPage() {
       ) : null}
 
       {isFormOpen ? (
-        <section className="panel entity-form-panel" aria-labelledby="payment-form-title">
+        <div className="dialog-overlay" onClick={closePaymentForm} role="presentation">
+        <section
+          aria-labelledby="payment-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="payment-form-title">Registrar pago</h3>
@@ -493,10 +500,18 @@ export function PaymentsPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {isEditFormOpen && editingCharge ? (
-        <section className="panel entity-form-panel" aria-labelledby="charge-edit-form-title">
+        <div className="dialog-overlay" onClick={closeEditForm} role="presentation">
+        <section
+          aria-labelledby="charge-edit-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="charge-edit-form-title">Editar cargo</h3>
@@ -568,10 +583,18 @@ export function PaymentsPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {historyStudent ? (
-        <section className="panel entity-form-panel" aria-labelledby="payment-history-title">
+        <div className="dialog-overlay" onClick={closePaymentHistory} role="presentation">
+        <section
+          aria-labelledby="payment-history-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="payment-history-title">Historial de pagos</h3>
@@ -611,6 +634,7 @@ export function PaymentsPage() {
             </ul>
           ) : null}
         </section>
+        </div>
       ) : null}
 
       <section className="filters-row filters-row-payments" aria-label="Filtros de pagos">
