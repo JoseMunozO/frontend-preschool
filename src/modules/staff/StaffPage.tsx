@@ -300,7 +300,14 @@ export function StaffPage() {
       ) : null}
 
       {isFormOpen ? (
-        <section className="panel entity-form-panel" aria-labelledby="staff-form-title">
+        <div className="dialog-overlay" onClick={closeStaffForm} role="presentation">
+        <section
+          aria-labelledby="staff-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="staff-form-title">Nuevo puesto de trabajo</h3>
@@ -414,10 +421,18 @@ export function StaffPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {managingStaff ? (
-        <section className="panel entity-form-panel" aria-labelledby="manage-roles-title">
+        <div className="dialog-overlay" onClick={closeManageRoles} role="presentation">
+        <section
+          aria-labelledby="manage-roles-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="manage-roles-title">Roles de {formatStaffName(managingStaff)}</h3>
@@ -459,6 +474,7 @@ export function StaffPage() {
             })}
           </ul>
         </section>
+        </div>
       ) : null}
 
       {isTrashOpen ? (
