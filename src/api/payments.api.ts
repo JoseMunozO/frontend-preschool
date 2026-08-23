@@ -1,5 +1,6 @@
 import { apiRequest } from './client'
 import type {
+  ChargeType,
   Payment,
   PaymentChargeStatus,
   PaymentRequest,
@@ -43,4 +44,22 @@ export function updateCharge(studentChargeId: number, request: StudentChargeRequ
     method: 'PUT',
     body: request,
   })
+}
+
+export function createCharge(request: StudentChargeRequest) {
+  return apiRequest<StudentCharge>('/api/payments/charges', {
+    method: 'POST',
+    body: request,
+  })
+}
+
+export function getChargeTypes(params: { activeOnly?: boolean } = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.activeOnly) {
+    searchParams.set('activeOnly', 'true')
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+  return apiRequest<ChargeType[]>(`/api/payments/charge-types${query}`)
 }

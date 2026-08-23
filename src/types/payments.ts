@@ -35,6 +35,19 @@ export type StudentChargeRequest = {
   description?: string
 }
 
+export type ChargeTypeRecurrence = 'ONE_TIME' | 'MONTHLY' | 'CUSTOM'
+
+export type ChargeType = {
+  chargeTypeId: number
+  code: string
+  name: string
+  recurrenceType: ChargeTypeRecurrence
+  defaultAmount: number
+  active: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER'
 
 export type PaymentAllocationRequest = {
