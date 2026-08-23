@@ -359,7 +359,14 @@ export function MaterialsPage() {
       ) : null}
 
       {isFormOpen ? (
-        <section className="panel entity-form-panel" aria-labelledby="material-form-title">
+        <div className="dialog-overlay" onClick={closeMaterialForm} role="presentation">
+        <section
+          aria-labelledby="material-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="material-form-title">{editingMaterial ? 'Editar material' : 'Nuevo material'}</h3>
@@ -449,10 +456,18 @@ export function MaterialsPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {movementMaterial ? (
-        <section className="panel entity-form-panel" aria-labelledby="movement-form-title">
+        <div className="dialog-overlay" onClick={closeMovementForm} role="presentation">
+        <section
+          aria-labelledby="movement-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="movement-form-title">Registrar movimiento</h3>
@@ -514,6 +529,7 @@ export function MaterialsPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {isTrashOpen ? (
