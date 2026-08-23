@@ -83,14 +83,25 @@ Ultima actualizacion: 2026-08-23 (vista semanal/calendario de horarios).
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
+- **Pagos: generacion automatica mensual de cargos + descuentos por estudiante** (backend, 2026-08-23, sin PR de frontend todavia). Jose reporto que los cargos se quedaban solo hasta mayo/junio porque nunca hubo generacion automatica, cada cargo se creaba a mano. Backend lo resolvio: un job corre solo todos los dias a las 02:00 (o manual, `POST /api/payments/generate-monthly-charges?month=YYYY-MM`, admin/finanzas) y genera el cargo del mes para cada estudiante activo, prorrateado si se inscribe a mitad de mes — cero cambio de frontend necesario para esto, los cargos nuevos simplemente van a aparecer en `GET /api/payments/charges` como cualquier otro. Ademas, nuevo: descuentos por estudiante (hermanos/becas/referidos), confirmado en vivo contra el OpenAPI real del backend (no estaba en `docs/backend-api-reference.md`, que quedo desactualizado en este punto):
+  - `GET /api/payments/students/{studentId}/discounts` — historial de descuentos del estudiante.
+  - `POST /api/payments/students/{studentId}/discounts` — body `StudentDiscountRequest`: `{ discountType: "PERCENTAGE"|"FIXED_AMOUNT", value: number, reason: string, validFrom: ISODate, validUntil?: ISODate }`. Requeridos: `discountType`, `value`, `reason`, `validFrom`. Responde `201` con `StudentDiscountResponse` (mismos campos + `studentDiscountId`, `active`, `createdByUserId`/`createdByEmail`, `createdAt`/`updatedAt`).
+  - `PATCH /api/payments/students/{studentId}/discounts/{discountId}/deactivate` — desactiva antes de tiempo.
+  - Un descuento vigente se aplica solo al cargo generado ese mes (`amountDue` ya viene con el descuento restado, `description` incluye una nota tipo "Monthly fee - 2026-08 (Hermanos: -10.00%)"). Mismos permisos que el resto de `/api/payments` (`SUPER_ADMIN`/`ADMIN`/`DIRECTOR`/`FINANCE`).
+  - **Trabajo pendiente del lado frontend** (pedido directo de Jose, marcado como prioridad — no esperar a que se libere tiempo, pero tampoco tiene fecha limite explicita): (1) boton "Nuevo cargo" en `PaymentsPage.tsx` — hoy solo existen "Registrar pago" (contra un cargo ya creado) y "Editar cargo" (PUT), no hay forma de crear un cargo nuevo desde la UI. `POST /api/payments/charges` ya existe y reutiliza el mismo `StudentChargeRequest` que ya se usa en `updateCharge()` — falta el `createCharge()` en `payments.api.ts` y el formulario (selects de estudiante + tipo de cargo via `GET /api/payments/charge-types?activeOnly=true`, que tampoco esta consumido todavia — `ChargeTypeResponse`: `{ chargeTypeId, code, name, recurrenceType: "ONE_TIME"|"MONTHLY"|"CUSTOM", defaultAmount, active }`). (2) UI de descuentos por estudiante — probablemente como seccion nueva dentro del perfil del estudiante o desde `PaymentsPage.tsx`, todavia sin decidir la ubicacion exacta.
 
 ## Siguiente Punto Recomendado
 
 **Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado, editar/cancelar cargo, tutores como contactos de emergencia, la ronda completa de rol `TEACHER` (nav/acciones por rol, perfil de estudiante en popup, comentarios, dashboard de profesor), la pagina real de asistencia, y personal/roles por rango — todo completo y verificado end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
 
+**Prioridad (pedido directo de Jose, 2026-08-23, sin fecha limite explicita pero no esperar a que se libere tiempo):**
+
+- Pagos: boton "Nuevo cargo" + UI de descuentos por estudiante. Contrato ya confirmado en vivo, ver detalle completo en la seccion "Backend API — cambios pendientes de aprovechar" de arriba.
+
 Con menor prioridad, no urgente para el martes:
 
 - Validar responsive real de dashboard y tablas principales.
+- Selector de idioma (ingles/sueco) con traduccion de la interfaz (pedido directo de Jose, 2026-08-23). Sin decidir todavia libreria/enfoque (`react-i18next` es la opcion mas estandar en el ecosistema React) ni alcance exacto (solo textos estaticos de la UI, o tambien datos traducibles del backend como nombres de grupos/actividades — hoy pasan por `translateBackendSeed()` como un caso especial, revisar si ese mecanismo debe integrarse con esto). Evaluar antes de empezar.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
 ## Fase 0 - Base Del Proyecto
