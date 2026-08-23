@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23 (modal de historial de asistencia por estudiante).
+Ultima actualizacion: 2026-08-23 (formularios como modal, perfil de padre/tutor, codigo de estudiante autogenerado).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -67,6 +67,12 @@ Ultima actualizacion: 2026-08-23 (modal de historial de asistencia por estudiant
 - Backend: `POST /api/attendance` gano una regla de archivado (`backend-preschool` PR #58, 2026-08-23): `date` anterior a hoy ahora responde `409` (ya archivado), `date` futuro responde `400`; solo `date == hoy` sigue permitiendo upsert normal (corregir el mismo dia las veces que haga falta). `GET /api/attendance` no cambio, los dias anteriores se siguen pudiendo consultar. Frontend: `AttendancePage.tsx` no tenia ninguna restriccion para esto (se podia elegir cualquier fecha y el guardado fallaba en silencio, sin mensaje). Fix (PR #48): selector de fecha con `max={hoy}` (bloquea futuras en el picker nativo); para una fecha pasada se deshabilitan los controles de estado/notas por fila, "Marcar todos presentes" y "Guardar asistencia", con un aviso explicando que ese dia ya quedo archivado; nuevo manejo de error real en el guardado que distingue `409`/`400`/otros en vez de fallar en silencio. Verificado en el navegador contra el backend real: hoy sigue permitiendo editar y guardar (upsert confirmado), fecha pasada bloquea todo y muestra el aviso, el `max` del date picker bloquea fechas futuras.
 
 - Asistencia: modal de historial por estudiante (PR #50). Backend nuevo: `GET /api/attendance/students/{studentId}?from=&to=` (`backend-preschool` PR #59, 2026-08-23, coordinado en vivo), `from`/`to` opcionales con default de ultimos 30 dias, orden descendente por fecha, mismo shape `StudentAttendanceResponse`, mismos permisos que el resto de asistencia (`TEACHER` solo su grupo asignado). Nuevo `getStudentAttendanceHistory()` en `attendance.api.ts`. Boton "Historial" (icono `History`) por fila en `AttendancePage.tsx` abre un modal (mismo patron `dialog-overlay`/`dialog-panel-wide` que otros paneles) con el historial del estudiante y filtros opcionales `Desde`/`Hasta`. Verificado en el navegador contra el backend real: historial con datos reales (incluyendo una nota), filtro de rango acotando correctamente los resultados.
+
+- Formularios como modal, perfil de padre/tutor, codigo de estudiante autogenerado (PRs #52-#58). Tres pedidos de `docs/modificaciones.md` (Jose, no versionado):
+  - **Formularios como modal** (PRs #52, #54, #55, #56, #57): los 10 paneles de crear/editar/acciones secundarias en los 6 modulos (Estudiantes, Materiales x2, Horarios, Pagos x3, Personal x2) pasan del patron inline `<section className="panel entity-form-panel">` al mismo patron `dialog-overlay`/`dialog-panel-wide` ya usado en el perfil de estudiante y el historial de asistencia — envolver en un `<div className="dialog-overlay" onClick={close}>`, agregar `dialog-panel-wide`/`aria-modal`/`role="dialog"` a la section, y `stopPropagation` en el click interno. Sin cambios de CSS. El panel de contactos de emergencia (Estudiantes) ya era modal, no se toco.
+  - **Perfil de padre/tutor** (PR #53): resuelve que como admin no se podia abrir un perfil real de un padre/tutor (el estudiante ya lo tenia desde PR #39). El panel de vinculacion de estudiantes (PR #44) se extiende con un bloque de datos de contacto de solo lectura (telefono, correo, direccion, idioma preferido, notas, badge de estado) arriba de la seccion de vincular/desvincular que ya existia — mismos campos de `ParentListItem`, sin llamada nueva a la API. Boton de la tabla renombrado de "Ver estudiantes vinculados" a "Ver perfil".
+  - **Codigo de estudiante autogenerado** (PR #58): `studentCode` era texto libre. El backend ya rechazaba duplicados (`400: "Ya existe un estudiante con ese codigo"`) y ese mensaje ya se mostraba sin cambios. Nueva `nextStudentCode()` en `StudentsPage.tsx` calcula el siguiente codigo disponible parseando el numero final de los codigos existentes (ej. `STU-006` -> `STU-007`); el campo pasa a `readOnly` tanto en creacion (prellenado) como en edicion (con el codigo actual del estudiante).
+  - Verificado end-to-end contra el backend real en cada fase: los 10 paneles abren como modal centrado sobre overlay (clic afuera cierra, clic adentro no), el perfil de padre muestra datos reales del seed, y crear un estudiante con el codigo autogenerado se confirmo tanto en la UI como consultando la API (`studentCode: "STU-007"`).
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
@@ -191,6 +197,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Acciones ocultas por rol: en Estudiantes/Padres/Materiales/Horarios, crear/editar/eliminar/papelera se ocultan (no deshabilitan) para roles fuera de `adminRoles`, via `useAuthStore().hasAnyRole()`. Verificado con `TEACHER` y `admin@school.com`.
 - [x] Confirmaciones para acciones sensibles: `ConfirmDialog` reutilizable conectado a activar/desactivar padre/tutor, y a eliminar (doble confirmacion) en las 4 entidades con soft-delete (estudiantes, padres/tutores, materiales, horarios), cada una con `UndoToast` + `TrashPanel`.
 - [x] Filtros por modulo.
+- [x] Formularios de crear/editar como modal en los 6 modulos, en vez de panel inline.
 - [ ] Tests de formularios y flujos criticos.
 
 ## Orden Recomendado De Branches
@@ -239,6 +246,13 @@ feat/parent-student-link
 feat/students-pagination
 fix/attendance-date-restrictions
 feat/attendance-history-modal
+feat/students-form-as-modal
+feat/parent-profile-modal
+feat/materials-forms-as-modal
+feat/schedules-form-as-modal
+feat/payments-forms-as-modal
+feat/staff-forms-as-modal
+feat/student-code-autogenerate
 ```
 
 Siguientes:
