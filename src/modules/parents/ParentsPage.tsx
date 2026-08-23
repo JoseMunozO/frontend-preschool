@@ -549,7 +549,14 @@ export function ParentsPage() {
       ) : null}
 
       {isFormOpen ? (
-        <section className="panel entity-form-panel" aria-labelledby="parent-form-title">
+        <div className="dialog-overlay" onClick={closeParentForm} role="presentation">
+        <section
+          aria-labelledby="parent-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="parent-form-title">
@@ -676,6 +683,7 @@ export function ParentsPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {isTrashOpen ? (
@@ -735,16 +743,53 @@ export function ParentsPage() {
       ) : null}
 
       {linkingParent ? (
-        <section className="panel entity-form-panel" aria-labelledby="link-panel-title">
+        <div className="dialog-overlay" onClick={closeLinkPanel} role="presentation">
+        <section
+          aria-labelledby="link-panel-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
-              <h3 id="link-panel-title">Estudiantes vinculados</h3>
-              <p>{formatParentName(linkingParent.firstName, linkingParent.lastName)}</p>
+              <h3 id="link-panel-title">{formatParentName(linkingParent.firstName, linkingParent.lastName)}</h3>
+              <p className="profile-summary">
+                <span
+                  className={
+                    linkingParent.status === 'INACTIVE' ? 'status-badge status-danger' : 'status-badge'
+                  }
+                >
+                  {statusLabels[linkingParent.status] ?? linkingParent.status}
+                </span>
+              </p>
             </div>
             <button aria-label="Cerrar" className="icon-button" onClick={closeLinkPanel} type="button">
               <X size={20} aria-hidden="true" />
             </button>
           </header>
+
+          <div className="profile-summary">
+            <p>
+              <strong>Telefono:</strong> {linkingParent.phone || 'Sin telefono'}
+            </p>
+            <p>
+              <strong>Correo:</strong> {linkingParent.email || 'Sin correo'}
+            </p>
+            <p>
+              <strong>Direccion:</strong> {linkingParent.address || 'Sin direccion'}
+            </p>
+            <p>
+              <strong>Idioma preferido:</strong> {linkingParent.preferredLanguage || 'Sin especificar'}
+            </p>
+            {linkingParent.notes ? (
+              <p>
+                <strong>Notas:</strong> {linkingParent.notes}
+              </p>
+            ) : null}
+          </div>
+
+          <p className="panel-section-label">Estudiantes vinculados</p>
 
           {canManage ? (
             linkableStudents.length > 0 ? (
@@ -849,6 +894,7 @@ export function ParentsPage() {
             </ul>
           ) : null}
         </section>
+        </div>
       ) : null}
 
       <section className="filters-row filters-row-compact" aria-label="Filtros de padres o tutores">
@@ -907,7 +953,7 @@ export function ParentsPage() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button onClick={() => openLinkPanel(parent)} title="Ver estudiantes vinculados" type="button">
+                      <button onClick={() => openLinkPanel(parent)} title="Ver perfil" type="button">
                         <Eye size={16} aria-hidden="true" />
                       </button>
                       {canManage ? (
