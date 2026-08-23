@@ -39,6 +39,7 @@ import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const UNDO_WINDOW_MS = 8000
+const STUDENTS_PAGE_SIZE = 10
 
 const emptyStudents: StudentListItem[] = []
 const emptyContacts: StudentEmergencyContact[] = []
@@ -239,6 +240,8 @@ export function StudentsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<StudentStatus | 'ALL'>('ALL')
+  const [page, setPage] = useState(1)
+  const [syncedPageFiltersKey, setSyncedPageFiltersKey] = useState('|all|ALL')
   const [editingStudent, setEditingStudent] = useState<StudentListItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -453,6 +456,22 @@ export function StudentsPage() {
   })
 
   const students = data ?? emptyStudents
+
+  const pageFiltersKey = `${debouncedSearch}|${groupFilter}|${statusFilter}`
+  if (pageFiltersKey !== syncedPageFiltersKey) {
+    setSyncedPageFiltersKey(pageFiltersKey)
+    setPage(1)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(students.length / STUDENTS_PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pagedStudents = useMemo(
+    () => students.slice((safePage - 1) * STUDENTS_PAGE_SIZE, safePage * STUDENTS_PAGE_SIZE),
+    [students, safePage],
+  )
+  const rangeStart = students.length === 0 ? 0 : (safePage - 1) * STUDENTS_PAGE_SIZE + 1
+  const rangeEnd = Math.min(safePage * STUDENTS_PAGE_SIZE, students.length)
+
   const allGroups = allGroupsData ?? emptyStudents
   const trashedStudents = (trashData ?? emptyStudents).filter((student) => student.deletedAt)
   const contacts = contactsData ?? emptyContacts
@@ -1129,7 +1148,7 @@ export function StudentsPage() {
             </tr>
           </thead>
           <tbody>
-            {students.map((student) => {
+            {pagedStudents.map((student) => {
               const statusLabel = statusLabels[student.status] ?? student.status
 
               return (
@@ -1192,15 +1211,36 @@ export function StudentsPage() {
           </tbody>
         </table>
         <footer className="table-footer">
-          <span>Mostrando {students.length} estudiantes</span>
+          <span>
+            {students.length === 0
+              ? 'Mostrando 0 estudiantes'
+              : `Mostrando ${rangeStart}-${rangeEnd} de ${students.length} estudiantes`}
+          </span>
           <div className="pagination">
-            <button aria-label="Pagina anterior" type="button">
+            <button
+              aria-label="Pagina anterior"
+              disabled={safePage <= 1}
+              onClick={() => setPage(safePage - 1)}
+              type="button"
+            >
               {'<'}
             </button>
-            <button className="active" type="button">
-              1
-            </button>
-            <button aria-label="Pagina siguiente" type="button">
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+              <button
+                className={pageNumber === safePage ? 'active' : undefined}
+                key={pageNumber}
+                onClick={() => setPage(pageNumber)}
+                type="button"
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              aria-label="Pagina siguiente"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage(safePage + 1)}
+              type="button"
+            >
               {'>'}
             </button>
           </div>
