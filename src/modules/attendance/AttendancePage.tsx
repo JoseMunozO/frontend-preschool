@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiError } from '../../api/client'
 import { getAttendance, saveAttendance } from '../../api/attendance.api'
 import type { AttendanceStatus, StudentAttendance } from '../../api/attendance.api'
 import { getStudents } from '../../api/students.api'
@@ -28,12 +29,30 @@ function todayInputValue() {
   return localDate.toISOString().slice(0, 10)
 }
 
+function saveAttendanceErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.status === 409) {
+    return 'Ese dia ya quedo archivado y no se puede editar.'
+  }
+
+  if (error instanceof ApiError && error.status === 400) {
+    return 'No se puede registrar asistencia de un dia futuro.'
+  }
+
+  if (error instanceof ApiError) {
+    return error.message
+  }
+
+  return 'No se pudo guardar la asistencia.'
+}
+
 export function AttendancePage() {
   const queryClient = useQueryClient()
   const [groupId, setGroupId] = useState('')
   const [date, setDate] = useState(todayInputValue())
   const [entries, setEntries] = useState<Record<number, LocalEntry>>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const today = todayInputValue()
+  const isToday = date === today
 
   const { data: allGroupsData } = useQuery({
     queryKey: ['students', 'groups-lookup'],
@@ -98,6 +117,10 @@ export function AttendancePage() {
     },
   })
 
+  const saveErrorMessage = saveAttendanceMutation.isError
+    ? saveAttendanceErrorMessage(saveAttendanceMutation.error)
+    : null
+
   function updateStatus(studentId: number, status: AttendanceStatus | '') {
     setSuccessMessage(null)
     setEntries((previous) => ({
@@ -148,6 +171,7 @@ export function AttendancePage() {
           onChange={(event) => {
             setGroupId(event.target.value)
             setSuccessMessage(null)
+            saveAttendanceMutation.reset()
           }}
           value={groupId}
         >
@@ -160,9 +184,11 @@ export function AttendancePage() {
         </select>
         <input
           aria-label="Fecha"
+          max={today}
           onChange={(event) => {
             setDate(event.target.value)
             setSuccessMessage(null)
+            saveAttendanceMutation.reset()
           }}
           type="date"
           value={date}
@@ -179,12 +205,21 @@ export function AttendancePage() {
         </div>
       ) : null}
 
+      {groupId !== '' && !rosterError && !isToday ? (
+        <div className="notice">
+          Este dia ya quedo archivado: puedes consultar el registro, pero no editarlo. Solo se puede registrar o
+          corregir la asistencia del dia de hoy.
+        </div>
+      ) : null}
+
+      {groupId !== '' && !rosterError && saveErrorMessage ? <div className="notice">{saveErrorMessage}</div> : null}
+
       {groupId !== '' && !rosterError ? (
         <div className="table-shell" aria-busy={isRosterLoading}>
           <div className="panel-actions-row">
             <button
               className="secondary-button inline-button"
-              disabled={roster.length === 0}
+              disabled={!isToday || roster.length === 0}
               onClick={markAllPresent}
               type="button"
             >
@@ -209,6 +244,7 @@ export function AttendancePage() {
                     <td>{item.studentName}</td>
                     <td>
                       <select
+                        disabled={!isToday}
                         onChange={(event) =>
                           updateStatus(item.studentId, event.target.value as AttendanceStatus | '')
                         }
@@ -224,6 +260,7 @@ export function AttendancePage() {
                     </td>
                     <td>
                       <input
+                        disabled={!isToday}
                         maxLength={255}
                         onChange={(event) => updateNotes(item.studentId, event.target.value)}
                         value={entry.notes}
@@ -243,7 +280,7 @@ export function AttendancePage() {
           <footer className="form-actions">
             <button
               className="primary-button"
-              disabled={saveAttendanceMutation.isPending || roster.length === 0}
+              disabled={!isToday || saveAttendanceMutation.isPending || roster.length === 0}
               onClick={() => saveAttendanceMutation.mutate()}
               type="button"
             >
