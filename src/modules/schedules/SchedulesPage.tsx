@@ -308,7 +308,14 @@ export function SchedulesPage() {
       ) : null}
 
       {isFormOpen ? (
-        <section className="panel entity-form-panel" aria-labelledby="schedule-form-title">
+        <div className="dialog-overlay" onClick={closeScheduleForm} role="presentation">
+        <section
+          aria-labelledby="schedule-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="schedule-form-title">{editingSchedule ? 'Editar actividad' : 'Nueva actividad'}</h3>
@@ -413,6 +420,7 @@ export function SchedulesPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {isTrashOpen ? (
