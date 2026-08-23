@@ -112,6 +112,35 @@ function todayInputValue() {
   return localDate.toISOString().slice(0, 10)
 }
 
+function nextStudentCode(students: StudentListItem[]): string {
+  let bestPrefix = ''
+  let bestWidth = 0
+  let bestNumber = -1
+
+  students.forEach((student) => {
+    const match = student.studentCode ? /^(.*?)(\d+)$/.exec(student.studentCode) : null
+
+    if (!match) {
+      return
+    }
+
+    const [, prefix, digits] = match
+    const number = Number(digits)
+
+    if (number > bestNumber) {
+      bestNumber = number
+      bestPrefix = prefix
+      bestWidth = digits.length
+    }
+  })
+
+  if (bestNumber < 0) {
+    return ''
+  }
+
+  return `${bestPrefix}${String(bestNumber + 1).padStart(bestWidth, '0')}`
+}
+
 function emptyFormValues(): StudentFormValues {
   return {
     studentCode: '',
@@ -499,7 +528,7 @@ export function StudentsPage() {
 
   function openNewStudentForm() {
     setEditingStudent(null)
-    reset(emptyFormValues())
+    reset({ ...emptyFormValues(), studentCode: nextStudentCode(allGroups) })
     saveStudentMutation.reset()
     setSuccessMessage(null)
     setIsTrashOpen(false)
@@ -714,7 +743,8 @@ export function StudentsPage() {
               </label>
               <label>
                 Codigo
-                <input maxLength={50} {...register('studentCode')} />
+                <input maxLength={50} readOnly {...register('studentCode')} />
+                <span className="field-hint">Se genera automaticamente.</span>
               </label>
               <label>
                 Estado
