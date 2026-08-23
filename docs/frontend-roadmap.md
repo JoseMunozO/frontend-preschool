@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23 (paginacion de estudiantes).
+Ultima actualizacion: 2026-08-23 (bloqueo de edicion de asistencia fuera del dia de hoy).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -64,6 +64,7 @@ Ultima actualizacion: 2026-08-23 (paginacion de estudiantes).
 - Asistencia: pagina real en `/attendance` (PR #42), reemplaza el `PlaceholderPage` de siempre. `src/api/attendance.api.ts` nuevo (`getAttendance`/`saveAttendance`) contra `GET`/`POST /api/attendance`. Selector de grupo reutiliza el mismo patron de `groups-lookup` client-side que ya usaba `StudentsPage` (no hay endpoint de "mis grupos"; el backend igual limita a `TEACHER` a sus grupos asignados con `403` si elige otro). Tabla con estado (Presente/Ausente/Enfermo/Tarde), notas y quien registro cada fila; guardado en lote solo de las filas con estado marcado; "Marcar todos presentes" solo llena las que estan sin marcar. Verificado end-to-end contra el backend real: cargo el roster real de un grupo (incluyendo un registro "Enfermo" preexistente), edito y guardo un cambio, confirmo que persistio, lo revirtio.
 - Personal: alta de puestos de trabajo y administracion de roles por rango (PR #43). Pedido directo de Jose, coordinado con `backend-preschool` (rango numerico por rol: `SUPER_ADMIN=100` > `ADMIN`/`DIRECTOR=90` > `TEACHER`/`FINANCE=10` > `PARENT=0`; nadie puede otorgar/quitar un rol de rango superior al propio, nunca se puede quitar el ultimo `SUPER_ADMIN`). Nuevo `src/api/roles.api.ts` (`getRoles`, ahora con `rankLevel`) y `src/api/staff.api.ts` (`getStaffList`/`createStaff`/`assignRole`/`removeRole`/`deleteStaff`/`restoreStaff`). Nueva pagina `StaffPage.tsx` detras de un nav "Personal" y ruta `/staff`, ambos gateados a `adminRoles` (igual que el backend). "Nuevo puesto" crea personal con cuenta de acceso opcional (correo/contrasena/roles solo obligatorios juntos); "Gestionar roles" activa/desactiva roles con switches deshabilitados por encima del rango propio del admin logueado; "Dar de baja"/"Papelera" desactiva un puesto (y su login si tiene) sin limite de tiempo para reactivar — no reutiliza el componente `TrashPanel` compartido porque ese tiene hardcodeado el texto de "7 dias", que no aplica aca. Durante las pruebas goteo un bug real no documentado: `positionTitle`/`staffType` son obligatorios en el backend aunque no haya cuenta de acceso — ya validado en el frontend tambien. Verificado end-to-end contra el backend real: activar/desactivar un rol persiste, `SUPER_ADMIN` deshabilitado para un `ADMIN`, `TEACHER` bloqueado con `403` en `/staff` sin el link en el nav, ciclo completo de dar de baja → papelera → reactivar.
 - Estudiantes: paginacion real en la tabla (PR #46). Los controles de paginacion (prev/siguiente, botones numerados, "Mostrando X-Y de Z estudiantes") eran solo visuales — ahora tienen logica real. Confirmado en vivo contra el OpenAPI real del backend que `GET /api/students` no soporta `page`/`size` (devuelve un array plano), asi que la paginacion es client-side sobre el resultado ya filtrado por servidor (`search`/`groupId`/`status` siguen siendo server-side, sin cambios ahi). `STUDENTS_PAGE_SIZE = 10`; cambiar cualquier filtro reinicia a la pagina 1. Verificado en el navegador: con el dataset real (6 estudiantes) cabe en una sola pagina, se probo bajando temporalmente el tamano de pagina a 2 para confirmar navegacion entre paginas, botones deshabilitados en los extremos, y el reseteo al filtrar.
+- Backend: `POST /api/attendance` gano una regla de archivado (`backend-preschool` PR #58, 2026-08-23): `date` anterior a hoy ahora responde `409` (ya archivado), `date` futuro responde `400`; solo `date == hoy` sigue permitiendo upsert normal (corregir el mismo dia las veces que haga falta). `GET /api/attendance` no cambio, los dias anteriores se siguen pudiendo consultar. Frontend: `AttendancePage.tsx` no tenia ninguna restriccion para esto (se podia elegir cualquier fecha y el guardado fallaba en silencio, sin mensaje). Fix (PR #48): selector de fecha con `max={hoy}` (bloquea futuras en el picker nativo); para una fecha pasada se deshabilitan los controles de estado/notas por fila, "Marcar todos presentes" y "Guardar asistencia", con un aviso explicando que ese dia ya quedo archivado; nuevo manejo de error real en el guardado que distingue `409`/`400`/otros en vez de fallar en silencio. Verificado en el navegador contra el backend real: hoy sigue permitiendo editar y guardar (upsert confirmado), fecha pasada bloquea todo y muestra el aviso, el `max` del date picker bloquea fechas futuras.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
@@ -77,6 +78,7 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Con menor prioridad, no urgente para el martes:
 
+- Modal de historial de asistencia por estudiante en `AttendancePage.tsx` (pedido directo de Jose, 2026-08-23). Bloqueado en backend: `GET /api/attendance` solo acepta `groupId` + un `date` puntual, no hay endpoint de historial por estudiante a traves de fechas. Propuesta enviada a la sesion de `backend-preschool`: `GET /api/attendance/students/{studentId}?from=&to=`. Esperando confirmacion antes de construir la UI.
 - Validar responsive real de dashboard y tablas principales.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
@@ -233,11 +235,13 @@ feat/attendance-taking
 feat/staff-roles-admin
 feat/parent-student-link
 feat/students-pagination
+fix/attendance-date-restrictions
 ```
 
 Siguientes:
 
 ```text
+feat/attendance-history-modal
 chore/tailwind-theme-tokens
 feat/schedule-week-view
 feat/responsive-polish
