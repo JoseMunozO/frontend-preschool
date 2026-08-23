@@ -698,6 +698,88 @@ a {
   padding: 2px 8px;
 }
 
+.view-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.view-toggle button {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #303747;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+}
+
+.view-toggle button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.schedule-week-wrapper {
+  overflow-x: auto;
+}
+
+.schedule-week {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 52px repeat(7, minmax(120px, 1fr));
+  min-width: 940px;
+}
+
+.schedule-week-day-header {
+  font-size: 13px;
+  font-weight: 650;
+  padding-bottom: 4px;
+  text-align: center;
+}
+
+.schedule-week-hours {
+  position: relative;
+}
+
+.schedule-week-hour {
+  color: var(--text-muted);
+  font-size: 12px;
+  position: absolute;
+  right: 4px;
+  transform: translateY(-50%);
+}
+
+.schedule-week-track {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  position: relative;
+}
+
+.schedule-week-block {
+  background: var(--purple-soft);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  display: grid;
+  gap: 2px;
+  left: 4px;
+  overflow: hidden;
+  padding: 4px 6px;
+  position: absolute;
+  right: 4px;
+}
+
+.schedule-week-block strong {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.schedule-week-block span {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .panel {
   display: grid;
   gap: 18px;

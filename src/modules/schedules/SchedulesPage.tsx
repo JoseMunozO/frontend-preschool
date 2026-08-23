@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { CalendarDays, Eye, ListFilter, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { CalendarDays, Eye, LayoutGrid, ListFilter, Pencil, Plus, Search, Table, Trash2, X } from 'lucide-react'
 import {
   createSchedule,
   deleteSchedule,
@@ -34,8 +34,23 @@ const dayLabels: Record<DayOfWeek, string> = {
   SUNDAY: 'Domingo',
 }
 
+const weekDays: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
+
+const WEEK_VIEW_DEFAULT_START_MINUTES = 8 * 60
+const WEEK_VIEW_DEFAULT_END_MINUTES = 16 * 60
+const WEEK_VIEW_PIXELS_PER_MINUTE = 1
+
 function formatTime(value?: string) {
   return value ? value.slice(0, 5) : '-'
+}
+
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.slice(0, 5).split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+function formatHourLabel(minutes: number) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:00`
 }
 
 function formatScheduleLabel(schedule: ScheduleItem) {
@@ -102,6 +117,7 @@ export function SchedulesPage() {
   const [search, setSearch] = useState('')
   const [dayFilter, setDayFilter] = useState<DayOfWeek | 'ALL'>('ALL')
   const [groupFilter, setGroupFilter] = useState('all')
+  const [viewMode, setViewMode] = useState<'table' | 'week'>('table')
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -213,6 +229,28 @@ export function SchedulesPage() {
     })
   }, [groupFilter, schedules, search])
 
+  const weekStart = Math.min(
+    WEEK_VIEW_DEFAULT_START_MINUTES,
+    ...filteredSchedules.map((item) => timeToMinutes(item.startTime)),
+  )
+  const weekEnd = Math.max(
+    WEEK_VIEW_DEFAULT_END_MINUTES,
+    ...filteredSchedules.map((item) => timeToMinutes(item.endTime)),
+  )
+  const weekTrackHeight = (weekEnd - weekStart) * WEEK_VIEW_PIXELS_PER_MINUTE
+  const weekHourMarks: number[] = []
+  for (let minute = Math.ceil(weekStart / 60) * 60; minute <= weekEnd; minute += 60) {
+    weekHourMarks.push(minute)
+  }
+  const schedulesByDay = useMemo(() => {
+    const map = new Map<DayOfWeek, ScheduleItem[]>()
+    weekDays.forEach((day) => map.set(day, []))
+    filteredSchedules.forEach((schedule) => {
+      map.get(schedule.dayOfWeek)?.push(schedule)
+    })
+    return map
+  }, [filteredSchedules])
+
   function openNewScheduleForm() {
     setEditingSchedule(null)
     reset(emptyFormValues())
@@ -293,6 +331,28 @@ export function SchedulesPage() {
           </div>
         ) : null}
       </section>
+
+      <div className="view-toggle">
+        <button
+          className={viewMode === 'table' ? 'active' : undefined}
+          onClick={() => setViewMode('table')}
+          type="button"
+        >
+          <Table size={16} aria-hidden="true" />
+          Tabla
+        </button>
+        <button
+          className={viewMode === 'week' ? 'active' : undefined}
+          onClick={() => {
+            setViewMode('week')
+            setDayFilter('ALL')
+          }}
+          type="button"
+        >
+          <LayoutGrid size={16} aria-hidden="true" />
+          Semana
+        </button>
+      </div>
 
       {successMessage ? (
         <div className="success-notice" role="status">
@@ -450,6 +510,7 @@ export function SchedulesPage() {
         </label>
         <select
           aria-label="Dia"
+          disabled={viewMode === 'week'}
           onChange={(event) => setDayFilter(event.target.value as DayOfWeek | 'ALL')}
           value={dayFilter}
         >
@@ -478,6 +539,7 @@ export function SchedulesPage() {
         </button>
       </section>
 
+      {viewMode === 'table' ? (
       <div className="table-shell" aria-busy={isLoading}>
         <table>
           <thead>
@@ -560,6 +622,59 @@ export function SchedulesPage() {
           </div>
         </footer>
       </div>
+      ) : null}
+
+      {viewMode === 'week' ? (
+        <div className="schedule-week-wrapper" aria-busy={isLoading}>
+          <div className="schedule-week">
+            <div />
+            {weekDays.map((day) => (
+              <div className="schedule-week-day-header" key={day}>
+                {dayLabels[day]}
+              </div>
+            ))}
+            <div className="schedule-week-hours" style={{ height: weekTrackHeight }}>
+              {weekHourMarks.map((minute) => (
+                <span
+                  className="schedule-week-hour"
+                  key={minute}
+                  style={{ top: (minute - weekStart) * WEEK_VIEW_PIXELS_PER_MINUTE }}
+                >
+                  {formatHourLabel(minute)}
+                </span>
+              ))}
+            </div>
+            {weekDays.map((day) => (
+              <div className="schedule-week-track" key={day} style={{ height: weekTrackHeight }}>
+                {(schedulesByDay.get(day) ?? []).map((schedule) => {
+                  const start = timeToMinutes(schedule.startTime)
+                  const end = timeToMinutes(schedule.endTime)
+
+                  return (
+                    <div
+                      className="schedule-week-block"
+                      key={schedule.scheduleSlotId}
+                      style={{
+                        top: (start - weekStart) * WEEK_VIEW_PIXELS_PER_MINUTE,
+                        height: (end - start) * WEEK_VIEW_PIXELS_PER_MINUTE,
+                      }}
+                    >
+                      <strong>{translateBackendSeed(schedule.activityTitle)}</strong>
+                      <span>
+                        {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                      </span>
+                      <span>{translateBackendSeed(schedule.groupName)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+          {!isLoading && filteredSchedules.length === 0 ? (
+            <p className="empty-copy">Sin horarios para mostrar.</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <ConfirmDialog
         cancelLabel="Cancelar"
