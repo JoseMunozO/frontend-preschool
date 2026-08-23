@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-22.
+Ultima actualizacion: 2026-08-23.
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -60,6 +60,7 @@ Ultima actualizacion: 2026-08-22.
   - **Comentarios/historial** (PR #40): `getStudentNotes`/`createStudentNote`/`updateStudentNote`/`deleteStudentNote` nuevas en `students.api.ts`, contra `/api/students/{id}/notes` (endpoint que ya existia en el backend, sin usar en el frontend). Selector con los 6 `StudentNoteType` del backend. Permisos ya resueltos en el backend (`TEACHER` solo ve/escribe notas de estudiantes en su grupo con asignacion activa) — cero logica de rol nueva en frontend, mismo `isForbiddenError()` de siempre.
   - **Dashboard de profesor** (PR #41): nuevo `TeacherDashboard.tsx`, elegido por `DashboardHome.tsx` segun rol (`TEACHER` sin `adminRoles`/`financeRoles`) en la ruta index. Consume `GET /api/dashboard/teacher-summary` (resulto ser uno de 4 endpoints de dashboard por rol que ya existian en el backend, no documentados hasta ahora). Tarjetas: estudiantes activos, cumpleanos proximos (`upcomingBirthdays`), ninos enfermos hoy (`todayAttendanceSummary.sickCount`, tono rojo si > 0). El panel "Pagos del mes" + "Actividades de hoy" de `AdminDashboard` se reemplazan por un timeline proporcional del horario del dia (`todaySchedule`, bloques a escala por horario/duracion, huecos entre actividades marcados como "Descanso").
   - Verificado end-to-end contra el backend real logueado como `TEACHER`/`assistant@school.com` y como `admin@school.com` (sin cambios para ese rol). El timeline poblado se verifico parcheando temporalmente `window.fetch` en el navegador (hoy sabado no habia horario real que renderizar).
+- Padres/tutores: vincular y desvincular estudiantes (PR #44). `linkStudentToParent`/`unlinkStudentFromParent` nuevas en `parents.api.ts` contra `POST`/`DELETE /api/parents/{parentId}/students[/{studentId}]` (contrato confirmado en vivo contra el OpenAPI real del backend, no estaba en `docs/backend-api-reference.md`). Boton "Ver estudiantes vinculados" en cada fila de `ParentsPage.tsx` abre un panel con la lista de vinculados actuales y, solo para `adminRoles`, un formulario para vincular un estudiante no vinculado (tipo de relacion + los 4 flags: contacto principal, facturacion, autorizado a recoger, vive con el estudiante) y un boton "Desvincular" por vinculo (`ConfirmDialog`). Reutiliza la misma `queryKey` (`['parent-students', parentId]`) que ya alimentaba el conteo de "Hijos" en la tabla, asi que vincular/desvincular actualiza ese conteo sin llamada extra. Verificado end-to-end contra el backend real: vincular (`POST` → `200`, aparece en la lista y sube el conteo), desvincular (`DELETE` → `204`, desaparece y baja el conteo), y el modo solo lectura logueado como `TEACHER` (sin formulario ni boton de desvincular).
 - Asistencia: pagina real en `/attendance` (PR #42), reemplaza el `PlaceholderPage` de siempre. `src/api/attendance.api.ts` nuevo (`getAttendance`/`saveAttendance`) contra `GET`/`POST /api/attendance`. Selector de grupo reutiliza el mismo patron de `groups-lookup` client-side que ya usaba `StudentsPage` (no hay endpoint de "mis grupos"; el backend igual limita a `TEACHER` a sus grupos asignados con `403` si elige otro). Tabla con estado (Presente/Ausente/Enfermo/Tarde), notas y quien registro cada fila; guardado en lote solo de las filas con estado marcado; "Marcar todos presentes" solo llena las que estan sin marcar. Verificado end-to-end contra el backend real: cargo el roster real de un grupo (incluyendo un registro "Enfermo" preexistente), edito y guardo un cambio, confirmo que persistio, lo revirtio.
 - Personal: alta de puestos de trabajo y administracion de roles por rango (PR #43). Pedido directo de Jose, coordinado con `backend-preschool` (rango numerico por rol: `SUPER_ADMIN=100` > `ADMIN`/`DIRECTOR=90` > `TEACHER`/`FINANCE=10` > `PARENT=0`; nadie puede otorgar/quitar un rol de rango superior al propio, nunca se puede quitar el ultimo `SUPER_ADMIN`). Nuevo `src/api/roles.api.ts` (`getRoles`, ahora con `rankLevel`) y `src/api/staff.api.ts` (`getStaffList`/`createStaff`/`assignRole`/`removeRole`/`deleteStaff`/`restoreStaff`). Nueva pagina `StaffPage.tsx` detras de un nav "Personal" y ruta `/staff`, ambos gateados a `adminRoles` (igual que el backend). "Nuevo puesto" crea personal con cuenta de acceso opcional (correo/contrasena/roles solo obligatorios juntos); "Gestionar roles" activa/desactiva roles con switches deshabilitados por encima del rango propio del admin logueado; "Dar de baja"/"Papelera" desactiva un puesto (y su login si tiene) sin limite de tiempo para reactivar — no reutiliza el componente `TrashPanel` compartido porque ese tiene hardcodeado el texto de "7 dias", que no aplica aca. Durante las pruebas goteo un bug real no documentado: `positionTitle`/`staffType` son obligatorios en el backend aunque no haya cuenta de acceso — ya validado en el frontend tambien. Verificado end-to-end contra el backend real: activar/desactivar un rol persiste, `SUPER_ADMIN` deshabilitado para un `ADMIN`, `TEACHER` bloqueado con `403` en `/staff` sin el link en el nav, ciclo completo de dar de baja → papelera → reactivar.
 
@@ -67,7 +68,6 @@ Ultima actualizacion: 2026-08-22.
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
-- **Vincular/desvincular estudiante y padre/tutor** (`POST`/`DELETE /api/parents/{parentId}/students`): solo la lectura esta conectada (`getParentStudents()`, `getStudentGuardians()`, usadas para mostrar conteos/listas); no hay boton ni formulario en ningun modulo para crear o quitar el vinculo. El shape exacto del body del `POST` no esta confirmado en `docs/backend-api-reference.md` (solo se documenta la respuesta `StudentGuardian`) — revisar Swagger antes de construir la UI.
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
 
 ## Siguiente Punto Recomendado
@@ -76,7 +76,6 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Con menor prioridad, no urgente para el martes:
 
-- Vincular/desvincular estudiante y padre/tutor (`POST`/`DELETE /api/parents/{parentId}/students`) — sin UI, ver nota en la seccion de arriba.
 - Implementar paginacion real de estudiantes (controles visuales sin logica todavia).
 - Validar responsive real de dashboard y tablas principales.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
@@ -142,6 +141,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Padres/tutores: busqueda local por nombre, correo o telefono.
 - [x] Padres/tutores: mostrar cantidad de hijos (`GET /api/parents/{parentId}/students` por tutor en `ParentsPage.tsx`).
 - [x] Padres/tutores: buscar y reactivar tutor archivado (`POST /api/parents/{id}/claim`).
+- [x] Padres/tutores: vincular y desvincular estudiantes (`POST`/`DELETE /api/parents/{parentId}/students[/{studentId}]`).
 - [x] Pagos: tabla visual inicial.
 - [x] Pagos: adaptar campos reales de cargos del backend.
 - [x] Pagos: filtros por mes y estado.
@@ -231,12 +231,12 @@ feat/student-notes-comments
 feat/teacher-dashboard
 feat/attendance-taking
 feat/staff-roles-admin
+feat/parent-student-link
 ```
 
 Siguientes:
 
 ```text
-feat/parent-student-link
 feat/students-pagination
 chore/tailwind-theme-tokens
 feat/schedule-week-view
