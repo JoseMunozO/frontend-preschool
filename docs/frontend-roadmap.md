@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23.
+Ultima actualizacion: 2026-08-23 (paginacion de estudiantes).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -63,6 +63,7 @@ Ultima actualizacion: 2026-08-23.
 - Padres/tutores: vincular y desvincular estudiantes (PR #44). `linkStudentToParent`/`unlinkStudentFromParent` nuevas en `parents.api.ts` contra `POST`/`DELETE /api/parents/{parentId}/students[/{studentId}]` (contrato confirmado en vivo contra el OpenAPI real del backend, no estaba en `docs/backend-api-reference.md`). Boton "Ver estudiantes vinculados" en cada fila de `ParentsPage.tsx` abre un panel con la lista de vinculados actuales y, solo para `adminRoles`, un formulario para vincular un estudiante no vinculado (tipo de relacion + los 4 flags: contacto principal, facturacion, autorizado a recoger, vive con el estudiante) y un boton "Desvincular" por vinculo (`ConfirmDialog`). Reutiliza la misma `queryKey` (`['parent-students', parentId]`) que ya alimentaba el conteo de "Hijos" en la tabla, asi que vincular/desvincular actualiza ese conteo sin llamada extra. Verificado end-to-end contra el backend real: vincular (`POST` → `200`, aparece en la lista y sube el conteo), desvincular (`DELETE` → `204`, desaparece y baja el conteo), y el modo solo lectura logueado como `TEACHER` (sin formulario ni boton de desvincular).
 - Asistencia: pagina real en `/attendance` (PR #42), reemplaza el `PlaceholderPage` de siempre. `src/api/attendance.api.ts` nuevo (`getAttendance`/`saveAttendance`) contra `GET`/`POST /api/attendance`. Selector de grupo reutiliza el mismo patron de `groups-lookup` client-side que ya usaba `StudentsPage` (no hay endpoint de "mis grupos"; el backend igual limita a `TEACHER` a sus grupos asignados con `403` si elige otro). Tabla con estado (Presente/Ausente/Enfermo/Tarde), notas y quien registro cada fila; guardado en lote solo de las filas con estado marcado; "Marcar todos presentes" solo llena las que estan sin marcar. Verificado end-to-end contra el backend real: cargo el roster real de un grupo (incluyendo un registro "Enfermo" preexistente), edito y guardo un cambio, confirmo que persistio, lo revirtio.
 - Personal: alta de puestos de trabajo y administracion de roles por rango (PR #43). Pedido directo de Jose, coordinado con `backend-preschool` (rango numerico por rol: `SUPER_ADMIN=100` > `ADMIN`/`DIRECTOR=90` > `TEACHER`/`FINANCE=10` > `PARENT=0`; nadie puede otorgar/quitar un rol de rango superior al propio, nunca se puede quitar el ultimo `SUPER_ADMIN`). Nuevo `src/api/roles.api.ts` (`getRoles`, ahora con `rankLevel`) y `src/api/staff.api.ts` (`getStaffList`/`createStaff`/`assignRole`/`removeRole`/`deleteStaff`/`restoreStaff`). Nueva pagina `StaffPage.tsx` detras de un nav "Personal" y ruta `/staff`, ambos gateados a `adminRoles` (igual que el backend). "Nuevo puesto" crea personal con cuenta de acceso opcional (correo/contrasena/roles solo obligatorios juntos); "Gestionar roles" activa/desactiva roles con switches deshabilitados por encima del rango propio del admin logueado; "Dar de baja"/"Papelera" desactiva un puesto (y su login si tiene) sin limite de tiempo para reactivar — no reutiliza el componente `TrashPanel` compartido porque ese tiene hardcodeado el texto de "7 dias", que no aplica aca. Durante las pruebas goteo un bug real no documentado: `positionTitle`/`staffType` son obligatorios en el backend aunque no haya cuenta de acceso — ya validado en el frontend tambien. Verificado end-to-end contra el backend real: activar/desactivar un rol persiste, `SUPER_ADMIN` deshabilitado para un `ADMIN`, `TEACHER` bloqueado con `403` en `/staff` sin el link en el nav, ciclo completo de dar de baja → papelera → reactivar.
+- Estudiantes: paginacion real en la tabla (PR #46). Los controles de paginacion (prev/siguiente, botones numerados, "Mostrando X-Y de Z estudiantes") eran solo visuales — ahora tienen logica real. Confirmado en vivo contra el OpenAPI real del backend que `GET /api/students` no soporta `page`/`size` (devuelve un array plano), asi que la paginacion es client-side sobre el resultado ya filtrado por servidor (`search`/`groupId`/`status` siguen siendo server-side, sin cambios ahi). `STUDENTS_PAGE_SIZE = 10`; cambiar cualquier filtro reinicia a la pagina 1. Verificado en el navegador: con el dataset real (6 estudiantes) cabe en una sola pagina, se probo bajando temporalmente el tamano de pagina a 2 para confirmar navegacion entre paginas, botones deshabilitados en los extremos, y el reseteo al filtrar.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
@@ -76,7 +77,6 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Con menor prioridad, no urgente para el martes:
 
-- Implementar paginacion real de estudiantes (controles visuales sin logica todavia).
 - Validar responsive real de dashboard y tablas principales.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
@@ -135,7 +135,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Estudiantes: filtro local por grupo.
 - [x] Estudiantes: mostrar tutor principal.
 - [x] Estudiantes: filtros migrados a server-side (`search`, `groupId`, `status` en `GET /api/students`), busqueda con debounce.
-- [ ] Estudiantes: paginacion real (controles visuales presentes, sin logica).
+- [x] Estudiantes: paginacion real (client-side, el backend no soporta `page`/`size`).
 - [x] Padres/tutores: tabla visual inicial.
 - [x] Padres/tutores: adaptar campos reales del backend.
 - [x] Padres/tutores: busqueda local por nombre, correo o telefono.
@@ -232,12 +232,12 @@ feat/teacher-dashboard
 feat/attendance-taking
 feat/staff-roles-admin
 feat/parent-student-link
+feat/students-pagination
 ```
 
 Siguientes:
 
 ```text
-feat/students-pagination
 chore/tailwind-theme-tokens
 feat/schedule-week-view
 feat/responsive-polish
