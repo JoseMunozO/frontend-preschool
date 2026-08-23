@@ -13,6 +13,7 @@ import {
   Trash2,
   UserCheck,
   UserCircle,
+  UserMinus,
   UserPlus,
   UserX,
   X,
@@ -30,9 +31,14 @@ import {
   deleteParent,
   getParents,
   getParentStudents,
+  linkStudentToParent,
   restoreParent,
+  unlinkStudentFromParent,
   updateParent,
 } from '../../api/parents.api'
+import type { StudentGuardianRequest } from '../../api/parents.api'
+import { getStudents } from '../../api/students.api'
+import type { StudentGuardian, StudentListItem as StudentOption } from '../../api/students.api'
 import { ApiError } from '../../api/client'
 import type { ParentListItem, ParentRequest, ParentStatus } from '../../types/parents'
 import { isForbiddenError } from '../../utils/apiErrors'
@@ -40,10 +46,20 @@ import { isForbiddenError } from '../../utils/apiErrors'
 const UNDO_WINDOW_MS = 8000
 
 const emptyParents: ParentListItem[] = []
+const emptyGuardianLinks: StudentGuardian[] = []
+const emptyStudentOptions: StudentOption[] = []
 
 const statusLabels: Record<ParentStatus, string> = {
   ACTIVE: 'Activo',
   INACTIVE: 'Inactivo',
+}
+
+const relationshipLabels: Record<StudentGuardianRequest['relationshipType'], string> = {
+  FATHER: 'Padre',
+  MOTHER: 'Madre',
+  GUARDIAN: 'Tutor legal',
+  RELATIVE: 'Familiar',
+  OTHER: 'Otro',
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -130,6 +146,36 @@ function formatParentName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim()
 }
 
+const linkFormSchema = z.object({
+  studentId: z.string().min(1, 'Selecciona un estudiante.'),
+  relationshipType: z.enum(['FATHER', 'MOTHER', 'GUARDIAN', 'RELATIVE', 'OTHER']),
+  primaryContact: z.boolean(),
+  billingContact: z.boolean(),
+  authorizedPickup: z.boolean(),
+  livesWithStudent: z.boolean(),
+})
+
+type LinkFormValues = z.infer<typeof linkFormSchema>
+
+function emptyLinkFormValues(): LinkFormValues {
+  return {
+    studentId: '',
+    relationshipType: 'GUARDIAN',
+    primaryContact: false,
+    billingContact: false,
+    authorizedPickup: false,
+    livesWithStudent: false,
+  }
+}
+
+function linkErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.message
+  }
+
+  return 'No se pudo vincular al estudiante.'
+}
+
 export function ParentsPage() {
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
@@ -144,6 +190,8 @@ export function ParentsPage() {
   const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [isArchivedOpen, setIsArchivedOpen] = useState(false)
   const [claimTarget, setClaimTarget] = useState<ParentListItem | null>(null)
+  const [linkingParent, setLinkingParent] = useState<ParentListItem | null>(null)
+  const [unlinkTarget, setUnlinkTarget] = useState<StudentGuardian | null>(null)
   const {
     register,
     handleSubmit,
@@ -152,6 +200,15 @@ export function ParentsPage() {
   } = useForm<ParentFormValues>({
     resolver: zodResolver(parentFormSchema),
     defaultValues: emptyFormValues(),
+  })
+  const {
+    register: registerLink,
+    handleSubmit: handleLinkSubmit,
+    reset: resetLinkForm,
+    formState: { errors: linkFormErrors },
+  } = useForm<LinkFormValues>({
+    resolver: zodResolver(linkFormSchema),
+    defaultValues: emptyLinkFormValues(),
   })
   const { data, error, isLoading } = useQuery({
     queryKey: ['parents'],
@@ -163,6 +220,23 @@ export function ParentsPage() {
     queryKey: ['parents', 'trash'],
     queryFn: () => getParents({ includeDeleted: true }),
     enabled: isTrashOpen || isArchivedOpen,
+  })
+
+  const {
+    data: linkedStudentsData,
+    error: linkedStudentsError,
+    isLoading: isLinkedStudentsLoading,
+  } = useQuery({
+    queryKey: ['parent-students', linkingParent?.parentId],
+    queryFn: () => getParentStudents(linkingParent!.parentId),
+    enabled: linkingParent !== null,
+  })
+
+  const { data: studentOptionsData } = useQuery({
+    queryKey: ['students', 'link-lookup'],
+    queryFn: () => getStudents(),
+    staleTime: Infinity,
+    enabled: linkingParent !== null,
   })
 
   useEffect(() => {
@@ -225,9 +299,43 @@ export function ParentsPage() {
     },
   })
 
+  const linkStudentMutation = useMutation({
+    mutationFn: (request: StudentGuardianRequest) => {
+      if (!linkingParent) {
+        return Promise.reject(new Error('No hay un padre o tutor seleccionado.'))
+      }
+
+      return linkStudentToParent(linkingParent.parentId, request)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['parent-students', linkingParent?.parentId] })
+      resetLinkForm(emptyLinkFormValues())
+    },
+  })
+
+  const unlinkStudentMutation = useMutation({
+    mutationFn: (studentId: number) => {
+      if (!linkingParent) {
+        return Promise.reject(new Error('No hay un padre o tutor seleccionado.'))
+      }
+
+      return unlinkStudentFromParent(linkingParent.parentId, studentId)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['parent-students', linkingParent?.parentId] })
+      setUnlinkTarget(null)
+    },
+  })
+
   const parents = data ?? emptyParents
   const trashedParents = (trashData ?? emptyParents).filter((parent) => parent.deletedAt && !parent.archivedAt)
   const archivedParents = (trashData ?? emptyParents).filter((parent) => parent.archivedAt)
+  const linkedStudents = linkedStudentsData ?? emptyGuardianLinks
+  const linkableStudents = useMemo(() => {
+    const allStudents = studentOptionsData ?? emptyStudentOptions
+    const linkedIds = new Set(linkedStudents.map((link) => link.studentId))
+    return allStudents.filter((student) => !linkedIds.has(student.studentId))
+  }, [studentOptionsData, linkedStudents])
 
   const childrenQueries = useQueries({
     queries: parents.map((parent) => ({
@@ -284,6 +392,7 @@ export function ParentsPage() {
     setSuccessMessage(null)
     setIsTrashOpen(false)
     setIsArchivedOpen(false)
+    setLinkingParent(null)
     setIsFormOpen(true)
   }
 
@@ -295,6 +404,7 @@ export function ParentsPage() {
     setSuccessMessage(null)
     setIsTrashOpen(false)
     setIsArchivedOpen(false)
+    setLinkingParent(null)
     setIsFormOpen(true)
   }
 
@@ -305,7 +415,23 @@ export function ParentsPage() {
     claimParentMutation.reset()
     setSuccessMessage(null)
     setIsArchivedOpen(false)
+    setLinkingParent(null)
     setIsFormOpen(true)
+  }
+
+  function openLinkPanel(parent: ParentListItem) {
+    setLinkingParent(parent)
+    setUnlinkTarget(null)
+    resetLinkForm(emptyLinkFormValues())
+    linkStudentMutation.reset()
+    setIsFormOpen(false)
+    setIsTrashOpen(false)
+    setIsArchivedOpen(false)
+  }
+
+  function closeLinkPanel() {
+    setLinkingParent(null)
+    setUnlinkTarget(null)
   }
 
   function closeParentForm() {
@@ -331,6 +457,7 @@ export function ParentsPage() {
   function openTrash() {
     setIsFormOpen(false)
     setIsArchivedOpen(false)
+    setLinkingParent(null)
     setIsTrashOpen(true)
   }
 
@@ -341,6 +468,7 @@ export function ParentsPage() {
   function openArchived() {
     setIsFormOpen(false)
     setIsTrashOpen(false)
+    setLinkingParent(null)
     setIsArchivedOpen(true)
   }
 
@@ -367,6 +495,19 @@ export function ParentsPage() {
     }
 
     saveParentMutation.mutate({ parentId: editingParent?.parentId, request })
+  })
+
+  const onLinkSubmit = handleLinkSubmit((values) => {
+    const request: StudentGuardianRequest = {
+      studentId: Number(values.studentId),
+      relationshipType: values.relationshipType,
+      primaryContact: values.primaryContact,
+      billingContact: values.billingContact,
+      authorizedPickup: values.authorizedPickup,
+      livesWithStudent: values.livesWithStudent,
+    }
+
+    linkStudentMutation.mutate(request)
   })
 
   return (
@@ -593,6 +734,123 @@ export function ParentsPage() {
         </section>
       ) : null}
 
+      {linkingParent ? (
+        <section className="panel entity-form-panel" aria-labelledby="link-panel-title">
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="link-panel-title">Estudiantes vinculados</h3>
+              <p>{formatParentName(linkingParent.firstName, linkingParent.lastName)}</p>
+            </div>
+            <button aria-label="Cerrar" className="icon-button" onClick={closeLinkPanel} type="button">
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+
+          {canManage ? (
+            linkableStudents.length > 0 ? (
+              <form className="entity-form" onSubmit={onLinkSubmit}>
+                <div className="entity-form-grid">
+                  <label className="entity-form-wide">
+                    Estudiante *
+                    <select {...registerLink('studentId')}>
+                      <option value="">Selecciona un estudiante</option>
+                      {linkableStudents.map((student) => (
+                        <option key={student.studentId} value={student.studentId}>
+                          {`${student.firstName} ${student.lastName}`.trim()}
+                        </option>
+                      ))}
+                    </select>
+                    {linkFormErrors.studentId ? (
+                      <span className="field-error">{linkFormErrors.studentId.message}</span>
+                    ) : null}
+                  </label>
+                  <label>
+                    Relacion
+                    <select {...registerLink('relationshipType')}>
+                      {Object.entries(relationshipLabels).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="checkbox-field">
+                    <input type="checkbox" {...registerLink('primaryContact')} />
+                    Contacto principal
+                  </label>
+                  <label className="checkbox-field">
+                    <input type="checkbox" {...registerLink('billingContact')} />
+                    Contacto de facturacion
+                  </label>
+                  <label className="checkbox-field">
+                    <input type="checkbox" {...registerLink('authorizedPickup')} />
+                    Autorizado para recoger
+                  </label>
+                  <label className="checkbox-field">
+                    <input type="checkbox" {...registerLink('livesWithStudent')} />
+                    Vive con el estudiante
+                  </label>
+                </div>
+                {linkStudentMutation.error ? (
+                  <p className="form-error" role="alert">
+                    {linkErrorMessage(linkStudentMutation.error)}
+                  </p>
+                ) : null}
+                <footer className="form-actions">
+                  <button className="primary-button" disabled={linkStudentMutation.isPending} type="submit">
+                    {linkStudentMutation.isPending ? 'Vinculando...' : 'Vincular estudiante'}
+                  </button>
+                </footer>
+              </form>
+            ) : (
+              <p className="field-hint">Todos los estudiantes ya estan vinculados a este padre o tutor.</p>
+            )
+          ) : null}
+
+          <p className="panel-section-label">Vinculados actualmente</p>
+          {linkedStudentsError ? (
+            <p className="notice">
+              {isForbiddenError(linkedStudentsError)
+                ? 'No tienes permiso para ver los estudiantes vinculados.'
+                : 'No se pudieron cargar los estudiantes vinculados.'}
+            </p>
+          ) : null}
+          {isLinkedStudentsLoading ? <p>Cargando...</p> : null}
+          {!isLinkedStudentsLoading && !linkedStudentsError && linkedStudents.length === 0 ? (
+            <p>Sin estudiantes vinculados.</p>
+          ) : null}
+          {!isLinkedStudentsLoading && linkedStudents.length > 0 ? (
+            <ul className="contact-list">
+              {linkedStudents.map((link) => {
+                const extras = [
+                  link.billingContact ? 'Facturacion' : null,
+                  link.authorizedPickup ? 'Autorizado a recoger' : null,
+                  link.livesWithStudent ? 'Vive con el estudiante' : null,
+                ].filter(Boolean)
+
+                return (
+                  <li className="contact-item" key={link.studentId}>
+                    <div className="contact-item-header">
+                      <span className="contact-item-title">
+                        <strong>{link.studentName}</strong>
+                        {link.primaryContact ? <span className="status-badge">Principal</span> : null}
+                      </span>
+                      {canManage ? (
+                        <button onClick={() => setUnlinkTarget(link)} title="Desvincular" type="button">
+                          <UserMinus size={16} aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="field-hint">{relationshipLabels[link.relationshipType]}</p>
+                    <p className="field-hint">{extras.length > 0 ? extras.join(' · ') : 'Sin permisos adicionales'}</p>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="filters-row filters-row-compact" aria-label="Filtros de padres o tutores">
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
@@ -649,7 +907,7 @@ export function ParentsPage() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button title="Ver" type="button">
+                      <button onClick={() => openLinkPanel(parent)} title="Ver estudiantes vinculados" type="button">
                         <Eye size={16} aria-hidden="true" />
                       </button>
                       {canManage ? (
@@ -753,6 +1011,26 @@ export function ParentsPage() {
         }}
         open={deleteTarget !== null}
         title={deleteStep === 1 ? 'Eliminar a este padre o tutor?' : 'Confirmar eliminacion'}
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        cancelLabel="Cancelar"
+        confirmLabel="Si, desvincular"
+        description={
+          unlinkTarget && linkingParent
+            ? `Se desvinculara a ${unlinkTarget.studentName} de ${formatParentName(linkingParent.firstName, linkingParent.lastName)}.`
+            : ''
+        }
+        isConfirming={unlinkStudentMutation.isPending}
+        onCancel={() => setUnlinkTarget(null)}
+        onConfirm={() => {
+          if (unlinkTarget) {
+            unlinkStudentMutation.mutate(unlinkTarget.studentId)
+          }
+        }}
+        open={unlinkTarget !== null}
+        title="Desvincular a este estudiante?"
         variant="danger"
       />
 
