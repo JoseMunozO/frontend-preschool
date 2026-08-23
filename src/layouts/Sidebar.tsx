@@ -28,12 +28,17 @@ const navItems = [
   { to: '/settings', label: 'Configuracion', icon: Settings },
 ]
 
-export function Sidebar() {
+type SidebarProps = {
+  isOpen: boolean
+  onNavigate: () => void
+}
+
+export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
   const hasAnyRole = useAuthStore((state) => state.hasAnyRole)
   const visibleNavItems = navItems.filter((item) => !item.roles || hasAnyRole(item.roles))
 
   return (
-    <aside className="sidebar">
+    <aside className={isOpen ? 'sidebar sidebar-open' : 'sidebar'}>
       <div className="sidebar-brand">
         <span className="brand-mark-small" aria-hidden="true">
           <BarChart3 size={18} />
@@ -45,7 +50,7 @@ export function Sidebar() {
           const Icon = item.icon
 
           return (
-            <NavLink className="nav-link" end={item.to === '/'} key={item.to} to={item.to}>
+            <NavLink className="nav-link" end={item.to === '/'} key={item.to} onClick={onNavigate} to={item.to}>
               <Icon size={17} aria-hidden="true" />
               <span>{item.label}</span>
             </NavLink>

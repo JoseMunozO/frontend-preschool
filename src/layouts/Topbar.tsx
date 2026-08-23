@@ -1,13 +1,17 @@
 import { Bell, LogOut, Menu, UserCircle } from 'lucide-react'
 import { useAuthStore } from '../auth/auth.store'
 
-export function Topbar() {
+type TopbarProps = {
+  onMenuClick: () => void
+}
+
+export function Topbar({ onMenuClick }: TopbarProps) {
   const session = useAuthStore((state) => state.session)
   const logout = useAuthStore((state) => state.logout)
 
   return (
     <header className="topbar">
-      <button className="topbar-menu" title="Menu" type="button">
+      <button className="topbar-menu" onClick={onMenuClick} title="Menu" type="button">
         <Menu size={20} aria-hidden="true" />
       </button>
       <div className="topbar-user">

@@ -1255,15 +1255,26 @@ td input[type='text'] {
   }
 
   .sidebar {
-    min-height: auto;
+    bottom: 0;
+    left: 0;
+    max-width: 85vw;
+    position: fixed;
+    top: 0;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    width: 280px;
+    z-index: 45;
   }
 
-  .sidebar-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .sidebar.sidebar-open {
+    transform: translateX(0);
   }
 
-  .sidebar-account {
-    display: none;
+  .sidebar-overlay {
+    background: rgba(17, 24, 39, 0.45);
+    inset: 0;
+    position: fixed;
+    z-index: 40;
   }
 
   .stats-grid,
@@ -1293,6 +1304,13 @@ td input[type='text'] {
 
   .donut-summary {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1001px) {
+  .topbar-menu,
+  .sidebar-overlay {
+    display: none;
   }
 }
 
