@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23 (formularios como modal, perfil de padre/tutor, codigo de estudiante autogenerado).
+Ultima actualizacion: 2026-08-23 (fix de campos de ayuda desbordando columnas en formularios).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -73,6 +73,8 @@ Ultima actualizacion: 2026-08-23 (formularios como modal, perfil de padre/tutor,
   - **Perfil de padre/tutor** (PR #53): resuelve que como admin no se podia abrir un perfil real de un padre/tutor (el estudiante ya lo tenia desde PR #39). El panel de vinculacion de estudiantes (PR #44) se extiende con un bloque de datos de contacto de solo lectura (telefono, correo, direccion, idioma preferido, notas, badge de estado) arriba de la seccion de vincular/desvincular que ya existia — mismos campos de `ParentListItem`, sin llamada nueva a la API. Boton de la tabla renombrado de "Ver estudiantes vinculados" a "Ver perfil".
   - **Codigo de estudiante autogenerado** (PR #58): `studentCode` era texto libre. El backend ya rechazaba duplicados (`400: "Ya existe un estudiante con ese codigo"`) y ese mensaje ya se mostraba sin cambios. Nueva `nextStudentCode()` en `StudentsPage.tsx` calcula el siguiente codigo disponible parseando el numero final de los codigos existentes (ej. `STU-006` -> `STU-007`); el campo pasa a `readOnly` tanto en creacion (prellenado) como en edicion (con el codigo actual del estudiante).
   - Verificado end-to-end contra el backend real en cada fase: los 10 paneles abren como modal centrado sobre overlay (clic afuera cierra, clic adentro no), el perfil de padre muestra datos reales del seed, y crear un estudiante con el codigo autogenerado se confirmo tanto en la UI como consultando la API (`studentCode: "STU-007"`).
+
+- Fix: campos de ayuda (`.field-hint`) desbordando hacia la columna vecina en los formularios de entidad (PR #60). Jose reporto que en los nuevos modales los campos se veian practicamente superpuestos, sin margen. Causa raiz: `.entity-form label` es `display: grid` sin `grid-template-columns` explicito, asi que su columna implicita se auto-dimensiona al contenido mas ancho (el texto de ayuda) en vez de respetar el ancho que le asigna la grilla exterior, y como el `label` tiene `overflow: visible`, ese contenido se desbordaba hacia la columna siguiente — mas visible ahora que los formularios son modales (`dialog-panel-wide`, `max-width: 640px`) con columnas mucho mas angostas que en el panel de pagina completa de antes. Fix de una sola linea: `grid-template-columns: minmax(0, 1fr)` en `.entity-form label`, arregla los 6 modulos a la vez (regla CSS compartida). Verificado en el navegador contra el backend real en Estudiantes (campo "Codigo" con hint) y Padres/Tutores (checkboxes del panel de vinculacion): ya no hay overlap, el texto hace wrap dentro de su columna.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
@@ -253,6 +255,7 @@ feat/schedules-form-as-modal
 feat/payments-forms-as-modal
 feat/staff-forms-as-modal
 feat/student-code-autogenerate
+fix/entity-form-field-hint-overflow
 ```
 
 Siguientes:
