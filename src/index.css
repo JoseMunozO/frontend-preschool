@@ -841,6 +841,7 @@ a {
   font-size: 13px;
   font-weight: 650;
   gap: 7px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .entity-form-wide {
