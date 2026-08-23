@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23 (vista semanal/calendario de horarios).
+Ultima actualizacion: 2026-08-23 (sidebar como drawer en mobile).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -78,6 +78,8 @@ Ultima actualizacion: 2026-08-23 (vista semanal/calendario de horarios).
 
 - Horarios: vista semanal/calendario visual (PR #62). Nuevo toggle "Tabla"/"Semana" arriba de los filtros de `SchedulesPage.tsx`; la tabla existente no cambia. La vista de calendario muestra 7 columnas (Lunes-Domingo) con bloques proporcionales por hora, mismo patron de timeline ya usado en `TeacherDashboard.tsx` ("Horario de hoy"), reutilizando los filtros de busqueda y grupo ya existentes. El filtro de "Dia" se deshabilita y resetea a "Todos los dias" en modo Semana (no aplica cuando se ve la semana completa). Nuevas clases CSS (`view-toggle`, `schedule-week*`) sin tocar estilos existentes. Verificado en el navegador contra el backend real: datos reales del seed posicionados correctamente por dia/hora, el filtro de grupo acota el calendario, el toggle entre vistas funciona en ambas direcciones sin perder el resto de filtros.
 
+- Responsive: sidebar como drawer en mobile (PR #64). Al revisar "responsive real de dashboard y tablas principales" se encontro el problema real: en viewport mobile (≤1000px) el sidebar ocupaba toda la pantalla apilado arriba del contenido, asi que habia que scrollear las 10 opciones de navegacion antes de ver cualquier pagina. El boton de hamburguesa en `Topbar.tsx` ya existia pero sin funcion (dejado intacto a proposito en PR #38, con la nota de reintroducirlo como toggle real en este trabajo). Fix: el sidebar ahora es un drawer deslizable (`position: fixed`, `transform: translateX(-100%)` por defecto, clase `.sidebar-open` lo desliza a la vista) con overlay oscuro de fondo; el boton de hamburguesa ahora tiene `onClick` real que lo abre/cierra y se oculta automaticamente en desktop. Clic en un link de navegacion o en el overlay cierra el drawer. Estado (`isSidebarOpen`) vive en `AppLayout.tsx`, pasado como props a `Sidebar`/`Topbar`, sin store nuevo. El resto de la app (dashboard, formularios/modales, tablas principales) ya se comportaba bien en mobile/tablet gracias a los media queries existentes de Fase 1 — no se encontraron mas roturas. Verificado en el navegador contra el backend real en viewport mobile (390px) y desktop (1400px, sin cambios visuales).
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
@@ -100,7 +102,6 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Con menor prioridad, no urgente para el martes:
 
-- Validar responsive real de dashboard y tablas principales.
 - Selector de idioma (ingles/sueco) con traduccion de la interfaz (pedido directo de Jose, 2026-08-23). Sin decidir todavia libreria/enfoque (`react-i18next` es la opcion mas estandar en el ecosistema React) ni alcance exacto (solo textos estaticos de la UI, o tambien datos traducibles del backend como nombres de grupos/actividades — hoy pasan por `translateBackendSeed()` como un caso especial, revisar si ese mecanismo debe integrarse con esto). Evaluar antes de empezar.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
@@ -123,7 +124,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Crear layout base con sidebar/topbar.
 - [x] Crear rutas protegidas.
 - [x] Alinear shell visual con la referencia del cliente.
-- [ ] Revisar responsive real en mobile y desktop.
+- [x] Revisar responsive real en mobile y desktop (sidebar convertido a drawer en mobile).
 
 ## Fase 2 - Auth
 
@@ -270,11 +271,11 @@ feat/staff-forms-as-modal
 feat/student-code-autogenerate
 fix/entity-form-field-hint-overflow
 feat/schedule-week-view
+feat/responsive-sidebar-drawer
 ```
 
 Siguientes:
 
 ```text
 chore/tailwind-theme-tokens
-feat/responsive-polish
 ```
