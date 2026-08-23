@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23 (bloqueo de edicion de asistencia fuera del dia de hoy).
+Ultima actualizacion: 2026-08-23 (modal de historial de asistencia por estudiante).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -66,6 +66,8 @@ Ultima actualizacion: 2026-08-23 (bloqueo de edicion de asistencia fuera del dia
 - Estudiantes: paginacion real en la tabla (PR #46). Los controles de paginacion (prev/siguiente, botones numerados, "Mostrando X-Y de Z estudiantes") eran solo visuales — ahora tienen logica real. Confirmado en vivo contra el OpenAPI real del backend que `GET /api/students` no soporta `page`/`size` (devuelve un array plano), asi que la paginacion es client-side sobre el resultado ya filtrado por servidor (`search`/`groupId`/`status` siguen siendo server-side, sin cambios ahi). `STUDENTS_PAGE_SIZE = 10`; cambiar cualquier filtro reinicia a la pagina 1. Verificado en el navegador: con el dataset real (6 estudiantes) cabe en una sola pagina, se probo bajando temporalmente el tamano de pagina a 2 para confirmar navegacion entre paginas, botones deshabilitados en los extremos, y el reseteo al filtrar.
 - Backend: `POST /api/attendance` gano una regla de archivado (`backend-preschool` PR #58, 2026-08-23): `date` anterior a hoy ahora responde `409` (ya archivado), `date` futuro responde `400`; solo `date == hoy` sigue permitiendo upsert normal (corregir el mismo dia las veces que haga falta). `GET /api/attendance` no cambio, los dias anteriores se siguen pudiendo consultar. Frontend: `AttendancePage.tsx` no tenia ninguna restriccion para esto (se podia elegir cualquier fecha y el guardado fallaba en silencio, sin mensaje). Fix (PR #48): selector de fecha con `max={hoy}` (bloquea futuras en el picker nativo); para una fecha pasada se deshabilitan los controles de estado/notas por fila, "Marcar todos presentes" y "Guardar asistencia", con un aviso explicando que ese dia ya quedo archivado; nuevo manejo de error real en el guardado que distingue `409`/`400`/otros en vez de fallar en silencio. Verificado en el navegador contra el backend real: hoy sigue permitiendo editar y guardar (upsert confirmado), fecha pasada bloquea todo y muestra el aviso, el `max` del date picker bloquea fechas futuras.
 
+- Asistencia: modal de historial por estudiante (PR #50). Backend nuevo: `GET /api/attendance/students/{studentId}?from=&to=` (`backend-preschool` PR #59, 2026-08-23, coordinado en vivo), `from`/`to` opcionales con default de ultimos 30 dias, orden descendente por fecha, mismo shape `StudentAttendanceResponse`, mismos permisos que el resto de asistencia (`TEACHER` solo su grupo asignado). Nuevo `getStudentAttendanceHistory()` en `attendance.api.ts`. Boton "Historial" (icono `History`) por fila en `AttendancePage.tsx` abre un modal (mismo patron `dialog-overlay`/`dialog-panel-wide` que otros paneles) con el historial del estudiante y filtros opcionales `Desde`/`Hasta`. Verificado en el navegador contra el backend real: historial con datos reales (incluyendo una nota), filtro de rango acotando correctamente los resultados.
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
@@ -78,7 +80,6 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Con menor prioridad, no urgente para el martes:
 
-- Modal de historial de asistencia por estudiante en `AttendancePage.tsx` (pedido directo de Jose, 2026-08-23). Bloqueado en backend: `GET /api/attendance` solo acepta `groupId` + un `date` puntual, no hay endpoint de historial por estudiante a traves de fechas. Propuesta enviada a la sesion de `backend-preschool`: `GET /api/attendance/students/{studentId}?from=&to=`. Esperando confirmacion antes de construir la UI.
 - Validar responsive real de dashboard y tablas principales.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
@@ -165,6 +166,7 @@ Con menor prioridad, no urgente para el martes:
 - [ ] Horarios: vista semanal o calendario visual.
 - [x] Contactos de emergencia: CRUD completo por estudiante (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`), verificado contra el backend real.
 - [x] Asistencia: pagina real por grupo/fecha con guardado en lote (`GET/POST /api/attendance`), verificada contra el backend real.
+- [x] Asistencia: modal de historial por estudiante (`GET /api/attendance/students/{studentId}?from=&to=`), verificado contra el backend real.
 - [x] Personal: alta de puestos, administracion de roles por rango, y dar de baja/reactivar (`GET/POST /api/staff`, `DELETE/POST /api/staff/{id}(/restore)`, `GET /api/roles`, `POST/DELETE /api/users/{userId}/roles`), verificado contra el backend real.
 
 ## Fase 5 - Formularios
@@ -236,12 +238,12 @@ feat/staff-roles-admin
 feat/parent-student-link
 feat/students-pagination
 fix/attendance-date-restrictions
+feat/attendance-history-modal
 ```
 
 Siguientes:
 
 ```text
-feat/attendance-history-modal
 chore/tailwind-theme-tokens
 feat/schedule-week-view
 feat/responsive-polish
