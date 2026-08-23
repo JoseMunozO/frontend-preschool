@@ -3,20 +3,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { Ban, Eye, FileText, ListFilter, Pencil, Plus, RotateCcw, Search, X } from 'lucide-react'
+import { Ban, Eye, FilePlus2, FileText, ListFilter, Pencil, Plus, RotateCcw, Search, X } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { createPayment, getPaymentsByStudent, getStudentCharges, updateCharge } from '../../api/payments.api'
+import {
+  createCharge,
+  createPayment,
+  getChargeTypes,
+  getPaymentsByStudent,
+  getStudentCharges,
+  updateCharge,
+} from '../../api/payments.api'
 import type {
+  ChargeType,
   PaymentChargeStatus,
   PaymentMethod,
   PaymentRequest,
   StudentCharge,
   StudentChargeRequest,
 } from '../../types/payments'
+import { getStudents } from '../../api/students.api'
+import type { StudentListItem } from '../../api/students.api'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyCharges: StudentCharge[] = []
+const emptyChargeTypes: ChargeType[] = []
+const emptyStudentOptions: StudentListItem[] = []
 
 const statusLabels: Record<PaymentChargeStatus, string> = {
   PENDING: 'Pendiente',
@@ -141,6 +153,42 @@ function editFormValuesForCharge(charge: StudentCharge): ChargeEditFormValues {
   }
 }
 
+const newChargeFormSchema = z
+  .object({
+    studentId: z.string().min(1, 'Selecciona un estudiante.'),
+    chargeTypeId: z.string().min(1, 'Selecciona un tipo de cargo.'),
+    dueDate: z.string().min(1, 'La fecha de vencimiento es obligatoria.'),
+    billingPeriodStart: z.string(),
+    billingPeriodEnd: z.string(),
+    amountDue: z
+      .string()
+      .refine((value) => value.trim() !== '' && Number(value) > 0, 'Indica un monto valido, mayor a 0.'),
+    description: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.billingPeriodStart && values.billingPeriodEnd && values.billingPeriodStart > values.billingPeriodEnd) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'El periodo debe terminar despues de que empieza.',
+        path: ['billingPeriodEnd'],
+      })
+    }
+  })
+
+type NewChargeFormValues = z.infer<typeof newChargeFormSchema>
+
+function emptyNewChargeValues(): NewChargeFormValues {
+  return {
+    studentId: '',
+    chargeTypeId: '',
+    dueDate: '',
+    billingPeriodStart: '',
+    billingPeriodEnd: '',
+    amountDue: '',
+    description: '',
+  }
+}
+
 function chargeRequestFromCharge(
   charge: StudentCharge,
   overrides: Partial<StudentChargeRequest> = {},
@@ -168,6 +216,7 @@ export function PaymentsPage() {
   const [historyStudent, setHistoryStudent] = useState<{ studentId: number; studentName: string } | null>(null)
   const [isEditFormOpen, setIsEditFormOpen] = useState(false)
   const [editingCharge, setEditingCharge] = useState<StudentCharge | null>(null)
+  const [isNewChargeFormOpen, setIsNewChargeFormOpen] = useState(false)
   const [confirmingStatusCharge, setConfirmingStatusCharge] = useState<StudentCharge | null>(null)
   const {
     register,
@@ -198,11 +247,35 @@ export function PaymentsPage() {
       description: '',
     },
   })
+  const {
+    register: registerNewCharge,
+    handleSubmit: handleSubmitNewCharge,
+    reset: resetNewCharge,
+    setValue: setNewChargeValue,
+    formState: { errors: newChargeErrors },
+  } = useForm<NewChargeFormValues>({
+    resolver: zodResolver(newChargeFormSchema),
+    defaultValues: emptyNewChargeValues(),
+  })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['student-charges', month, status],
     queryFn: () => getStudentCharges({ month, status }),
     retry: false,
+  })
+
+  const { data: chargeTypesData } = useQuery({
+    queryKey: ['payments', 'charge-types'],
+    queryFn: () => getChargeTypes({ activeOnly: true }),
+    staleTime: Infinity,
+    enabled: isNewChargeFormOpen,
+  })
+
+  const { data: studentOptionsData } = useQuery({
+    queryKey: ['students', 'charge-lookup'],
+    queryFn: () => getStudents(),
+    staleTime: Infinity,
+    enabled: isNewChargeFormOpen,
   })
 
   const { data: historyData, isLoading: isHistoryLoading } = useQuery({
@@ -236,6 +309,17 @@ export function PaymentsPage() {
     },
   })
 
+  const createChargeMutation = useMutation({
+    mutationFn: (request: StudentChargeRequest) => createCharge(request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'student-charges',
+      })
+      setSuccessMessage('Cargo creado correctamente.')
+      setIsNewChargeFormOpen(false)
+    },
+  })
+
   const statusChangeMutation = useMutation({
     mutationFn: ({ charge, status }: { charge: StudentCharge; status: PaymentChargeStatus }) =>
       updateCharge(charge.studentChargeId, chargeRequestFromCharge(charge, { status })),
@@ -248,6 +332,8 @@ export function PaymentsPage() {
   })
 
   const charges = data ?? emptyCharges
+  const chargeTypes = chargeTypesData ?? emptyChargeTypes
+  const studentOptions = studentOptionsData ?? emptyStudentOptions
   const payableCharges = useMemo(() => charges.filter((charge) => payableStatuses.has(charge.status)), [charges])
   const filteredCharges = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -271,6 +357,7 @@ export function PaymentsPage() {
   function openPaymentHistory(charge: StudentCharge) {
     setIsFormOpen(false)
     setIsEditFormOpen(false)
+    setIsNewChargeFormOpen(false)
     setHistoryStudent({ studentId: charge.studentId, studentName: charge.studentName })
   }
 
@@ -285,6 +372,7 @@ export function PaymentsPage() {
     setSuccessMessage(null)
     setHistoryStudent(null)
     setIsEditFormOpen(false)
+    setIsNewChargeFormOpen(false)
     setIsFormOpen(true)
   }
 
@@ -302,6 +390,7 @@ export function PaymentsPage() {
     setHistoryStudent(null)
     setIsFormOpen(false)
     setSelectedCharge(null)
+    setIsNewChargeFormOpen(false)
     setIsEditFormOpen(true)
   }
 
@@ -309,6 +398,29 @@ export function PaymentsPage() {
     setIsEditFormOpen(false)
     setEditingCharge(null)
     updateChargeMutation.reset()
+  }
+
+  function openNewChargeForm() {
+    resetNewCharge(emptyNewChargeValues())
+    createChargeMutation.reset()
+    setSuccessMessage(null)
+    setHistoryStudent(null)
+    setIsFormOpen(false)
+    setIsEditFormOpen(false)
+    setIsNewChargeFormOpen(true)
+  }
+
+  function closeNewChargeForm() {
+    setIsNewChargeFormOpen(false)
+    createChargeMutation.reset()
+  }
+
+  function handleChargeTypeChange(newChargeTypeId: string) {
+    const chargeType = chargeTypes.find((item) => String(item.chargeTypeId) === newChargeTypeId)
+
+    if (chargeType) {
+      setNewChargeValue('amountDue', String(chargeType.defaultAmount))
+    }
   }
 
   function handleChargeChange(newStudentChargeId: string) {
@@ -361,6 +473,20 @@ export function PaymentsPage() {
     updateChargeMutation.mutate({ studentChargeId: editingCharge.studentChargeId, request })
   })
 
+  const onSubmitNewCharge = handleSubmitNewCharge((values) => {
+    const request: StudentChargeRequest = {
+      studentId: Number(values.studentId),
+      chargeTypeId: Number(values.chargeTypeId),
+      dueDate: values.dueDate,
+      billingPeriodStart: optionalValue(values.billingPeriodStart),
+      billingPeriodEnd: optionalValue(values.billingPeriodEnd),
+      amountDue: Number(values.amountDue),
+      description: optionalValue(values.description),
+    }
+
+    createChargeMutation.mutate(request)
+  })
+
   return (
     <main className="page-content">
       <section className="page-heading page-heading-row">
@@ -368,10 +494,16 @@ export function PaymentsPage() {
           <h2>Pagos mensuales</h2>
           <p>Controla los pagos mensuales de los estudiantes.</p>
         </div>
-        <button className="primary-button inline-button" onClick={() => openPaymentForm()} type="button">
-          <Plus size={17} aria-hidden="true" />
-          Registrar pago
-        </button>
+        <div className="page-heading-actions">
+          <button className="secondary-button" onClick={openNewChargeForm} type="button">
+            <FilePlus2 size={17} aria-hidden="true" />
+            Nuevo cargo
+          </button>
+          <button className="primary-button inline-button" onClick={() => openPaymentForm()} type="button">
+            <Plus size={17} aria-hidden="true" />
+            Registrar pago
+          </button>
+        </div>
       </section>
 
       {successMessage ? (
@@ -579,6 +711,119 @@ export function PaymentsPage() {
               </button>
               <button className="primary-button" disabled={updateChargeMutation.isPending} type="submit">
                 {updateChargeMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </footer>
+          </form>
+        </section>
+        </div>
+      ) : null}
+
+      {isNewChargeFormOpen ? (
+        <div className="dialog-overlay" onClick={closeNewChargeForm} role="presentation">
+        <section
+          aria-labelledby="new-charge-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
+          <header className="form-panel-heading">
+            <div>
+              <h3 id="new-charge-form-title">Nuevo cargo</h3>
+              <p>Crea un cargo nuevo para un estudiante.</p>
+            </div>
+            <button
+              aria-label="Cerrar formulario"
+              className="icon-button"
+              disabled={createChargeMutation.isPending}
+              onClick={closeNewChargeForm}
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+          <form className="entity-form" onSubmit={onSubmitNewCharge}>
+            <div className="entity-form-grid">
+              <label>
+                Estudiante *
+                <select {...registerNewCharge('studentId')}>
+                  <option value="">Selecciona un estudiante</option>
+                  {studentOptions.map((student) => (
+                    <option key={student.studentId} value={student.studentId}>
+                      {student.firstName} {student.lastName}
+                    </option>
+                  ))}
+                </select>
+                {newChargeErrors.studentId ? (
+                  <span className="field-error">{newChargeErrors.studentId.message}</span>
+                ) : null}
+              </label>
+              <label>
+                Tipo de cargo *
+                <select
+                  {...registerNewCharge('chargeTypeId', {
+                    onChange: (event) => handleChargeTypeChange(event.target.value),
+                  })}
+                >
+                  <option value="">Selecciona un tipo de cargo</option>
+                  {chargeTypes.map((chargeType) => (
+                    <option key={chargeType.chargeTypeId} value={chargeType.chargeTypeId}>
+                      {translateBackendSeed(chargeType.name)}
+                    </option>
+                  ))}
+                </select>
+                {newChargeErrors.chargeTypeId ? (
+                  <span className="field-error">{newChargeErrors.chargeTypeId.message}</span>
+                ) : null}
+              </label>
+              <label>
+                Fecha de vencimiento *
+                <input type="date" {...registerNewCharge('dueDate')} />
+                {newChargeErrors.dueDate ? (
+                  <span className="field-error">{newChargeErrors.dueDate.message}</span>
+                ) : null}
+              </label>
+              <label>
+                Monto *
+                <input min={0} step="0.01" type="number" {...registerNewCharge('amountDue')} />
+                {newChargeErrors.amountDue ? (
+                  <span className="field-error">{newChargeErrors.amountDue.message}</span>
+                ) : null}
+              </label>
+              <label>
+                Inicio de periodo
+                <input type="date" {...registerNewCharge('billingPeriodStart')} />
+              </label>
+              <label>
+                Fin de periodo
+                <input type="date" {...registerNewCharge('billingPeriodEnd')} />
+                {newChargeErrors.billingPeriodEnd ? (
+                  <span className="field-error">{newChargeErrors.billingPeriodEnd.message}</span>
+                ) : null}
+              </label>
+              <label className="entity-form-full">
+                Descripcion
+                <textarea rows={2} {...registerNewCharge('description')} />
+              </label>
+            </div>
+            {createChargeMutation.error ? (
+              <p className="form-error" role="alert">
+                {createChargeMutation.error instanceof Error
+                  ? createChargeMutation.error.message
+                  : 'No se pudo crear el cargo.'}
+              </p>
+            ) : null}
+            <footer className="form-actions">
+              <button
+                className="secondary-button"
+                disabled={createChargeMutation.isPending}
+                onClick={closeNewChargeForm}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={createChargeMutation.isPending} type="submit">
+                {createChargeMutation.isPending ? 'Guardando...' : 'Crear cargo'}
               </button>
             </footer>
           </form>
