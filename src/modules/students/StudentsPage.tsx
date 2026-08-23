@@ -680,7 +680,14 @@ export function StudentsPage() {
       ) : null}
 
       {isFormOpen ? (
-        <section className="panel entity-form-panel" aria-labelledby="student-form-title">
+        <div className="dialog-overlay" onClick={closeStudentForm} role="presentation">
+        <section
+          aria-labelledby="student-form-title"
+          aria-modal="true"
+          className="panel entity-form-panel dialog-panel-wide"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
           <header className="form-panel-heading">
             <div>
               <h3 id="student-form-title">
@@ -796,6 +803,7 @@ export function StudentsPage() {
             </footer>
           </form>
         </section>
+        </div>
       ) : null}
 
       {isTrashOpen ? (
