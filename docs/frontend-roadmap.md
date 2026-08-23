@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23 (fix de campos de ayuda desbordando columnas en formularios).
+Ultima actualizacion: 2026-08-23 (vista semanal/calendario de horarios).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -75,6 +75,8 @@ Ultima actualizacion: 2026-08-23 (fix de campos de ayuda desbordando columnas en
   - Verificado end-to-end contra el backend real en cada fase: los 10 paneles abren como modal centrado sobre overlay (clic afuera cierra, clic adentro no), el perfil de padre muestra datos reales del seed, y crear un estudiante con el codigo autogenerado se confirmo tanto en la UI como consultando la API (`studentCode: "STU-007"`).
 
 - Fix: campos de ayuda (`.field-hint`) desbordando hacia la columna vecina en los formularios de entidad (PR #60). Jose reporto que en los nuevos modales los campos se veian practicamente superpuestos, sin margen. Causa raiz: `.entity-form label` es `display: grid` sin `grid-template-columns` explicito, asi que su columna implicita se auto-dimensiona al contenido mas ancho (el texto de ayuda) en vez de respetar el ancho que le asigna la grilla exterior, y como el `label` tiene `overflow: visible`, ese contenido se desbordaba hacia la columna siguiente — mas visible ahora que los formularios son modales (`dialog-panel-wide`, `max-width: 640px`) con columnas mucho mas angostas que en el panel de pagina completa de antes. Fix de una sola linea: `grid-template-columns: minmax(0, 1fr)` en `.entity-form label`, arregla los 6 modulos a la vez (regla CSS compartida). Verificado en el navegador contra el backend real en Estudiantes (campo "Codigo" con hint) y Padres/Tutores (checkboxes del panel de vinculacion): ya no hay overlap, el texto hace wrap dentro de su columna.
+
+- Horarios: vista semanal/calendario visual (PR #62). Nuevo toggle "Tabla"/"Semana" arriba de los filtros de `SchedulesPage.tsx`; la tabla existente no cambia. La vista de calendario muestra 7 columnas (Lunes-Domingo) con bloques proporcionales por hora, mismo patron de timeline ya usado en `TeacherDashboard.tsx` ("Horario de hoy"), reutilizando los filtros de busqueda y grupo ya existentes. El filtro de "Dia" se deshabilita y resetea a "Todos los dias" en modo Semana (no aplica cuando se ve la semana completa). Nuevas clases CSS (`view-toggle`, `schedule-week*`) sin tocar estilos existentes. Verificado en el navegador contra el backend real: datos reales del seed posicionados correctamente por dia/hora, el filtro de grupo acota el calendario, el toggle entre vistas funciona en ambas direcciones sin perder el resto de filtros.
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
@@ -171,7 +173,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Horarios: busqueda local por actividad, aula, grupo o responsable.
 - [x] Horarios: filtro local por grupo.
 - [x] Horarios: crear/editar actividades.
-- [ ] Horarios: vista semanal o calendario visual.
+- [x] Horarios: vista semanal o calendario visual.
 - [x] Contactos de emergencia: CRUD completo por estudiante (`GET/POST/PUT/DELETE /api/students/{id}/emergency-contacts`), verificado contra el backend real.
 - [x] Asistencia: pagina real por grupo/fecha con guardado en lote (`GET/POST /api/attendance`), verificada contra el backend real.
 - [x] Asistencia: modal de historial por estudiante (`GET /api/attendance/students/{studentId}?from=&to=`), verificado contra el backend real.
@@ -256,12 +258,12 @@ feat/payments-forms-as-modal
 feat/staff-forms-as-modal
 feat/student-code-autogenerate
 fix/entity-form-field-hint-overflow
+feat/schedule-week-view
 ```
 
 Siguientes:
 
 ```text
 chore/tailwind-theme-tokens
-feat/schedule-week-view
 feat/responsive-polish
 ```
