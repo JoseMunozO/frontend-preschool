@@ -46,3 +46,26 @@ export function saveAttendance(request: SaveAttendanceRequest) {
     body: request,
   })
 }
+
+type GetStudentAttendanceHistoryParams = {
+  from?: string
+  to?: string
+}
+
+export function getStudentAttendanceHistory(
+  studentId: number,
+  params: GetStudentAttendanceHistoryParams = {},
+) {
+  const searchParams = new URLSearchParams()
+
+  if (params.from) {
+    searchParams.set('from', params.from)
+  }
+
+  if (params.to) {
+    searchParams.set('to', params.to)
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+  return apiRequest<StudentAttendance[]>(`/api/attendance/students/${studentId}${query}`)
+}
