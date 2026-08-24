@@ -63,6 +63,7 @@ Comandos:
 ```bash
 npm run dev
 npm run lint
+npm run test
 npm run build
 npm run preview
 ```
@@ -74,6 +75,7 @@ GitHub Actions valida cada pull request y cada push a `main` con:
 ```bash
 npm ci
 npm run lint
+npm run test
 npm run build
 ```
 
