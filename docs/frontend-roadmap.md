@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-24 (modo oscuro + selector de idioma, shell y dashboard).
+Ultima actualizacion: 2026-08-24 (traduccion completa: los 9 modulos restantes).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -89,6 +89,8 @@ Ultima actualizacion: 2026-08-24 (modo oscuro + selector de idioma, shell y dash
 - Configuracion: selector de idioma ingles/sueco, shell + dashboard traducidos (PR #71). Confirmado con Jose (AskUserQuestion) hacerlo **incremental** en vez de traducir toda la app de una vez — mismo criterio que la migracion a RHF+Zod de esta sesion (ver memoria del proyecto). `npm install react-i18next i18next`; nuevo `src/i18n/i18n.ts` (detecta idioma desde `localStorage` clave `preschool.language`, default `es`) + 3 locales completos en `src/i18n/locales/{es,en,sv}.json`. Nueva seccion "Idioma" en Configuracion junto a "Tema", cada idioma mostrado en su propio nombre (Español/English/Svenska, patron estandar, no se traduce el nombre del idioma). Traducidos con `useTranslation()`/`t()`: `Sidebar.tsx`, `Topbar.tsx`, `AdminDashboard.tsx`, `TeacherDashboard.tsx`, `SettingsPage.tsx`. **Fuera de alcance a proposito, pendiente para retomar**: los otros 9 modulos (Estudiantes, Padres, Pagos, Materiales, Horarios, Asistencia, Personal, Reportes, LoginPage/ForbiddenPage), y cualquier texto que venga del backend (`translateBackendSeed()` sigue siendo un mecanismo aparte, sin relacion con este i18n). Verificado en el navegador logueado como `TEACHER` y como `admin`: cambio de idioma sin recargar, persiste tras cerrar sesion, modulos fuera de alcance (ej. Estudiantes) se quedan intactos en espanol, texto del backend (nombres de actividades reales) se queda igual en los 3 idiomas.
   - Nota aparte encontrada al traducir (no arreglada, fuera de alcance): el bloque de cuenta en el sidebar (`.sidebar-account`, "Administrador"/"admin@preescolar.com") es texto fijo hardcodeado, nunca reflejo al usuario real logueado — mas visible ahora que se tradujo tambien. Revisar en algun momento si vale la pena conectarlo a `useAuthStore()` como ya hace `Topbar.tsx`.
 
+- Traduccion de los 9 modulos restantes: Reportes, Login/Forbidden, componentes compartidos (`ConfirmDialog`, `TrashPanel`, `UndoToast`), Materiales, Horarios, Asistencia, Personal, Estudiantes, Padres/Tutores, Pagos + `StudentDiscountsPanel` (PR #73). Cierra el pendiente dejado a proposito por PR #71. Mismo patron ya establecido: schemas de Zod convertidos en factories `createXSchema(t)` para mensajes de validacion traducidos, mapas de labels de enum construidos con `t()` dentro del componente, namespaces compartidos `common`/`days` para terminologia consistente entre modulos. Ademas, `formatDate()`/`formatCurrency()` en los modulos con datos financieros/fechas (Estudiantes, Asistencia, Pagos, `StudentDiscountsPanel`) dejaron de usar `'es-MX'` hardcodeado y ahora usan `i18n.resolvedLanguage`, asi que el formato de numero/fecha tambien sigue el idioma elegido (ej. `MX$6,000.00` en ingles vs. formato con coma decimal en espanol/`es` generico). `translateBackendSeed()` sigue siendo un mecanismo aparte, confirmado sin relacion ni interferencia con este i18n. Verificado en el navegador contra el backend real: Estudiantes/Pagos/Horarios en ingles, Personal/Padres/Asistencia en sueco — sidebar, tablas, formularios, dialogos de confirmacion y estados vacios se ven bien en los 3 idiomas, sin warnings de claves faltantes en consola, y el idioma se dejo de vuelta en espanol al terminar.
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
@@ -102,7 +104,7 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Con menor prioridad, no urgente para el martes:
 
-- Traducir los 9 modulos restantes (Estudiantes, Padres, Pagos, Materiales, Horarios, Asistencia, Personal, Reportes, LoginPage/ForbiddenPage) a ingles/sueco — infraestructura de i18n ya lista (`react-i18next`, `src/i18n/`), ver detalle en Estado Actual (PR #71). Mismo enfoque incremental, una rama por modulo o agrupados.
+- Traduccion de la app completa a ingles/sueco: **hecho** (PR #71 shell+dashboard, PR #73 los 9 modulos restantes, ver Estado Actual). No queda ningun modulo pendiente de traducir.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
 ## Fase 0 - Base Del Proyecto
@@ -278,6 +280,7 @@ feat/payments-new-charge
 feat/student-discounts
 feat/dark-mode
 feat/i18n-shell
+feat/i18n-remaining-modules
 ```
 
 Siguientes:
