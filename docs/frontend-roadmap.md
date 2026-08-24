@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-24 (traduccion completa: los 9 modulos restantes).
+Ultima actualizacion: 2026-08-24 (fix de metodo de pago SWISH/OTHER, descarga de recibo PDF, notas solo editables por su autor).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -90,6 +90,12 @@ Ultima actualizacion: 2026-08-24 (traduccion completa: los 9 modulos restantes).
   - Nota aparte encontrada al traducir (no arreglada, fuera de alcance): el bloque de cuenta en el sidebar (`.sidebar-account`, "Administrador"/"admin@preescolar.com") es texto fijo hardcodeado, nunca reflejo al usuario real logueado — mas visible ahora que se tradujo tambien. Revisar en algun momento si vale la pena conectarlo a `useAuthStore()` como ya hace `Topbar.tsx`.
 
 - Traduccion de los 9 modulos restantes: Reportes, Login/Forbidden, componentes compartidos (`ConfirmDialog`, `TrashPanel`, `UndoToast`), Materiales, Horarios, Asistencia, Personal, Estudiantes, Padres/Tutores, Pagos + `StudentDiscountsPanel` (PR #73). Cierra el pendiente dejado a proposito por PR #71. Mismo patron ya establecido: schemas de Zod convertidos en factories `createXSchema(t)` para mensajes de validacion traducidos, mapas de labels de enum construidos con `t()` dentro del componente, namespaces compartidos `common`/`days` para terminologia consistente entre modulos. Ademas, `formatDate()`/`formatCurrency()` en los modulos con datos financieros/fechas (Estudiantes, Asistencia, Pagos, `StudentDiscountsPanel`) dejaron de usar `'es-MX'` hardcodeado y ahora usan `i18n.resolvedLanguage`, asi que el formato de numero/fecha tambien sigue el idioma elegido (ej. `MX$6,000.00` en ingles vs. formato con coma decimal en espanol/`es` generico). `translateBackendSeed()` sigue siendo un mecanismo aparte, confirmado sin relacion ni interferencia con este i18n. Verificado en el navegador contra el backend real: Estudiantes/Pagos/Horarios en ingles, Personal/Padres/Asistencia en sueco — sidebar, tablas, formularios, dialogos de confirmacion y estados vacios se ven bien en los 3 idiomas, sin warnings de claves faltantes en consola, y el idioma se dejo de vuelta en espanol al terminar.
+
+- Fix: `PaymentMethod` le faltaban `SWISH`/`OTHER` (PR #76). El backend soporta estos dos metodos de pago desde el 2026-08-21, pero el tipo `PaymentMethod` del frontend solo tenia `CASH`/`CARD`/`TRANSFER` y el mapa de labels no tenia fallback, asi que un pago real registrado con `SWISH` u `OTHER` renderizaba un badge en blanco y el formulario "Registrar pago" ni siquiera los ofrecia como opcion. Agregados a `src/types/payments.ts`, al mapa de labels y a las 3 locales de i18n.
+
+- Pagos: descarga de recibo en el historial de pagos (PR #77). El backend genera un PDF por pago (`GET /api/payments/{paymentId}/receipt`, protegido por JWT). Como esta app autentica con header `Authorization: Bearer`, no con cookies, un `window.open()`/`<a href>` directo contra ese endpoint hubiera devuelto `401` — se agrego `apiRequestBlob()` en `src/api/client.ts` para pedirlo como Blob autenticado, mas un helper `downloadBlob()` (`src/utils/download.ts`) que dispara la descarga via un anchor temporal con object-URL. Verificado end-to-end contra el backend real: el boton dispara `GET /api/payments/{id}/receipt` → `200`, y la respuesta es un PDF real con el `Content-Disposition` esperado.
+
+- Fix: notas de estudiante solo editables/eliminables por su autor (PR #78). El backend esta por restringir editar/eliminar una nota al propio autor (admin/director sin restriccion) — antes solo verificaba pertenencia al grupo, asi que cualquier `TEACHER` asignado al grupo podia editar/eliminar la nota de otro profesor. El frontend mostraba los botones de editar/eliminar sin condicion en cada nota, lo cual iba a empezar a fallar con `403` en cuanto ese cambio de backend aterrice. Ahora los botones solo se renderizan para `adminRoles` o cuando `note.authorEmail` coincide con el usuario logueado (`StudentsPage.tsx`).
 
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
