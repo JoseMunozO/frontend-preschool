@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { Ban, Eye, FilePlus2, FileText, ListFilter, Pencil, Percent, Plus, RotateCcw, Search, X } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
@@ -31,26 +33,12 @@ const emptyCharges: StudentCharge[] = []
 const emptyChargeTypes: ChargeType[] = []
 const emptyStudentOptions: StudentListItem[] = []
 
-const statusLabels: Record<PaymentChargeStatus, string> = {
-  PENDING: 'Pendiente',
-  PARTIALLY_PAID: 'Parcial',
-  PAID: 'Pagado',
-  CANCELLED: 'Cancelado',
-  OVERDUE: 'Atrasado',
-}
-
 const statusClassNames: Record<PaymentChargeStatus, string> = {
   PENDING: 'status-warning',
   PARTIALLY_PAID: 'status-warning',
   PAID: '',
   CANCELLED: 'status-neutral',
   OVERDUE: 'status-danger',
-}
-
-const paymentMethodLabels: Record<PaymentMethod, string> = {
-  CASH: 'Efectivo',
-  CARD: 'Tarjeta',
-  TRANSFER: 'Transferencia',
 }
 
 const payableStatuses = new Set<PaymentChargeStatus>(['PENDING', 'PARTIALLY_PAID', 'OVERDUE'])
@@ -66,45 +54,47 @@ function todayInputValue() {
   return localDate.toISOString().slice(0, 10)
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('es-MX', {
+function formatCurrency(value: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
     currency: 'MXN',
     style: 'currency',
   }).format(value)
 }
 
-function formatDate(value?: string) {
+function formatDate(value: string | undefined, locale: string) {
   if (!value) {
     return '-'
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
+  return new Intl.DateTimeFormat(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(`${value}T00:00:00`))
 }
 
-function formatBillingPeriod(charge: StudentCharge) {
+function formatBillingPeriod(charge: StudentCharge, locale: string) {
   if (!charge.billingPeriodStart || !charge.billingPeriodEnd) {
     return '-'
   }
 
-  return `${formatDate(charge.billingPeriodStart)} - ${formatDate(charge.billingPeriodEnd)}`
+  return `${formatDate(charge.billingPeriodStart, locale)} - ${formatDate(charge.billingPeriodEnd, locale)}`
 }
 
-const paymentFormSchema = z.object({
-  studentChargeId: z.string().min(1, 'Selecciona un cargo.'),
-  paymentDate: z.string().min(1, 'La fecha de pago es obligatoria.'),
-  amount: z
-    .string()
-    .refine((value) => value.trim() !== '' && Number(value) > 0, 'Indica un monto valido, mayor a 0.'),
-  paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER']),
-  referenceNumber: z.string(),
-  notes: z.string(),
-})
+function createPaymentFormSchema(t: TFunction) {
+  return z.object({
+    studentChargeId: z.string().min(1, t('payments.selectChargeRequired')),
+    paymentDate: z.string().min(1, t('payments.paymentDateRequired')),
+    amount: z
+      .string()
+      .refine((value) => value.trim() !== '' && Number(value) > 0, t('payments.amountInvalid')),
+    paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER']),
+    referenceNumber: z.string(),
+    notes: z.string(),
+  })
+}
 
-type PaymentFormValues = z.infer<typeof paymentFormSchema>
+type PaymentFormValues = z.infer<ReturnType<typeof createPaymentFormSchema>>
 
 function emptyFormValues(charge?: StudentCharge): PaymentFormValues {
   return {
@@ -122,27 +112,29 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
-const chargeEditFormSchema = z
-  .object({
-    dueDate: z.string().min(1, 'La fecha de vencimiento es obligatoria.'),
-    billingPeriodStart: z.string(),
-    billingPeriodEnd: z.string(),
-    amountDue: z
-      .string()
-      .refine((value) => value.trim() !== '' && Number(value) > 0, 'Indica un monto valido, mayor a 0.'),
-    description: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.billingPeriodStart && values.billingPeriodEnd && values.billingPeriodStart > values.billingPeriodEnd) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'El periodo debe terminar despues de que empieza.',
-        path: ['billingPeriodEnd'],
-      })
-    }
-  })
+function createChargeEditFormSchema(t: TFunction) {
+  return z
+    .object({
+      dueDate: z.string().min(1, t('payments.dueDateRequired')),
+      billingPeriodStart: z.string(),
+      billingPeriodEnd: z.string(),
+      amountDue: z
+        .string()
+        .refine((value) => value.trim() !== '' && Number(value) > 0, t('payments.amountInvalid')),
+      description: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.billingPeriodStart && values.billingPeriodEnd && values.billingPeriodStart > values.billingPeriodEnd) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('payments.periodEndAfterStart'),
+          path: ['billingPeriodEnd'],
+        })
+      }
+    })
+}
 
-type ChargeEditFormValues = z.infer<typeof chargeEditFormSchema>
+type ChargeEditFormValues = z.infer<ReturnType<typeof createChargeEditFormSchema>>
 
 function editFormValuesForCharge(charge: StudentCharge): ChargeEditFormValues {
   return {
@@ -154,29 +146,31 @@ function editFormValuesForCharge(charge: StudentCharge): ChargeEditFormValues {
   }
 }
 
-const newChargeFormSchema = z
-  .object({
-    studentId: z.string().min(1, 'Selecciona un estudiante.'),
-    chargeTypeId: z.string().min(1, 'Selecciona un tipo de cargo.'),
-    dueDate: z.string().min(1, 'La fecha de vencimiento es obligatoria.'),
-    billingPeriodStart: z.string(),
-    billingPeriodEnd: z.string(),
-    amountDue: z
-      .string()
-      .refine((value) => value.trim() !== '' && Number(value) > 0, 'Indica un monto valido, mayor a 0.'),
-    description: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.billingPeriodStart && values.billingPeriodEnd && values.billingPeriodStart > values.billingPeriodEnd) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'El periodo debe terminar despues de que empieza.',
-        path: ['billingPeriodEnd'],
-      })
-    }
-  })
+function createNewChargeFormSchema(t: TFunction) {
+  return z
+    .object({
+      studentId: z.string().min(1, t('payments.selectStudentRequired')),
+      chargeTypeId: z.string().min(1, t('payments.selectChargeTypeRequired')),
+      dueDate: z.string().min(1, t('payments.dueDateRequired')),
+      billingPeriodStart: z.string(),
+      billingPeriodEnd: z.string(),
+      amountDue: z
+        .string()
+        .refine((value) => value.trim() !== '' && Number(value) > 0, t('payments.amountInvalid')),
+      description: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.billingPeriodStart && values.billingPeriodEnd && values.billingPeriodStart > values.billingPeriodEnd) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('payments.periodEndAfterStart'),
+          path: ['billingPeriodEnd'],
+        })
+      }
+    })
+}
 
-type NewChargeFormValues = z.infer<typeof newChargeFormSchema>
+type NewChargeFormValues = z.infer<ReturnType<typeof createNewChargeFormSchema>>
 
 function emptyNewChargeValues(): NewChargeFormValues {
   return {
@@ -207,6 +201,23 @@ function chargeRequestFromCharge(
 }
 
 export function PaymentsPage() {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage ?? 'es'
+  const statusLabels: Record<PaymentChargeStatus, string> = {
+    PENDING: t('payments.statusPending'),
+    PARTIALLY_PAID: t('payments.statusPartial'),
+    PAID: t('payments.statusPaid'),
+    CANCELLED: t('payments.statusCancelled'),
+    OVERDUE: t('payments.statusOverdue'),
+  }
+  const paymentMethodLabels: Record<PaymentMethod, string> = {
+    CASH: t('payments.methodCash'),
+    CARD: t('payments.methodCard'),
+    TRANSFER: t('payments.methodTransfer'),
+  }
+  const paymentFormSchema = useMemo(() => createPaymentFormSchema(t), [t])
+  const chargeEditFormSchema = useMemo(() => createChargeEditFormSchema(t), [t])
+  const newChargeFormSchema = useMemo(() => createNewChargeFormSchema(t), [t])
   const queryClient = useQueryClient()
   const [month, setMonth] = useState(getCurrentMonth())
   const [status, setStatus] = useState<PaymentChargeStatus | 'ALL'>('ALL')
@@ -294,7 +305,7 @@ export function PaymentsPage() {
       await queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] === 'student-charges',
       })
-      setSuccessMessage('Pago registrado correctamente.')
+      setSuccessMessage(t('payments.paymentSuccess'))
       setIsFormOpen(false)
       setSelectedCharge(null)
     },
@@ -307,7 +318,7 @@ export function PaymentsPage() {
       await queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] === 'student-charges',
       })
-      setSuccessMessage('Cargo actualizado correctamente.')
+      setSuccessMessage(t('payments.chargeUpdateSuccess'))
       setIsEditFormOpen(false)
       setEditingCharge(null)
     },
@@ -319,7 +330,7 @@ export function PaymentsPage() {
       await queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] === 'student-charges',
       })
-      setSuccessMessage('Cargo creado correctamente.')
+      setSuccessMessage(t('payments.chargeCreateSuccess'))
       setIsNewChargeFormOpen(false)
     },
   })
@@ -457,7 +468,7 @@ export function PaymentsPage() {
     if (charge && amount > charge.balance) {
       setError('amount', {
         type: 'manual',
-        message: `El monto no puede superar el saldo pendiente (${formatCurrency(charge.balance)}).`,
+        message: t('payments.amountExceedsBalance', { balance: formatCurrency(charge.balance, locale) }),
       })
       return
     }
@@ -510,17 +521,17 @@ export function PaymentsPage() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Pagos mensuales</h2>
-          <p>Controla los pagos mensuales de los estudiantes.</p>
+          <h2>{t('payments.title')}</h2>
+          <p>{t('payments.subtitle')}</p>
         </div>
         <div className="page-heading-actions">
           <button className="secondary-button" onClick={openNewChargeForm} type="button">
             <FilePlus2 size={17} aria-hidden="true" />
-            Nuevo cargo
+            {t('payments.newCharge')}
           </button>
           <button className="primary-button inline-button" onClick={() => openPaymentForm()} type="button">
             <Plus size={17} aria-hidden="true" />
-            Registrar pago
+            {t('payments.registerPayment')}
           </button>
         </div>
       </section>
@@ -532,9 +543,7 @@ export function PaymentsPage() {
       ) : null}
       {error ? (
         <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver la lista de cargos.'
-            : 'No se pudo cargar la lista de cargos.'}
+          {isForbiddenError(error) ? t('payments.forbiddenList') : t('payments.loadError')}
         </div>
       ) : null}
 
@@ -549,11 +558,11 @@ export function PaymentsPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="payment-form-title">Registrar pago</h3>
-              <p>Aplica un pago a un cargo pendiente, parcial o atrasado.</p>
+              <h3 id="payment-form-title">{t('payments.registerPaymentTitle')}</h3>
+              <p>{t('payments.registerPaymentSubtitle')}</p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={savePaymentMutation.isPending}
               onClick={closePaymentForm}
@@ -565,7 +574,7 @@ export function PaymentsPage() {
           <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label className="entity-form-wide">
-                Cargo *
+                {t('payments.chargeLabel')}
                 {selectedCharge ? (
                   <input
                     disabled
@@ -577,11 +586,11 @@ export function PaymentsPage() {
                       onChange: (event) => handleChargeChange(event.target.value),
                     })}
                   >
-                    <option value="">Selecciona un cargo</option>
+                    <option value="">{t('payments.selectCharge')}</option>
                     {payableCharges.map((charge) => (
                       <option key={charge.studentChargeId} value={charge.studentChargeId}>
                         {charge.studentName} - {translateBackendSeed(charge.chargeTypeName)} -{' '}
-                        {formatCurrency(charge.balance)}
+                        {formatCurrency(charge.balance, locale)}
                       </option>
                     ))}
                   </select>
@@ -592,24 +601,24 @@ export function PaymentsPage() {
               </label>
               {activeCharge ? (
                 <label>
-                  Saldo pendiente
-                  <input disabled value={formatCurrency(activeCharge.balance)} />
+                  {t('payments.pendingBalanceLabel')}
+                  <input disabled value={formatCurrency(activeCharge.balance, locale)} />
                 </label>
               ) : null}
               <label>
-                Fecha de pago *
+                {t('payments.paymentDateLabel')}
                 <input type="date" {...register('paymentDate')} />
                 {formErrors.paymentDate ? (
                   <span className="field-error">{formErrors.paymentDate.message}</span>
                 ) : null}
               </label>
               <label>
-                Monto *
+                {t('payments.amountLabel')}
                 <input min={0} step="0.01" type="number" {...register('amount')} />
                 {formErrors.amount ? <span className="field-error">{formErrors.amount.message}</span> : null}
               </label>
               <label>
-                Metodo de pago
+                {t('payments.paymentMethodLabel')}
                 <select {...register('paymentMethod')}>
                   {Object.entries(paymentMethodLabels).map(([method, label]) => (
                     <option key={method} value={method}>
@@ -620,12 +629,12 @@ export function PaymentsPage() {
               </label>
               {paymentMethod === 'TRANSFER' ? (
                 <label>
-                  Numero de referencia
+                  {t('payments.referenceNumberLabel')}
                   <input maxLength={100} {...register('referenceNumber')} />
                 </label>
               ) : null}
               <label className="entity-form-full">
-                Comentario administrativo
+                {t('payments.adminCommentLabel')}
                 <textarea rows={2} {...register('notes')} />
               </label>
             </div>
@@ -633,7 +642,7 @@ export function PaymentsPage() {
               <p className="form-error" role="alert">
                 {savePaymentMutation.error instanceof Error
                   ? savePaymentMutation.error.message
-                  : 'No se pudo registrar el pago.'}
+                  : t('payments.savePaymentError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -643,10 +652,10 @@ export function PaymentsPage() {
                 onClick={closePaymentForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={savePaymentMutation.isPending} type="submit">
-                {savePaymentMutation.isPending ? 'Guardando...' : 'Registrar pago'}
+                {savePaymentMutation.isPending ? t('common.saving') : t('payments.registerPayment')}
               </button>
             </footer>
           </form>
@@ -665,13 +674,13 @@ export function PaymentsPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="charge-edit-form-title">Editar cargo</h3>
+              <h3 id="charge-edit-form-title">{t('payments.editChargeTitle')}</h3>
               <p>
                 {editingCharge.studentName} - {translateBackendSeed(editingCharge.chargeTypeName)}
               </p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={updateChargeMutation.isPending}
               onClick={closeEditForm}
@@ -683,32 +692,32 @@ export function PaymentsPage() {
           <form className="entity-form" onSubmit={onSubmitEdit}>
             <div className="entity-form-grid">
               <label>
-                Fecha de vencimiento *
+                {t('payments.dueDateLabel')}
                 <input type="date" {...registerEdit('dueDate')} />
                 {editFormErrors.dueDate ? (
                   <span className="field-error">{editFormErrors.dueDate.message}</span>
                 ) : null}
               </label>
               <label>
-                Monto *
+                {t('payments.amountLabel')}
                 <input min={0} step="0.01" type="number" {...registerEdit('amountDue')} />
                 {editFormErrors.amountDue ? (
                   <span className="field-error">{editFormErrors.amountDue.message}</span>
                 ) : null}
               </label>
               <label>
-                Inicio de periodo
+                {t('payments.periodStartLabel')}
                 <input type="date" {...registerEdit('billingPeriodStart')} />
               </label>
               <label>
-                Fin de periodo
+                {t('payments.periodEndLabel')}
                 <input type="date" {...registerEdit('billingPeriodEnd')} />
                 {editFormErrors.billingPeriodEnd ? (
                   <span className="field-error">{editFormErrors.billingPeriodEnd.message}</span>
                 ) : null}
               </label>
               <label className="entity-form-full">
-                Descripcion
+                {t('payments.descriptionLabel')}
                 <textarea rows={2} {...registerEdit('description')} />
               </label>
             </div>
@@ -716,7 +725,7 @@ export function PaymentsPage() {
               <p className="form-error" role="alert">
                 {updateChargeMutation.error instanceof Error
                   ? updateChargeMutation.error.message
-                  : 'No se pudo actualizar el cargo.'}
+                  : t('payments.updateChargeError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -726,10 +735,10 @@ export function PaymentsPage() {
                 onClick={closeEditForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={updateChargeMutation.isPending} type="submit">
-                {updateChargeMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+                {updateChargeMutation.isPending ? t('common.saving') : t('payments.saveChanges')}
               </button>
             </footer>
           </form>
@@ -748,11 +757,11 @@ export function PaymentsPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="new-charge-form-title">Nuevo cargo</h3>
-              <p>Crea un cargo nuevo para un estudiante.</p>
+              <h3 id="new-charge-form-title">{t('payments.newChargeTitle')}</h3>
+              <p>{t('payments.newChargeSubtitle')}</p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={createChargeMutation.isPending}
               onClick={closeNewChargeForm}
@@ -764,9 +773,9 @@ export function PaymentsPage() {
           <form className="entity-form" onSubmit={onSubmitNewCharge}>
             <div className="entity-form-grid">
               <label>
-                Estudiante *
+                {t('payments.studentLabel')}
                 <select {...registerNewCharge('studentId')}>
-                  <option value="">Selecciona un estudiante</option>
+                  <option value="">{t('payments.selectStudent')}</option>
                   {studentOptions.map((student) => (
                     <option key={student.studentId} value={student.studentId}>
                       {student.firstName} {student.lastName}
@@ -793,18 +802,18 @@ export function PaymentsPage() {
                     }}
                     type="button"
                   >
-                    Ver descuentos de este estudiante
+                    {t('payments.viewStudentDiscounts')}
                   </button>
                 ) : null}
               </label>
               <label>
-                Tipo de cargo *
+                {t('payments.chargeTypeLabel')}
                 <select
                   {...registerNewCharge('chargeTypeId', {
                     onChange: (event) => handleChargeTypeChange(event.target.value),
                   })}
                 >
-                  <option value="">Selecciona un tipo de cargo</option>
+                  <option value="">{t('payments.selectChargeType')}</option>
                   {chargeTypes.map((chargeType) => (
                     <option key={chargeType.chargeTypeId} value={chargeType.chargeTypeId}>
                       {translateBackendSeed(chargeType.name)}
@@ -816,32 +825,32 @@ export function PaymentsPage() {
                 ) : null}
               </label>
               <label>
-                Fecha de vencimiento *
+                {t('payments.dueDateLabel')}
                 <input type="date" {...registerNewCharge('dueDate')} />
                 {newChargeErrors.dueDate ? (
                   <span className="field-error">{newChargeErrors.dueDate.message}</span>
                 ) : null}
               </label>
               <label>
-                Monto *
+                {t('payments.amountLabel')}
                 <input min={0} step="0.01" type="number" {...registerNewCharge('amountDue')} />
                 {newChargeErrors.amountDue ? (
                   <span className="field-error">{newChargeErrors.amountDue.message}</span>
                 ) : null}
               </label>
               <label>
-                Inicio de periodo
+                {t('payments.periodStartLabel')}
                 <input type="date" {...registerNewCharge('billingPeriodStart')} />
               </label>
               <label>
-                Fin de periodo
+                {t('payments.periodEndLabel')}
                 <input type="date" {...registerNewCharge('billingPeriodEnd')} />
                 {newChargeErrors.billingPeriodEnd ? (
                   <span className="field-error">{newChargeErrors.billingPeriodEnd.message}</span>
                 ) : null}
               </label>
               <label className="entity-form-full">
-                Descripcion
+                {t('payments.descriptionLabel')}
                 <textarea rows={2} {...registerNewCharge('description')} />
               </label>
             </div>
@@ -849,7 +858,7 @@ export function PaymentsPage() {
               <p className="form-error" role="alert">
                 {createChargeMutation.error instanceof Error
                   ? createChargeMutation.error.message
-                  : 'No se pudo crear el cargo.'}
+                  : t('payments.createChargeError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -859,10 +868,10 @@ export function PaymentsPage() {
                 onClick={closeNewChargeForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={createChargeMutation.isPending} type="submit">
-                {createChargeMutation.isPending ? 'Guardando...' : 'Crear cargo'}
+                {createChargeMutation.isPending ? t('common.saving') : t('payments.createCharge')}
               </button>
             </footer>
           </form>
@@ -881,11 +890,11 @@ export function PaymentsPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="payment-history-title">Historial de pagos</h3>
+              <h3 id="payment-history-title">{t('payments.paymentHistoryTitle')}</h3>
               <p>{historyStudent.studentName}</p>
             </div>
             <button
-              aria-label="Cerrar historial"
+              aria-label={t('payments.closeHistory')}
               className="icon-button"
               onClick={closePaymentHistory}
               type="button"
@@ -894,10 +903,10 @@ export function PaymentsPage() {
             </button>
           </header>
 
-          {isHistoryLoading ? <p>Cargando...</p> : null}
+          {isHistoryLoading ? <p>{t('common.loading')}</p> : null}
 
           {!isHistoryLoading && historyPayments.length === 0 ? (
-            <p>Sin pagos registrados para este estudiante.</p>
+            <p>{t('payments.emptyHistory')}</p>
           ) : null}
 
           {!isHistoryLoading && historyPayments.length > 0 ? (
@@ -905,12 +914,14 @@ export function PaymentsPage() {
               {historyPayments.map((payment) => (
                 <li className="payment-history-item" key={payment.paymentId}>
                   <div className="payment-history-item-header">
-                    <strong>{formatCurrency(payment.totalAmount)}</strong>
+                    <strong>{formatCurrency(payment.totalAmount, locale)}</strong>
                     <span className="status-badge">{paymentMethodLabels[payment.paymentMethod]}</span>
-                    <span className="field-hint">{formatDate(payment.paymentDate)}</span>
+                    <span className="field-hint">{formatDate(payment.paymentDate, locale)}</span>
                   </div>
                   {payment.referenceNumber ? (
-                    <p className="field-hint">Referencia: {payment.referenceNumber}</p>
+                    <p className="field-hint">
+                      {t('payments.referenceLabel')} {payment.referenceNumber}
+                    </p>
                   ) : null}
                   {payment.notes ? <p className="field-hint">{payment.notes}</p> : null}
                 </li>
@@ -921,37 +932,37 @@ export function PaymentsPage() {
         </div>
       ) : null}
 
-      <section className="filters-row filters-row-payments" aria-label="Filtros de pagos">
+      <section className="filters-row filters-row-payments" aria-label={t('payments.filtersAriaLabel')}>
         <input
-          aria-label="Mes"
+          aria-label={t('payments.monthAriaLabel')}
           onChange={(event) => setMonth(event.target.value)}
           type="month"
           value={month}
         />
         <select
-          aria-label="Estado"
+          aria-label={t('payments.statusAriaLabel')}
           onChange={(event) => setStatus(event.target.value as PaymentChargeStatus | 'ALL')}
           value={status}
         >
-          <option value="ALL">Todos los estados</option>
-          <option value="PENDING">Pendiente</option>
-          <option value="PARTIALLY_PAID">Parcial</option>
-          <option value="PAID">Pagado</option>
-          <option value="OVERDUE">Atrasado</option>
-          <option value="CANCELLED">Cancelado</option>
+          <option value="ALL">{t('payments.allStatuses')}</option>
+          <option value="PENDING">{t('payments.statusPending')}</option>
+          <option value="PARTIALLY_PAID">{t('payments.statusPartial')}</option>
+          <option value="PAID">{t('payments.statusPaid')}</option>
+          <option value="OVERDUE">{t('payments.statusOverdue')}</option>
+          <option value="CANCELLED">{t('payments.statusCancelled')}</option>
         </select>
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
           <input
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar estudiante..."
+            placeholder={t('payments.searchPlaceholder')}
             type="search"
             value={search}
           />
         </label>
         <button className="secondary-button" type="button">
           <ListFilter size={17} aria-hidden="true" />
-          Filtros
+          {t('common.filters')}
         </button>
       </section>
 
@@ -959,15 +970,15 @@ export function PaymentsPage() {
         <table>
           <thead>
             <tr>
-              <th>Estudiante</th>
-              <th>Concepto</th>
-              <th>Periodo</th>
-              <th>Monto</th>
-              <th>Pagado</th>
-              <th>Saldo</th>
-              <th>Estado</th>
-              <th>Vence</th>
-              <th>Acciones</th>
+              <th>{t('payments.colStudent')}</th>
+              <th>{t('payments.colConcept')}</th>
+              <th>{t('payments.colPeriod')}</th>
+              <th>{t('payments.colAmount')}</th>
+              <th>{t('payments.colPaid')}</th>
+              <th>{t('payments.colBalance')}</th>
+              <th>{t('payments.colStatus')}</th>
+              <th>{t('payments.colDue')}</th>
+              <th>{t('payments.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -975,41 +986,41 @@ export function PaymentsPage() {
               <tr key={charge.studentChargeId}>
                 <td>{charge.studentName}</td>
                 <td>{translateBackendSeed(charge.chargeTypeName)}</td>
-                <td>{formatBillingPeriod(charge)}</td>
-                <td>{formatCurrency(charge.amountDue)}</td>
-                <td>{formatCurrency(charge.amountPaid)}</td>
-                <td>{formatCurrency(charge.balance)}</td>
+                <td>{formatBillingPeriod(charge, locale)}</td>
+                <td>{formatCurrency(charge.amountDue, locale)}</td>
+                <td>{formatCurrency(charge.amountPaid, locale)}</td>
+                <td>{formatCurrency(charge.balance, locale)}</td>
                 <td>
                   <span className={`status-badge ${statusClassNames[charge.status]}`}>
                     {statusLabels[charge.status]}
                   </span>
                 </td>
-                <td>{formatDate(charge.dueDate)}</td>
+                <td>{formatDate(charge.dueDate, locale)}</td>
                 <td>
                   <div className="row-actions">
-                    <button onClick={() => openPaymentHistory(charge)} title="Ver historial de pagos" type="button">
+                    <button onClick={() => openPaymentHistory(charge)} title={t('payments.viewPaymentHistory')} type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
                     <button
                       onClick={() =>
                         openDiscountsPanel({ studentId: charge.studentId, studentName: charge.studentName })
                       }
-                      title="Descuentos"
+                      title={t('payments.discountsAction')}
                       type="button"
                     >
                       <Percent size={16} aria-hidden="true" />
                     </button>
                     {payableStatuses.has(charge.status) ? (
-                      <button onClick={() => openPaymentForm(charge)} title="Registrar pago" type="button">
+                      <button onClick={() => openPaymentForm(charge)} title={t('payments.registerPayment')} type="button">
                         <FileText size={16} aria-hidden="true" />
                       </button>
                     ) : null}
-                    <button onClick={() => openEditForm(charge)} title="Editar" type="button">
+                    <button onClick={() => openEditForm(charge)} title={t('common.edit')} type="button">
                       <Pencil size={16} aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => setConfirmingStatusCharge(charge)}
-                      title={charge.status === 'CANCELLED' ? 'Reactivar' : 'Cancelar cargo'}
+                      title={charge.status === 'CANCELLED' ? t('payments.reactivateAction') : t('payments.cancelChargeAction')}
                       type="button"
                     >
                       {charge.status === 'CANCELLED' ? (
@@ -1024,23 +1035,23 @@ export function PaymentsPage() {
             ))}
             {!isLoading && filteredCharges.length === 0 ? (
               <tr>
-                <td colSpan={9}>Sin cargos para mostrar.</td>
+                <td colSpan={9}>{t('payments.emptyTable')}</td>
               </tr>
             ) : null}
           </tbody>
         </table>
         <footer className="table-footer">
           <span>
-            Mostrando {filteredCharges.length} de {charges.length} cargos
+            {t('payments.showingCount', { filtered: filteredCharges.length, total: charges.length })}
           </span>
           <div className="pagination">
-            <button aria-label="Pagina anterior" type="button">
+            <button aria-label={t('common.previousPage')} type="button">
               {'<'}
             </button>
             <button className="active" type="button">
               1
             </button>
-            <button aria-label="Pagina siguiente" type="button">
+            <button aria-label={t('common.nextPage')} type="button">
               {'>'}
             </button>
           </div>
@@ -1048,13 +1059,17 @@ export function PaymentsPage() {
       </div>
 
       <ConfirmDialog
-        cancelLabel="Cerrar"
-        confirmLabel={confirmingStatusCharge?.status === 'CANCELLED' ? 'Reactivar' : 'Si, cancelar cargo'}
+        cancelLabel={t('payments.closeCancel')}
+        confirmLabel={confirmingStatusCharge?.status === 'CANCELLED' ? t('payments.reactivateAction') : t('payments.cancelChargeConfirmYes')}
         description={
           confirmingStatusCharge
             ? confirmingStatusCharge.status === 'CANCELLED'
-              ? `${confirmingStatusCharge.studentName} - ${translateBackendSeed(confirmingStatusCharge.chargeTypeName)} volvera a estar pendiente y podra recibir pagos.`
-              : `${confirmingStatusCharge.studentName} - ${translateBackendSeed(confirmingStatusCharge.chargeTypeName)} quedara cancelado y no podra recibir pagos hasta que lo reactives.`
+              ? t('payments.reactivateChargeDescription', {
+                  charge: `${confirmingStatusCharge.studentName} - ${translateBackendSeed(confirmingStatusCharge.chargeTypeName)}`,
+                })
+              : t('payments.cancelChargeDescription', {
+                  charge: `${confirmingStatusCharge.studentName} - ${translateBackendSeed(confirmingStatusCharge.chargeTypeName)}`,
+                })
             : ''
         }
         isConfirming={statusChangeMutation.isPending}
@@ -1068,7 +1083,7 @@ export function PaymentsPage() {
           }
         }}
         open={confirmingStatusCharge !== null}
-        title={confirmingStatusCharge?.status === 'CANCELLED' ? 'Reactivar este cargo?' : 'Cancelar este cargo?'}
+        title={confirmingStatusCharge?.status === 'CANCELLED' ? t('payments.reactivateChargeTitle') : t('payments.cancelChargeTitle')}
         variant={confirmingStatusCharge?.status === 'CANCELLED' ? 'default' : 'danger'}
       />
 
