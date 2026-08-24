@@ -80,3 +80,40 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
 
   return payload as T
 }
+
+export async function apiRequestBlob(path: string, options: RequestInit = {}) {
+  const headers = new Headers(options.headers)
+
+  if (authToken) {
+    headers.set('Authorization', `Bearer ${authToken}`)
+  }
+
+  let response: Response
+
+  try {
+    response = await fetch(`${env.apiBaseUrl}${path}`, { ...options, headers })
+  } catch {
+    throw new ApiNetworkError()
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      unauthorizedHandler?.()
+    }
+
+    const contentType = response.headers.get('content-type')
+    const isJson = contentType?.includes('application/json')
+    const payload = isJson ? await response.json() : await response.text()
+    const message =
+      typeof payload === 'object' && payload && 'message' in payload
+        ? String(payload.message)
+        : `API request failed with status ${response.status}`
+
+    throw new ApiError(response.status, message, payload)
+  }
+
+  const disposition = response.headers.get('content-disposition')
+  const filenameMatch = disposition?.match(/filename="?([^";]+)"?/)
+
+  return { blob: await response.blob(), filename: filenameMatch?.[1] ?? null }
+}

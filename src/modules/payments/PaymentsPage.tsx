@@ -12,6 +12,7 @@ import {
   createCharge,
   createPayment,
   getChargeTypes,
+  getPaymentReceipt,
   getPaymentsByStudent,
   getStudentCharges,
   updateCharge,
@@ -28,6 +29,7 @@ import { getStudents } from '../../api/students.api'
 import type { StudentListItem } from '../../api/students.api'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
+import { downloadBlob } from '../../utils/download'
 
 const emptyCharges: StudentCharge[] = []
 const emptyChargeTypes: ChargeType[] = []
@@ -299,6 +301,13 @@ export function PaymentsPage() {
     queryKey: ['payments', 'history', historyStudent?.studentId],
     queryFn: () => getPaymentsByStudent(historyStudent!.studentId),
     enabled: historyStudent !== null,
+  })
+
+  const downloadReceiptMutation = useMutation({
+    mutationFn: (paymentId: number) => getPaymentReceipt(paymentId),
+    onSuccess: ({ blob, filename }, paymentId) => {
+      downloadBlob(blob, filename ?? `recibo-${paymentId}.pdf`)
+    },
   })
 
   const savePaymentMutation = useMutation({
@@ -926,6 +935,22 @@ export function PaymentsPage() {
                     </p>
                   ) : null}
                   {payment.notes ? <p className="field-hint">{payment.notes}</p> : null}
+                  <button
+                    className="text-action"
+                    disabled={
+                      downloadReceiptMutation.isPending &&
+                      downloadReceiptMutation.variables === payment.paymentId
+                    }
+                    onClick={() => downloadReceiptMutation.mutate(payment.paymentId)}
+                    type="button"
+                  >
+                    {downloadReceiptMutation.isPending && downloadReceiptMutation.variables === payment.paymentId
+                      ? t('payments.downloadingReceipt')
+                      : t('payments.downloadReceipt')}
+                  </button>
+                  {downloadReceiptMutation.isError && downloadReceiptMutation.variables === payment.paymentId ? (
+                    <p className="field-error">{t('payments.downloadReceiptError')}</p>
+                  ) : null}
                 </li>
               ))}
             </ul>
