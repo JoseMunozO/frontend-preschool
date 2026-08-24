@@ -226,3 +226,46 @@ export function deleteStudentNote(studentId: number, noteId: number) {
     method: 'DELETE',
   })
 }
+
+export type StudentNoteAuditLogEntry = {
+  studentNoteAuditLogId: number
+  studentNoteId: number
+  changedByUserId: number
+  changedByEmail: string
+  changedAt: string
+  // plain text "field=value; field=value", never JSON
+  previousValues: string
+  newValues: string
+}
+
+export type StudentNoteHistoryEntry = StudentNote & {
+  auditLog: StudentNoteAuditLogEntry[]
+}
+
+export function getStudentNotesHistory(studentId: number) {
+  return apiRequest<StudentNoteHistoryEntry[]>(`/api/students/${studentId}/reports/notes-history`)
+}
+
+export type StudentHealthReportEntry = {
+  studentId: number
+  studentName: string
+  groupId: number
+  groupName: string
+  allergies: string | null
+  medicalNotes: string | null
+}
+
+type GetStudentHealthReportParams = {
+  groupId?: number | string
+}
+
+export function getStudentHealthReport(params: GetStudentHealthReportParams = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.groupId) {
+    searchParams.set('groupId', String(params.groupId))
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+  return apiRequest<StudentHealthReportEntry[]>(`/api/students/reports/health${query}`)
+}
