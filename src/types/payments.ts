@@ -74,7 +74,7 @@ export type StudentDiscountRequest = {
   validUntil?: string
 }
 
-export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER'
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'SWISH' | 'OTHER'
 
 export type PaymentAllocationRequest = {
   studentChargeId: number

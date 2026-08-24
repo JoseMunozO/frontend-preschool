@@ -88,7 +88,7 @@ function createPaymentFormSchema(t: TFunction) {
     amount: z
       .string()
       .refine((value) => value.trim() !== '' && Number(value) > 0, t('payments.amountInvalid')),
-    paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER']),
+    paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER', 'SWISH', 'OTHER']),
     referenceNumber: z.string(),
     notes: z.string(),
   })
@@ -214,6 +214,8 @@ export function PaymentsPage() {
     CASH: t('payments.methodCash'),
     CARD: t('payments.methodCard'),
     TRANSFER: t('payments.methodTransfer'),
+    SWISH: t('payments.methodSwish'),
+    OTHER: t('payments.methodOther'),
   }
   const paymentFormSchema = useMemo(() => createPaymentFormSchema(t), [t])
   const chargeEditFormSchema = useMemo(() => createChargeEditFormSchema(t), [t])
@@ -627,7 +629,7 @@ export function PaymentsPage() {
                   ))}
                 </select>
               </label>
-              {paymentMethod === 'TRANSFER' ? (
+              {paymentMethod === 'TRANSFER' || paymentMethod === 'SWISH' ? (
                 <label>
                   {t('payments.referenceNumberLabel')}
                   <input maxLength={100} {...register('referenceNumber')} />

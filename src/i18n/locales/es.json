@@ -620,7 +620,9 @@
     "statusOverdue": "Atrasado",
     "methodCash": "Efectivo",
     "methodCard": "Tarjeta",
-    "methodTransfer": "Transferencia"
+    "methodTransfer": "Transferencia",
+    "methodSwish": "Swish",
+    "methodOther": "Otro"
   },
   "discounts": {
     "title": "Descuentos",
