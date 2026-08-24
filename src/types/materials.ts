@@ -47,3 +47,18 @@ export type MaterialMovementRequest = {
   quantity: number
   notes?: string
 }
+
+export type MaterialMovementReportEntry = {
+  materialMovementId: number
+  materialId: number
+  materialName: string
+  movementType: 'IN' | 'OUT'
+  quantity: number
+  movementDate?: string
+  performedByUserId?: number
+  performedByEmail?: string
+  performedByName: string | null
+  notes?: string
+  createdAt?: string
+  runningBalance: number | null
+}

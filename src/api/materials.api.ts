@@ -2,6 +2,7 @@ import { apiRequest } from './client'
 import type {
   MaterialItem,
   MaterialMovement,
+  MaterialMovementReportEntry,
   MaterialMovementRequest,
   MaterialRequest,
   MaterialStatus,
@@ -77,4 +78,34 @@ export function restoreMaterial(materialId: number) {
   return apiRequest<MaterialItem>(`/api/materials/${materialId}/restore`, {
     method: 'POST',
   })
+}
+
+type GetMaterialMovementsReportParams = {
+  materialId?: number
+  from?: string
+  to?: string
+  type?: 'IN' | 'OUT'
+}
+
+export function getMaterialMovementsReport(params: GetMaterialMovementsReportParams = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.materialId) {
+    searchParams.set('materialId', String(params.materialId))
+  }
+
+  if (params.from) {
+    searchParams.set('from', params.from)
+  }
+
+  if (params.to) {
+    searchParams.set('to', params.to)
+  }
+
+  if (params.type) {
+    searchParams.set('type', params.type)
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+  return apiRequest<MaterialMovementReportEntry[]>(`/api/materials/reports/movements${query}`)
 }

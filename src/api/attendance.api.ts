@@ -69,3 +69,45 @@ export function getStudentAttendanceHistory(
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
   return apiRequest<StudentAttendance[]>(`/api/attendance/students/${studentId}${query}`)
 }
+
+export type AttendanceReportEntry = {
+  studentId: number
+  studentName: string
+  groupId: number
+  groupName: string
+  presentCount: number
+  absentCount: number
+  lateCount: number
+  sickCount: number
+  unmarkedCount: number
+}
+
+type GetAttendanceSummaryReportParams = {
+  groupId?: number | string
+  studentId?: number
+  from?: string
+  to?: string
+}
+
+export function getAttendanceSummaryReport(params: GetAttendanceSummaryReportParams = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (params.groupId) {
+    searchParams.set('groupId', String(params.groupId))
+  }
+
+  if (params.studentId) {
+    searchParams.set('studentId', String(params.studentId))
+  }
+
+  if (params.from) {
+    searchParams.set('from', params.from)
+  }
+
+  if (params.to) {
+    searchParams.set('to', params.to)
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+  return apiRequest<AttendanceReportEntry[]>(`/api/attendance/reports/summary${query}`)
+}

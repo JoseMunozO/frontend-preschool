@@ -14,7 +14,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import { useAuthStore } from '../auth/auth.store'
-import { adminRoles, financeRoles } from '../auth/roleAccess'
+import { adminRoles, financeRoles, internalRoles } from '../auth/roleAccess'
 
 const navItems = [
   { to: '/', labelKey: 'nav.home', icon: Home },
@@ -25,7 +25,7 @@ const navItems = [
   { to: '/schedules', labelKey: 'nav.schedules', icon: CalendarDays },
   { to: '/attendance', labelKey: 'nav.attendance', icon: ClipboardList },
   { to: '/staff', labelKey: 'nav.staff', icon: UserCog, roles: adminRoles },
-  { to: '/reports', labelKey: 'nav.reports', icon: FileText, roles: financeRoles },
+  { to: '/reports', labelKey: 'nav.reports', icon: FileText, roles: internalRoles },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 

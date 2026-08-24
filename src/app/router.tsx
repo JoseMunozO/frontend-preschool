@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../auth/ProtectedRoute'
-import { adminRoles, financeRoles } from '../auth/roleAccess'
+import { adminRoles, financeRoles, internalRoles } from '../auth/roleAccess'
 import { LoginPage } from '../auth/LoginPage'
 import { DashboardHome } from '../dashboards/DashboardHome'
 import { AppLayout } from '../layouts/AppLayout'
@@ -43,7 +43,7 @@ export const router = createBrowserRouter([
           { path: 'attendance', element: <AttendancePage /> },
           {
             path: 'reports',
-            element: <ProtectedRoute roles={financeRoles} />,
+            element: <ProtectedRoute roles={internalRoles} />,
             children: [{ index: true, element: <ReportsPage /> }],
           },
           { path: 'settings', element: <SettingsPage /> },
