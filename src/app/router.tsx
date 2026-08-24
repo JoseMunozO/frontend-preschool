@@ -44,10 +44,7 @@ export const router = createBrowserRouter([
           {
             path: 'reports',
             element: (
-              <PlaceholderPage
-                description="Reportes administrativos, financieros y operativos."
-                title="Reportes"
-              />
+              <PlaceholderPage descriptionKey="reports.description" titleKey="reports.title" />
             ),
           },
           { path: 'settings', element: <SettingsPage /> },
