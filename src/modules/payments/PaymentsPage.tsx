@@ -58,7 +58,7 @@ function todayInputValue() {
 
 function formatCurrency(value: number, locale: string) {
   return new Intl.NumberFormat(locale, {
-    currency: 'MXN',
+    currency: 'DOP',
     style: 'currency',
   }).format(value)
 }
