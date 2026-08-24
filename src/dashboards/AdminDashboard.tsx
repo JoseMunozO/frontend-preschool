@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Box, DollarSign, UsersRound } from 'lucide-react'
 import { getDashboardSummary } from '../api/dashboard.api'
 import { StatCard } from '../components/ui/StatCard'
@@ -9,6 +10,7 @@ import { translateBackendSeed } from '../utils/displayText'
 const numberFormatter = new Intl.NumberFormat('es-MX')
 
 export function AdminDashboard() {
+  const { t } = useTranslation()
   const { data, error, isLoading } = useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: getDashboardSummary,
@@ -31,44 +33,42 @@ export function AdminDashboard() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Panel Principal</h2>
-          <p>Bienvenido, Administrador.</p>
+          <h2>{t('dashboard.title')}</h2>
+          <p>{t('dashboard.welcomeAdmin')}</p>
         </div>
       </section>
 
       {error ? (
         <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver el dashboard.'
-            : 'No se pudo cargar el dashboard. Verifica que el backend este iniciado.'}
+          {isForbiddenError(error) ? t('dashboard.forbidden') : t('dashboard.loadError')}
         </div>
       ) : null}
 
       <section className="stats-grid" aria-busy={isLoading}>
         <StatCard
-          actionLabel="Ver todos"
+          actionLabel={t('dashboard.viewAll')}
           icon={<UsersRound size={28} aria-hidden="true" />}
-          label="Estudiantes"
+          label={t('dashboard.students')}
           value={administration ? numberFormatter.format(administration.activeStudents) : '-'}
         />
         <StatCard
-          actionLabel="Ver todos"
+          actionLabel={t('dashboard.viewAll')}
           icon={<UsersRound size={28} aria-hidden="true" />}
-          label="Padres / Tutores"
+          label={t('dashboard.parents')}
           tone="green"
           value={administration ? numberFormatter.format(administration.activeParents) : '-'}
         />
         <StatCard
-          actionLabel="Ver detalles"
+          actionLabel={t('dashboard.viewDetails')}
           icon={<DollarSign size={28} aria-hidden="true" />}
-          label="Pagos pendientes"
+          label={t('dashboard.pendingPayments')}
           tone="orange"
           value={finance ? numberFormatter.format(finance.pendingCharges) : '-'}
         />
         <StatCard
-          actionLabel="Ver inventario"
+          actionLabel={t('dashboard.viewInventory')}
           icon={<Box size={28} aria-hidden="true" />}
-          label="Materiales bajos"
+          label={t('dashboard.lowStockMaterials')}
           tone="yellow"
           value={administration ? numberFormatter.format(administration.lowStockMaterials) : '-'}
         />
@@ -76,7 +76,7 @@ export function AdminDashboard() {
 
       <section className="work-grid">
         <article className="panel payments-panel">
-          <h3>Pagos del mes</h3>
+          <h3>{t('dashboard.paymentsThisMonth')}</h3>
           <div className="donut-summary">
             <div
               className="donut-chart"
@@ -93,32 +93,32 @@ export function AdminDashboard() {
               <div>
                 <dt>
                   <span className="legend-dot legend-paid" />
-                  Pagado
+                  {t('dashboard.paid')}
                 </dt>
                 <dd>{numberFormatter.format(paidCharges)}</dd>
               </div>
               <div>
                 <dt>
                   <span className="legend-dot legend-pending" />
-                  Pendiente
+                  {t('dashboard.pending')}
                 </dt>
                 <dd>{numberFormatter.format(finance?.pendingCharges ?? 0)}</dd>
               </div>
               <div>
                 <dt>
                   <span className="legend-dot legend-late" />
-                  Atrasado
+                  {t('dashboard.overdue')}
                 </dt>
                 <dd>{numberFormatter.format(finance?.overdueCharges ?? 0)}</dd>
               </div>
             </dl>
           </div>
           <button className="text-action" type="button">
-            Ver todos los pagos
+            {t('dashboard.viewAllPayments')}
           </button>
         </article>
         <article className="panel notices-panel">
-          <h3>Actividades de hoy</h3>
+          <h3>{t('dashboard.todaysActivities')}</h3>
           {administration?.todaySchedule.length ? (
             <ul>
               {administration.todaySchedule.slice(0, 3).map((item) => (
@@ -132,10 +132,10 @@ export function AdminDashboard() {
               ))}
             </ul>
           ) : (
-            <p className="empty-copy">No hay actividades programadas para hoy.</p>
+            <p className="empty-copy">{t('dashboard.noActivitiesToday')}</p>
           )}
           <button className="text-action" type="button">
-            Ver horarios
+            {t('dashboard.viewSchedules')}
           </button>
         </article>
       </section>
