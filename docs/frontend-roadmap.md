@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-24 (descuentos por estudiante).
+Ultima actualizacion: 2026-08-24 (modo oscuro + selector de idioma, shell y dashboard).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -84,6 +84,11 @@ Ultima actualizacion: 2026-08-24 (descuentos por estudiante).
 
 - Pagos: descuentos por estudiante (PR #68). Segunda mitad del pedido de Pagos. Contrato confirmado en vivo: `GET`/`POST /api/payments/students/{studentId}/discounts`, `PATCH .../discounts/{discountId}/deactivate` (`StudentDiscountRequest`: `discountType` `PERCENTAGE`/`FIXED_AMOUNT`, `value`, `reason` obligatorio, `validFrom`, `validUntil` opcional). Nuevo componente compartido `StudentDiscountsPanel.tsx` (`src/components/ui/`, formulario crear + historial con badge activo/inactivo + desactivar con `ConfirmDialog`), reutilizado en 3 puntos de entrada acordados con Jose: boton "Descuentos" por fila de cargo en `PaymentsPage.tsx`, enlace "Ver descuentos de este estudiante" dentro del modal "Nuevo cargo" (se apila encima sin cerrarlo), y una seccion nueva en el perfil del estudiante (`StudentsPage.tsx`) visible solo para `financeRoles` (`SUPER_ADMIN`/`OWNER`/`DIRECTOR`/`ADMIN`/`FINANCE`). Verificado en el navegador contra el backend real: descuento de prueba creado y desactivado en Lucas Andersson, datos reales confirmados (Sofia Lindberg con descuento activo "Hermanos inscritos"), apilado de modales correcto, boton oculto para `TEACHER`.
 
+- Configuracion: modo oscuro con deteccion automatica del sistema (PR #70). Nueva pagina real de Configuracion (`/settings`, reemplaza el `PlaceholderPage` de siempre) con selector de tema: Automatico / Claro / Oscuro. Nuevo `src/theme/theme.store.ts` (mismo patron manual de `localStorage` que `auth.store.ts`, sin middleware `persist`): "Automatico" no fija ningun atributo y deja que `prefers-color-scheme` decida solo; "Claro"/"Oscuro" fijan `data-theme` en `<html>` como override manual, aplicado sincronicamente en `main.tsx` antes del primer render para no parpadear. Se agregaron los valores oscuros de todas las variables de tema en `index.css` y se reemplazaron ~15 colores hardcodeados (fondos blancos de inputs/botones/tablas, textos gris oscuro en badges/errores) por las variables CSS existentes. Verificado en el navegador: "Automatico" detecto correctamente el sistema en modo oscuro, forzar "Claro"/"Oscuro" funciona en ambas direcciones, tablas/filtros/modales/badges se ven bien en oscuro, la preferencia persiste tras recargar sin parpadeo.
+
+- Configuracion: selector de idioma ingles/sueco, shell + dashboard traducidos (PR #71). Confirmado con Jose (AskUserQuestion) hacerlo **incremental** en vez de traducir toda la app de una vez — mismo criterio que la migracion a RHF+Zod de esta sesion (ver memoria del proyecto). `npm install react-i18next i18next`; nuevo `src/i18n/i18n.ts` (detecta idioma desde `localStorage` clave `preschool.language`, default `es`) + 3 locales completos en `src/i18n/locales/{es,en,sv}.json`. Nueva seccion "Idioma" en Configuracion junto a "Tema", cada idioma mostrado en su propio nombre (Español/English/Svenska, patron estandar, no se traduce el nombre del idioma). Traducidos con `useTranslation()`/`t()`: `Sidebar.tsx`, `Topbar.tsx`, `AdminDashboard.tsx`, `TeacherDashboard.tsx`, `SettingsPage.tsx`. **Fuera de alcance a proposito, pendiente para retomar**: los otros 9 modulos (Estudiantes, Padres, Pagos, Materiales, Horarios, Asistencia, Personal, Reportes, LoginPage/ForbiddenPage), y cualquier texto que venga del backend (`translateBackendSeed()` sigue siendo un mecanismo aparte, sin relacion con este i18n). Verificado en el navegador logueado como `TEACHER` y como `admin`: cambio de idioma sin recargar, persiste tras cerrar sesion, modulos fuera de alcance (ej. Estudiantes) se quedan intactos en espanol, texto del backend (nombres de actividades reales) se queda igual en los 3 idiomas.
+  - Nota aparte encontrada al traducir (no arreglada, fuera de alcance): el bloque de cuenta en el sidebar (`.sidebar-account`, "Administrador"/"admin@preescolar.com") es texto fijo hardcodeado, nunca reflejo al usuario real logueado — mas visible ahora que se tradujo tambien. Revisar en algun momento si vale la pena conectarlo a `useAuthStore()` como ya hace `Topbar.tsx`.
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
@@ -97,7 +102,7 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 Con menor prioridad, no urgente para el martes:
 
-- Selector de idioma (ingles/sueco) con traduccion de la interfaz (pedido directo de Jose, 2026-08-23). Sin decidir todavia libreria/enfoque (`react-i18next` es la opcion mas estandar en el ecosistema React) ni alcance exacto (solo textos estaticos de la UI, o tambien datos traducibles del backend como nombres de grupos/actividades — hoy pasan por `translateBackendSeed()` como un caso especial, revisar si ese mecanismo debe integrarse con esto). Evaluar antes de empezar.
+- Traducir los 9 modulos restantes (Estudiantes, Padres, Pagos, Materiales, Horarios, Asistencia, Personal, Reportes, LoginPage/ForbiddenPage) a ingles/sueco — infraestructura de i18n ya lista (`react-i18next`, `src/i18n/`), ver detalle en Estado Actual (PR #71). Mismo enfoque incremental, una rama por modulo o agrupados.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
 ## Fase 0 - Base Del Proyecto
@@ -271,6 +276,8 @@ feat/schedule-week-view
 feat/responsive-sidebar-drawer
 feat/payments-new-charge
 feat/student-discounts
+feat/dark-mode
+feat/i18n-shell
 ```
 
 Siguientes:
