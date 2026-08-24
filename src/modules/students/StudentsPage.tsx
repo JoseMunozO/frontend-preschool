@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
+import { Eye, ListFilter, Pencil, Percent, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
 import {
   createStudent,
   createStudentEmergencyContact,
@@ -31,10 +31,11 @@ import type {
   StudentStatus,
 } from '../../api/students.api'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { StudentDiscountsPanel } from '../../components/ui/StudentDiscountsPanel'
 import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { useAuthStore } from '../../auth/auth.store'
-import { adminRoles } from '../../auth/roleAccess'
+import { adminRoles, financeRoles } from '../../auth/roleAccess'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 
@@ -265,6 +266,8 @@ function formatDate(value?: string) {
 export function StudentsPage() {
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
+  const canViewDiscounts = useAuthStore((state) => state.hasAnyRole(financeRoles))
+  const [isDiscountsPanelOpen, setIsDiscountsPanelOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('all')
@@ -561,6 +564,7 @@ export function StudentsPage() {
     setIsTrashOpen(false)
     setContactFormOpen(false)
     setEditingContact(null)
+    setIsDiscountsPanelOpen(false)
     setContactsStudent(student)
   }
 
@@ -570,6 +574,7 @@ export function StudentsPage() {
     setEditingContact(null)
     setNoteFormOpen(false)
     setEditingNote(null)
+    setIsDiscountsPanelOpen(false)
   }
 
   function openNewContactForm() {
@@ -903,6 +908,19 @@ export function StudentsPage() {
                   <strong>Notas medicas:</strong> {contactsStudent.medicalNotes}
                 </p>
               ) : null}
+            </div>
+          ) : null}
+
+          {!contactFormOpen && !noteFormOpen && canViewDiscounts ? (
+            <div className="panel-actions-row">
+              <button
+                className="secondary-button inline-button"
+                onClick={() => setIsDiscountsPanelOpen(true)}
+                type="button"
+              >
+                <Percent size={16} aria-hidden="true" />
+                Descuentos
+              </button>
             </div>
           ) : null}
 
@@ -1354,6 +1372,14 @@ export function StudentsPage() {
           message={`${formatStudentName(deletedStudent.firstName, deletedStudent.lastName)} fue eliminado.`}
           onAction={() => restoreStudentMutation.mutate(deletedStudent.studentId)}
           onDismiss={() => setDeletedStudent(null)}
+        />
+      ) : null}
+
+      {contactsStudent && isDiscountsPanelOpen ? (
+        <StudentDiscountsPanel
+          onClose={() => setIsDiscountsPanelOpen(false)}
+          studentId={contactsStudent.studentId}
+          studentName={formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}
         />
       ) : null}
     </main>

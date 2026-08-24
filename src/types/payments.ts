@@ -48,6 +48,32 @@ export type ChargeType = {
   updatedAt?: string
 }
 
+export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT'
+
+export type StudentDiscount = {
+  studentDiscountId: number
+  studentId: number
+  studentName: string
+  discountType: DiscountType
+  value: number
+  reason: string
+  validFrom: string
+  validUntil?: string
+  active: boolean
+  createdByUserId?: number
+  createdByEmail?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type StudentDiscountRequest = {
+  discountType: DiscountType
+  value: number
+  reason: string
+  validFrom: string
+  validUntil?: string
+}
+
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER'
 
 export type PaymentAllocationRequest = {

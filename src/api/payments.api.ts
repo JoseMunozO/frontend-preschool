@@ -6,6 +6,8 @@ import type {
   PaymentRequest,
   StudentCharge,
   StudentChargeRequest,
+  StudentDiscount,
+  StudentDiscountRequest,
 } from '../types/payments'
 
 type GetStudentChargesParams = {
@@ -62,4 +64,21 @@ export function getChargeTypes(params: { activeOnly?: boolean } = {}) {
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
   return apiRequest<ChargeType[]>(`/api/payments/charge-types${query}`)
+}
+
+export function getStudentDiscounts(studentId: number) {
+  return apiRequest<StudentDiscount[]>(`/api/payments/students/${studentId}/discounts`)
+}
+
+export function createDiscount(studentId: number, request: StudentDiscountRequest) {
+  return apiRequest<StudentDiscount>(`/api/payments/students/${studentId}/discounts`, {
+    method: 'POST',
+    body: request,
+  })
+}
+
+export function deactivateDiscount(studentId: number, discountId: number) {
+  return apiRequest<StudentDiscount>(`/api/payments/students/${studentId}/discounts/${discountId}/deactivate`, {
+    method: 'PATCH',
+  })
 }
