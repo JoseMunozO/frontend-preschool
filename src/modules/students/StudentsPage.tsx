@@ -277,6 +277,7 @@ export function StudentsPage() {
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
   const canViewDiscounts = useAuthStore((state) => state.hasAnyRole(financeRoles))
+  const currentUserEmail = useAuthStore((state) => state.session?.user.email)
   const [isDiscountsPanelOpen, setIsDiscountsPanelOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -1141,14 +1142,16 @@ export function StudentsPage() {
                           <strong>{noteTypeLabels[note.noteType]}</strong>
                           <span className="field-hint">{formatDateTime(note.createdAt, locale)}</span>
                         </span>
-                        <div className="row-actions">
-                          <button onClick={() => openEditNoteForm(note)} title={t('common.edit')} type="button">
-                            <Pencil size={16} aria-hidden="true" />
-                          </button>
-                          <button onClick={() => setDeleteNoteTarget(note)} title={t('common.delete')} type="button">
-                            <Trash2 size={16} aria-hidden="true" />
-                          </button>
-                        </div>
+                        {canManage || note.authorEmail === currentUserEmail ? (
+                          <div className="row-actions">
+                            <button onClick={() => openEditNoteForm(note)} title={t('common.edit')} type="button">
+                              <Pencil size={16} aria-hidden="true" />
+                            </button>
+                            <button onClick={() => setDeleteNoteTarget(note)} title={t('common.delete')} type="button">
+                              <Trash2 size={16} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                       <p className="field-hint">{note.authorEmail}</p>
                       <p>{note.content}</p>
