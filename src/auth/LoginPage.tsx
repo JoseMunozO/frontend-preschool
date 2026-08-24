@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { LockKeyhole } from 'lucide-react'
 import { login } from '../api/auth.api'
 import { useAuthStore } from './auth.store'
@@ -12,6 +13,7 @@ type LocationState = {
 }
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const session = useAuthStore((state) => state.session)
@@ -38,7 +40,7 @@ export function LoginPage() {
       setSession(nextSession)
       navigate(redirectTo, { replace: true })
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : 'No se pudo iniciar sesion')
+      setError(loginError instanceof Error ? loginError.message : t('login.genericError'))
     } finally {
       setIsSubmitting(false)
     }
@@ -51,11 +53,11 @@ export function LoginPage() {
           <LockKeyhole size={22} aria-hidden="true" />
         </div>
         <h1 id="login-title">Preschool Admin</h1>
-        <p>Acceso interno para administracion, direccion y equipo del centro.</p>
+        <p>{t('login.subtitle')}</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
-            Correo
+            {t('login.email')}
             <input
               autoComplete="email"
               name="email"
@@ -65,7 +67,7 @@ export function LoginPage() {
             />
           </label>
           <label>
-            Contrasena
+            {t('login.password')}
             <input
               autoComplete="current-password"
               name="password"
@@ -78,7 +80,7 @@ export function LoginPage() {
           {error ? <p className="form-error">{error}</p> : null}
 
           <button className="primary-button" disabled={isSubmitting} type="submit">
-            {isSubmitting ? 'Entrando...' : 'Entrar'}
+            {isSubmitting ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
       </section>

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import {
   Archive,
@@ -49,39 +51,28 @@ const emptyParents: ParentListItem[] = []
 const emptyGuardianLinks: StudentGuardian[] = []
 const emptyStudentOptions: StudentOption[] = []
 
-const statusLabels: Record<ParentStatus, string> = {
-  ACTIVE: 'Activo',
-  INACTIVE: 'Inactivo',
-}
-
-const relationshipLabels: Record<StudentGuardianRequest['relationshipType'], string> = {
-  FATHER: 'Padre',
-  MOTHER: 'Madre',
-  GUARDIAN: 'Tutor legal',
-  RELATIVE: 'Familiar',
-  OTHER: 'Otro',
-}
-
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const parentFormSchema = z.object({
-  firstName: z.string().trim().min(1, 'El nombre es obligatorio.'),
-  lastName: z.string().trim().min(1, 'Los apellidos son obligatorios.'),
-  email: z
-    .string()
-    .trim()
-    .refine((value) => value === '' || emailPattern.test(value), 'Ingresa un correo valido.'),
-  phone: z.string(),
-  address: z.string(),
-  preferredLanguage: z.string(),
-  status: z.enum(['ACTIVE', 'INACTIVE']),
-  notes: z.string(),
-  password: z
-    .string()
-    .refine((value) => value === '' || value.length >= 6, 'La contrasena debe tener al menos 6 caracteres.'),
-})
+function createParentFormSchema(t: TFunction) {
+  return z.object({
+    firstName: z.string().trim().min(1, t('parents.firstNameRequired')),
+    lastName: z.string().trim().min(1, t('parents.lastNameRequired')),
+    email: z
+      .string()
+      .trim()
+      .refine((value) => value === '' || emailPattern.test(value), t('parents.emailInvalid')),
+    phone: z.string(),
+    address: z.string(),
+    preferredLanguage: z.string(),
+    status: z.enum(['ACTIVE', 'INACTIVE']),
+    notes: z.string(),
+    password: z
+      .string()
+      .refine((value) => value === '' || value.length >= 6, t('parents.passwordInvalid')),
+  })
+}
 
-type ParentFormValues = z.infer<typeof parentFormSchema>
+type ParentFormValues = z.infer<ReturnType<typeof createParentFormSchema>>
 
 function emptyFormValues(): ParentFormValues {
   return {
@@ -125,16 +116,16 @@ function claimFormValues(parent: ParentListItem): ParentFormValues {
   }
 }
 
-function claimErrorMessage(error: unknown) {
+function claimErrorMessage(error: unknown, t: TFunction) {
   if (error instanceof ApiError && error.status === 409) {
-    return 'Ya pasaron mas de 6 anios desde que se archivo: no se puede reclamar.'
+    return t('parents.claimWindowExpiredError')
   }
 
   if (error instanceof ApiError && error.status === 404) {
-    return 'Este padre o tutor ya no esta archivado.'
+    return t('parents.claimNotArchivedError')
   }
 
-  return 'No se pudo reactivar al padre o tutor.'
+  return t('parents.claimGenericError')
 }
 
 function optionalValue(value: string) {
@@ -146,16 +137,18 @@ function formatParentName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim()
 }
 
-const linkFormSchema = z.object({
-  studentId: z.string().min(1, 'Selecciona un estudiante.'),
-  relationshipType: z.enum(['FATHER', 'MOTHER', 'GUARDIAN', 'RELATIVE', 'OTHER']),
-  primaryContact: z.boolean(),
-  billingContact: z.boolean(),
-  authorizedPickup: z.boolean(),
-  livesWithStudent: z.boolean(),
-})
+function createLinkFormSchema(t: TFunction) {
+  return z.object({
+    studentId: z.string().min(1, t('parents.linkStudentRequired')),
+    relationshipType: z.enum(['FATHER', 'MOTHER', 'GUARDIAN', 'RELATIVE', 'OTHER']),
+    primaryContact: z.boolean(),
+    billingContact: z.boolean(),
+    authorizedPickup: z.boolean(),
+    livesWithStudent: z.boolean(),
+  })
+}
 
-type LinkFormValues = z.infer<typeof linkFormSchema>
+type LinkFormValues = z.infer<ReturnType<typeof createLinkFormSchema>>
 
 function emptyLinkFormValues(): LinkFormValues {
   return {
@@ -168,15 +161,29 @@ function emptyLinkFormValues(): LinkFormValues {
   }
 }
 
-function linkErrorMessage(error: unknown) {
+function linkErrorMessage(error: unknown, t: TFunction) {
   if (error instanceof ApiError) {
     return error.message
   }
 
-  return 'No se pudo vincular al estudiante.'
+  return t('parents.linkGenericError')
 }
 
 export function ParentsPage() {
+  const { t } = useTranslation()
+  const statusLabels: Record<ParentStatus, string> = {
+    ACTIVE: t('parents.statusActive'),
+    INACTIVE: t('parents.statusInactive'),
+  }
+  const relationshipLabels: Record<StudentGuardianRequest['relationshipType'], string> = {
+    FATHER: t('parents.relationFather'),
+    MOTHER: t('parents.relationMother'),
+    GUARDIAN: t('parents.relationGuardian'),
+    RELATIVE: t('parents.relationRelative'),
+    OTHER: t('parents.relationOther'),
+  }
+  const parentFormSchema = useMemo(() => createParentFormSchema(t), [t])
+  const linkFormSchema = useMemo(() => createLinkFormSchema(t), [t])
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
   const [search, setSearch] = useState('')
@@ -254,7 +261,7 @@ export function ParentsPage() {
     onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['parents'] })
       setSuccessMessage(
-        variables.parentId ? 'Padre o tutor actualizado correctamente.' : 'Padre o tutor creado correctamente.',
+        variables.parentId ? t('parents.updateSuccess') : t('parents.createSuccess'),
       )
       setIsFormOpen(false)
       setEditingParent(null)
@@ -293,7 +300,7 @@ export function ParentsPage() {
       claimParent(parentId, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['parents'] })
-      setSuccessMessage('Padre o tutor reactivado correctamente.')
+      setSuccessMessage(t('parents.claimSuccess'))
       setIsFormOpen(false)
       setClaimTarget(null)
     },
@@ -302,7 +309,7 @@ export function ParentsPage() {
   const linkStudentMutation = useMutation({
     mutationFn: (request: StudentGuardianRequest) => {
       if (!linkingParent) {
-        return Promise.reject(new Error('No hay un padre o tutor seleccionado.'))
+        return Promise.reject(new Error(t('parents.noParentSelectedError')))
       }
 
       return linkStudentToParent(linkingParent.parentId, request)
@@ -316,7 +323,7 @@ export function ParentsPage() {
   const unlinkStudentMutation = useMutation({
     mutationFn: (studentId: number) => {
       if (!linkingParent) {
-        return Promise.reject(new Error('No hay un padre o tutor seleccionado.'))
+        return Promise.reject(new Error(t('parents.noParentSelectedError')))
       }
 
       return unlinkStudentFromParent(linkingParent.parentId, studentId)
@@ -514,22 +521,22 @@ export function ParentsPage() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Padres / Tutores</h2>
-          <p>Administra la informacion de los padres o tutores.</p>
+          <h2>{t('parents.title')}</h2>
+          <p>{t('parents.subtitle')}</p>
         </div>
         {canManage ? (
           <div className="page-heading-actions">
             <button className="secondary-button" onClick={openArchived} type="button">
               <Archive size={17} aria-hidden="true" />
-              Archivados
+              {t('parents.archivedButton')}
             </button>
             <button className="secondary-button" onClick={openTrash} type="button">
               <Trash2 size={17} aria-hidden="true" />
-              Papelera
+              {t('common.trash')}
             </button>
             <button className="primary-button inline-button" onClick={openNewParentForm} type="button">
               <Plus size={17} aria-hidden="true" />
-              Nuevo padre / tutor
+              {t('parents.newParent')}
             </button>
           </div>
         ) : null}
@@ -542,9 +549,7 @@ export function ParentsPage() {
       ) : null}
       {error ? (
         <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver la lista de padres o tutores.'
-            : 'No se pudo cargar la lista de padres o tutores.'}
+          {isForbiddenError(error) ? t('parents.forbiddenList') : t('parents.loadError')}
         </div>
       ) : null}
 
@@ -561,19 +566,15 @@ export function ParentsPage() {
             <div>
               <h3 id="parent-form-title">
                 {claimTarget
-                  ? 'Reactivar padre / tutor archivado'
+                  ? t('parents.claimFormTitle')
                   : editingParent
-                    ? 'Editar padre / tutor'
-                    : 'Nuevo padre / tutor'}
+                    ? t('parents.editParentTitle')
+                    : t('parents.newParentTitle')}
               </h3>
-              <p>
-                {claimTarget
-                  ? 'Nombre y correo ya estan guardados. Completa el resto de los datos de contacto para reactivarlo.'
-                  : 'Completa los datos de contacto del responsable.'}
-              </p>
+              <p>{claimTarget ? t('parents.claimFormSubtitle') : t('parents.formSubtitle')}</p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={saveParentMutation.isPending || claimParentMutation.isPending}
               onClick={closeParentForm}
@@ -585,28 +586,28 @@ export function ParentsPage() {
           <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
-                Nombre *
+                {t('parents.firstNameLabel')}
                 <input maxLength={100} {...register('firstName')} />
                 {formErrors.firstName ? (
                   <span className="field-error">{formErrors.firstName.message}</span>
                 ) : null}
               </label>
               <label>
-                Apellidos *
+                {t('parents.lastNameLabel')}
                 <input maxLength={100} {...register('lastName')} />
                 {formErrors.lastName ? <span className="field-error">{formErrors.lastName.message}</span> : null}
               </label>
               <label>
-                Correo electronico
+                {t('parents.emailLabel')}
                 <input maxLength={150} type="email" {...register('email')} />
                 {formErrors.email ? <span className="field-error">{formErrors.email.message}</span> : null}
               </label>
               <label>
-                Telefono
+                {t('parents.phoneLabel')}
                 <input maxLength={30} {...register('phone')} />
               </label>
               <label>
-                Estado
+                {t('parents.statusLabel')}
                 <select {...register('status')}>
                   {Object.entries(statusLabels).map(([status, label]) => (
                     <option key={status} value={status}>
@@ -616,16 +617,16 @@ export function ParentsPage() {
                 </select>
               </label>
               <label>
-                Idioma preferido
+                {t('parents.preferredLanguageLabel')}
                 <input maxLength={20} placeholder="es" {...register('preferredLanguage')} />
               </label>
               <label className="entity-form-wide">
-                Direccion
+                {t('parents.addressLabel')}
                 <input maxLength={255} {...register('address')} />
               </label>
               {!editingParent && !claimTarget ? (
                 <label>
-                  Contrasena de acceso
+                  {t('parents.passwordLabel')}
                   <input
                     autoComplete="new-password"
                     maxLength={100}
@@ -635,25 +636,25 @@ export function ParentsPage() {
                   {formErrors.password ? (
                     <span className="field-error">{formErrors.password.message}</span>
                   ) : (
-                    <span className="field-hint">Opcional. Dejar vacio si no necesita acceso al portal.</span>
+                    <span className="field-hint">{t('parents.passwordHint')}</span>
                   )}
                 </label>
               ) : null}
               <label className="entity-form-full">
-                Notas
+                {t('parents.notesLabel')}
                 <textarea rows={2} {...register('notes')} />
               </label>
             </div>
             {claimTarget && claimParentMutation.error ? (
               <p className="form-error" role="alert">
-                {claimErrorMessage(claimParentMutation.error)}
+                {claimErrorMessage(claimParentMutation.error, t)}
               </p>
             ) : null}
             {!claimTarget && saveParentMutation.error ? (
               <p className="form-error" role="alert">
                 {saveParentMutation.error instanceof Error
                   ? saveParentMutation.error.message
-                  : 'No se pudo guardar el padre o tutor.'}
+                  : t('parents.saveParentError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -663,7 +664,7 @@ export function ParentsPage() {
                 onClick={closeParentForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button
                 className="primary-button"
@@ -672,13 +673,13 @@ export function ParentsPage() {
               >
                 {claimTarget
                   ? claimParentMutation.isPending
-                    ? 'Reactivando...'
-                    : 'Reactivar padre / tutor'
+                    ? t('parents.reactivating')
+                    : t('parents.reactivateParent')
                   : saveParentMutation.isPending
-                    ? 'Guardando...'
+                    ? t('common.saving')
                     : editingParent
-                      ? 'Guardar cambios'
-                      : 'Crear padre / tutor'}
+                      ? t('parents.saveChanges')
+                      : t('parents.createParent')}
               </button>
             </footer>
           </form>
@@ -688,7 +689,7 @@ export function ParentsPage() {
 
       {isTrashOpen ? (
         <TrashPanel
-          emptyMessage="No hay padres o tutores eliminados recientemente."
+          emptyMessage={t('parents.deletedRecentlyEmpty')}
           getDeletedAt={(parent) => parent.deletedAt}
           getId={(parent) => parent.parentId}
           getLabel={(parent) => formatParentName(parent.firstName, parent.lastName)}
@@ -697,7 +698,7 @@ export function ParentsPage() {
           onClose={closeTrash}
           onRestore={(parent) => restoreParentMutation.mutate(parent.parentId)}
           restoringId={restoreParentMutation.isPending ? restoreParentMutation.variables : null}
-          title="Padres / tutores eliminados"
+          title={t('parents.deletedParentsTitle')}
         />
       ) : null}
 
@@ -705,22 +706,18 @@ export function ParentsPage() {
         <section className="panel trash-panel" aria-labelledby="archived-panel-title">
           <header className="form-panel-heading">
             <div>
-              <h3 id="archived-panel-title">Padres / tutores archivados</h3>
-              <p>
-                Familias que no restauraron a tiempo (mas de 7 dias). Solo se conserva nombre, correo y su
-                cuenta de acceso; el resto de los datos se limpio. Se pueden reactivar hasta 6 anios despues
-                de archivarse.
-              </p>
+              <h3 id="archived-panel-title">{t('parents.archivedTitle')}</h3>
+              <p>{t('parents.archivedDescription')}</p>
             </div>
-            <button aria-label="Cerrar archivados" className="icon-button" onClick={closeArchived} type="button">
+            <button aria-label={t('parents.closeArchived')} className="icon-button" onClick={closeArchived} type="button">
               <X size={20} aria-hidden="true" />
             </button>
           </header>
 
-          {isTrashLoading ? <p>Cargando...</p> : null}
+          {isTrashLoading ? <p>{t('common.loading')}</p> : null}
 
           {!isTrashLoading && filteredArchivedParents.length === 0 ? (
-            <p>No hay padres o tutores archivados que coincidan con la busqueda.</p>
+            <p>{t('parents.emptyArchivedSearch')}</p>
           ) : null}
 
           {!isTrashLoading && filteredArchivedParents.length > 0 ? (
@@ -729,11 +726,11 @@ export function ParentsPage() {
                 <li className="trash-list-item" key={parent.parentId}>
                   <div>
                     <strong>{formatParentName(parent.firstName, parent.lastName)}</strong>
-                    <span className="field-hint">{parent.email ?? 'Sin correo'}</span>
+                    <span className="field-hint">{parent.email ?? t('parents.noEmail')}</span>
                   </div>
                   <button className="secondary-button" onClick={() => openClaimForm(parent)} type="button">
                     <UserPlus size={16} aria-hidden="true" />
-                    Reclamar
+                    {t('parents.claim')}
                   </button>
                 </li>
               ))}
@@ -764,41 +761,42 @@ export function ParentsPage() {
                 </span>
               </p>
             </div>
-            <button aria-label="Cerrar" className="icon-button" onClick={closeLinkPanel} type="button">
+            <button aria-label={t('common.close')} className="icon-button" onClick={closeLinkPanel} type="button">
               <X size={20} aria-hidden="true" />
             </button>
           </header>
 
           <div className="profile-summary">
             <p>
-              <strong>Telefono:</strong> {linkingParent.phone || 'Sin telefono'}
+              <strong>{t('parents.phoneColon')}</strong> {linkingParent.phone || t('parents.noPhone')}
             </p>
             <p>
-              <strong>Correo:</strong> {linkingParent.email || 'Sin correo'}
+              <strong>{t('parents.emailColon')}</strong> {linkingParent.email || t('parents.noEmail')}
             </p>
             <p>
-              <strong>Direccion:</strong> {linkingParent.address || 'Sin direccion'}
+              <strong>{t('parents.addressColon')}</strong> {linkingParent.address || t('parents.noAddress')}
             </p>
             <p>
-              <strong>Idioma preferido:</strong> {linkingParent.preferredLanguage || 'Sin especificar'}
+              <strong>{t('parents.preferredLanguageColon')}</strong>{' '}
+              {linkingParent.preferredLanguage || t('parents.notSpecified')}
             </p>
             {linkingParent.notes ? (
               <p>
-                <strong>Notas:</strong> {linkingParent.notes}
+                <strong>{t('parents.notesColon')}</strong> {linkingParent.notes}
               </p>
             ) : null}
           </div>
 
-          <p className="panel-section-label">Estudiantes vinculados</p>
+          <p className="panel-section-label">{t('parents.linkedStudentsTitle')}</p>
 
           {canManage ? (
             linkableStudents.length > 0 ? (
               <form className="entity-form" onSubmit={onLinkSubmit}>
                 <div className="entity-form-grid">
                   <label className="entity-form-wide">
-                    Estudiante *
+                    {t('parents.studentLabel')}
                     <select {...registerLink('studentId')}>
-                      <option value="">Selecciona un estudiante</option>
+                      <option value="">{t('parents.selectStudent')}</option>
                       {linkableStudents.map((student) => (
                         <option key={student.studentId} value={student.studentId}>
                           {`${student.firstName} ${student.lastName}`.trim()}
@@ -810,7 +808,7 @@ export function ParentsPage() {
                     ) : null}
                   </label>
                   <label>
-                    Relacion
+                    {t('parents.relationshipLabel')}
                     <select {...registerLink('relationshipType')}>
                       {Object.entries(relationshipLabels).map(([value, label]) => (
                         <option key={value} value={value}>
@@ -821,56 +819,56 @@ export function ParentsPage() {
                   </label>
                   <label className="checkbox-field">
                     <input type="checkbox" {...registerLink('primaryContact')} />
-                    Contacto principal
+                    {t('parents.primaryContactLabel')}
                   </label>
                   <label className="checkbox-field">
                     <input type="checkbox" {...registerLink('billingContact')} />
-                    Contacto de facturacion
+                    {t('parents.billingContactLabel')}
                   </label>
                   <label className="checkbox-field">
                     <input type="checkbox" {...registerLink('authorizedPickup')} />
-                    Autorizado para recoger
+                    {t('parents.authorizedPickupLabel')}
                   </label>
                   <label className="checkbox-field">
                     <input type="checkbox" {...registerLink('livesWithStudent')} />
-                    Vive con el estudiante
+                    {t('parents.livesWithStudentLabel')}
                   </label>
                 </div>
                 {linkStudentMutation.error ? (
                   <p className="form-error" role="alert">
-                    {linkErrorMessage(linkStudentMutation.error)}
+                    {linkErrorMessage(linkStudentMutation.error, t)}
                   </p>
                 ) : null}
                 <footer className="form-actions">
                   <button className="primary-button" disabled={linkStudentMutation.isPending} type="submit">
-                    {linkStudentMutation.isPending ? 'Vinculando...' : 'Vincular estudiante'}
+                    {linkStudentMutation.isPending ? t('parents.linking') : t('parents.linkStudent')}
                   </button>
                 </footer>
               </form>
             ) : (
-              <p className="field-hint">Todos los estudiantes ya estan vinculados a este padre o tutor.</p>
+              <p className="field-hint">{t('parents.allStudentsLinked')}</p>
             )
           ) : null}
 
-          <p className="panel-section-label">Vinculados actualmente</p>
+          <p className="panel-section-label">{t('parents.currentlyLinkedTitle')}</p>
           {linkedStudentsError ? (
             <p className="notice">
               {isForbiddenError(linkedStudentsError)
-                ? 'No tienes permiso para ver los estudiantes vinculados.'
-                : 'No se pudieron cargar los estudiantes vinculados.'}
+                ? t('parents.forbiddenLinked')
+                : t('parents.loadLinkedError')}
             </p>
           ) : null}
-          {isLinkedStudentsLoading ? <p>Cargando...</p> : null}
+          {isLinkedStudentsLoading ? <p>{t('common.loading')}</p> : null}
           {!isLinkedStudentsLoading && !linkedStudentsError && linkedStudents.length === 0 ? (
-            <p>Sin estudiantes vinculados.</p>
+            <p>{t('parents.emptyLinked')}</p>
           ) : null}
           {!isLinkedStudentsLoading && linkedStudents.length > 0 ? (
             <ul className="contact-list">
               {linkedStudents.map((link) => {
                 const extras = [
-                  link.billingContact ? 'Facturacion' : null,
-                  link.authorizedPickup ? 'Autorizado a recoger' : null,
-                  link.livesWithStudent ? 'Vive con el estudiante' : null,
+                  link.billingContact ? t('parents.billingExtra') : null,
+                  link.authorizedPickup ? t('parents.pickupExtra') : null,
+                  link.livesWithStudent ? t('parents.livesWithExtra') : null,
                 ].filter(Boolean)
 
                 return (
@@ -878,16 +876,18 @@ export function ParentsPage() {
                     <div className="contact-item-header">
                       <span className="contact-item-title">
                         <strong>{link.studentName}</strong>
-                        {link.primaryContact ? <span className="status-badge">Principal</span> : null}
+                        {link.primaryContact ? <span className="status-badge">{t('parents.primaryBadge')}</span> : null}
                       </span>
                       {canManage ? (
-                        <button onClick={() => setUnlinkTarget(link)} title="Desvincular" type="button">
+                        <button onClick={() => setUnlinkTarget(link)} title={t('parents.unlink')} type="button">
                           <UserMinus size={16} aria-hidden="true" />
                         </button>
                       ) : null}
                     </div>
                     <p className="field-hint">{relationshipLabels[link.relationshipType]}</p>
-                    <p className="field-hint">{extras.length > 0 ? extras.join(' · ') : 'Sin permisos adicionales'}</p>
+                    <p className="field-hint">
+                      {extras.length > 0 ? extras.join(' · ') : t('parents.noExtraPermissions')}
+                    </p>
                   </li>
                 )
               })}
@@ -897,19 +897,19 @@ export function ParentsPage() {
         </div>
       ) : null}
 
-      <section className="filters-row filters-row-compact" aria-label="Filtros de padres o tutores">
+      <section className="filters-row filters-row-compact" aria-label={t('parents.filtersAriaLabel')}>
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
           <input
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar padre o tutor..."
+            placeholder={t('parents.searchPlaceholder')}
             type="search"
             value={search}
           />
         </label>
         <button className="secondary-button" type="button">
           <ListFilter size={17} aria-hidden="true" />
-          Filtros
+          {t('common.filters')}
         </button>
       </section>
 
@@ -917,12 +917,12 @@ export function ParentsPage() {
         <table>
           <thead>
             <tr>
-              <th>Nombre</th>
-              <th>Telefono</th>
-              <th>Correo electronico</th>
-              <th>Hijos</th>
-              <th>Estado</th>
-              <th>Acciones</th>
+              <th>{t('parents.colName')}</th>
+              <th>{t('parents.colPhone')}</th>
+              <th>{t('parents.colEmail')}</th>
+              <th>{t('parents.colChildren')}</th>
+              <th>{t('parents.colStatus')}</th>
+              <th>{t('parents.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -953,18 +953,18 @@ export function ParentsPage() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button onClick={() => openLinkPanel(parent)} title="Ver perfil" type="button">
+                      <button onClick={() => openLinkPanel(parent)} title={t('parents.viewProfile')} type="button">
                         <Eye size={16} aria-hidden="true" />
                       </button>
                       {canManage ? (
                         <>
-                          <button onClick={() => openEditParentForm(parent)} title="Editar" type="button">
+                          <button onClick={() => openEditParentForm(parent)} title={t('common.edit')} type="button">
                             <Pencil size={16} aria-hidden="true" />
                           </button>
                           <button
                             disabled={toggleStatusMutation.isPending}
                             onClick={() => setConfirmingStatusParent(parent)}
-                            title={parent.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
+                            title={parent.status === 'ACTIVE' ? t('parents.deactivate') : t('parents.activate')}
                             type="button"
                           >
                             {parent.status === 'ACTIVE' ? (
@@ -973,7 +973,7 @@ export function ParentsPage() {
                               <UserCheck size={16} aria-hidden="true" />
                             )}
                           </button>
-                          <button onClick={() => openDeleteConfirm(parent)} title="Eliminar" type="button">
+                          <button onClick={() => openDeleteConfirm(parent)} title={t('common.delete')} type="button">
                             <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </>
@@ -985,23 +985,23 @@ export function ParentsPage() {
             })}
             {!isLoading && filteredParents.length === 0 ? (
               <tr>
-                <td colSpan={6}>Sin padres o tutores para mostrar.</td>
+                <td colSpan={6}>{t('parents.emptyTable')}</td>
               </tr>
             ) : null}
           </tbody>
         </table>
         <footer className="table-footer">
           <span>
-            Mostrando {filteredParents.length} de {parents.length} tutores
+            {t('parents.showingCount', { filtered: filteredParents.length, total: parents.length })}
           </span>
           <div className="pagination">
-            <button aria-label="Pagina anterior" type="button">
+            <button aria-label={t('common.previousPage')} type="button">
               {'<'}
             </button>
             <button className="active" type="button">
               1
             </button>
-            <button aria-label="Pagina siguiente" type="button">
+            <button aria-label={t('common.nextPage')} type="button">
               {'>'}
             </button>
           </div>
@@ -1009,13 +1009,17 @@ export function ParentsPage() {
       </div>
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel={confirmingStatusParent?.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
+        cancelLabel={t('common.cancel')}
+        confirmLabel={confirmingStatusParent?.status === 'ACTIVE' ? t('parents.deactivate') : t('parents.activate')}
         description={
           confirmingStatusParent
             ? confirmingStatusParent.status === 'ACTIVE'
-              ? `${formatParentName(confirmingStatusParent.firstName, confirmingStatusParent.lastName)} no podra acceder al portal ni aparecer como contacto activo hasta que lo reactives.`
-              : `${formatParentName(confirmingStatusParent.firstName, confirmingStatusParent.lastName)} volvera a aparecer como contacto activo.`
+              ? t('parents.deactivateDescription', {
+                  name: formatParentName(confirmingStatusParent.firstName, confirmingStatusParent.lastName),
+                })
+              : t('parents.activateDescription', {
+                  name: formatParentName(confirmingStatusParent.firstName, confirmingStatusParent.lastName),
+                })
             : ''
         }
         isConfirming={toggleStatusMutation.isPending}
@@ -1028,19 +1032,23 @@ export function ParentsPage() {
         open={confirmingStatusParent !== null}
         title={
           confirmingStatusParent?.status === 'ACTIVE'
-            ? 'Desactivar a este padre o tutor?'
-            : 'Activar a este padre o tutor?'
+            ? t('parents.deactivateTitle')
+            : t('parents.activateTitle')
         }
       />
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        cancelLabel={t('common.cancel')}
+        confirmLabel={deleteStep === 1 ? t('common.continue') : t('common.confirmDelete')}
         description={
           deleteTarget
             ? deleteStep === 1
-              ? `Se eliminara a ${formatParentName(deleteTarget.firstName, deleteTarget.lastName)}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
-              : `Confirma que quieres eliminar a ${formatParentName(deleteTarget.firstName, deleteTarget.lastName)} ahora.`
+              ? t('parents.deleteConfirmStep1', {
+                  name: formatParentName(deleteTarget.firstName, deleteTarget.lastName),
+                })
+              : t('parents.deleteConfirmStep2', {
+                  name: formatParentName(deleteTarget.firstName, deleteTarget.lastName),
+                })
             : ''
         }
         isConfirming={deleteParentMutation.isPending}
@@ -1056,16 +1064,19 @@ export function ParentsPage() {
           }
         }}
         open={deleteTarget !== null}
-        title={deleteStep === 1 ? 'Eliminar a este padre o tutor?' : 'Confirmar eliminacion'}
+        title={deleteStep === 1 ? t('parents.deleteConfirmTitle') : t('common.confirmDeleteTitle')}
         variant="danger"
       />
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel="Si, desvincular"
+        cancelLabel={t('common.cancel')}
+        confirmLabel={t('parents.unlinkConfirmYes')}
         description={
           unlinkTarget && linkingParent
-            ? `Se desvinculara a ${unlinkTarget.studentName} de ${formatParentName(linkingParent.firstName, linkingParent.lastName)}.`
+            ? t('parents.unlinkConfirmDescription', {
+                student: unlinkTarget.studentName,
+                parent: formatParentName(linkingParent.firstName, linkingParent.lastName),
+              })
             : ''
         }
         isConfirming={unlinkStudentMutation.isPending}
@@ -1076,14 +1087,16 @@ export function ParentsPage() {
           }
         }}
         open={unlinkTarget !== null}
-        title="Desvincular a este estudiante?"
+        title={t('parents.unlinkConfirmTitle')}
         variant="danger"
       />
 
       {deletedParent ? (
         <UndoToast
           isActing={restoreParentMutation.isPending}
-          message={`${formatParentName(deletedParent.firstName, deletedParent.lastName)} fue eliminado.`}
+          message={t('parents.deletedToast', {
+            name: formatParentName(deletedParent.firstName, deletedParent.lastName),
+          })}
           onAction={() => restoreParentMutation.mutate(deletedParent.parentId)}
           onDismiss={() => setDeletedParent(null)}
         />

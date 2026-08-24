@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { History, X } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { getAttendance, getStudentAttendanceHistory, saveAttendance } from '../../api/attendance.api'
@@ -12,13 +14,6 @@ import { translateBackendSeed } from '../../utils/displayText'
 const emptyRoster: StudentAttendance[] = []
 const emptyStudents: StudentListItem[] = []
 
-const statusLabels: Record<AttendanceStatus, string> = {
-  PRESENT: 'Presente',
-  ABSENT: 'Ausente',
-  SICK: 'Enfermo',
-  LATE: 'Tarde',
-}
-
 type LocalEntry = {
   status: AttendanceStatus | ''
   notes: string
@@ -30,31 +25,38 @@ function todayInputValue() {
   return localDate.toISOString().slice(0, 10)
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('es-MX', {
+function formatDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(`${value}T00:00:00`))
 }
 
-function saveAttendanceErrorMessage(error: unknown) {
+function saveAttendanceErrorMessage(error: unknown, t: TFunction) {
   if (error instanceof ApiError && error.status === 409) {
-    return 'Ese dia ya quedo archivado y no se puede editar.'
+    return t('attendance.saveArchivedError')
   }
 
   if (error instanceof ApiError && error.status === 400) {
-    return 'No se puede registrar asistencia de un dia futuro.'
+    return t('attendance.saveFutureError')
   }
 
   if (error instanceof ApiError) {
     return error.message
   }
 
-  return 'No se pudo guardar la asistencia.'
+  return t('attendance.saveGenericError')
 }
 
 export function AttendancePage() {
+  const { t, i18n } = useTranslation()
+  const statusLabels: Record<AttendanceStatus, string> = {
+    PRESENT: t('attendance.statusPresent'),
+    ABSENT: t('attendance.statusAbsent'),
+    SICK: t('attendance.statusSick'),
+    LATE: t('attendance.statusLate'),
+  }
   const queryClient = useQueryClient()
   const [groupId, setGroupId] = useState('')
   const [date, setDate] = useState(todayInputValue())
@@ -78,12 +80,15 @@ export function AttendancePage() {
 
     students.forEach((student) => {
       if (student.groupId) {
-        uniqueGroups.set(student.groupId, student.groupName ?? `Grupo ${student.groupId}`)
+        uniqueGroups.set(
+          student.groupId,
+          student.groupName ?? t('attendance.defaultGroupName', { id: student.groupId }),
+        )
       }
     })
 
     return Array.from(uniqueGroups.entries()).sort((a, b) => a[1].localeCompare(b[1]))
-  }, [allGroupsData])
+  }, [allGroupsData, t])
 
   const {
     data: rosterData,
@@ -125,12 +130,12 @@ export function AttendancePage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['attendance', groupId, date] })
-      setSuccessMessage('Asistencia guardada correctamente.')
+      setSuccessMessage(t('attendance.saveSuccess'))
     },
   })
 
   const saveErrorMessage = saveAttendanceMutation.isError
-    ? saveAttendanceErrorMessage(saveAttendanceMutation.error)
+    ? saveAttendanceErrorMessage(saveAttendanceMutation.error, t)
     : null
 
   const {
@@ -192,8 +197,8 @@ export function AttendancePage() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Asistencia</h2>
-          <p>Registra la asistencia diaria por grupo.</p>
+          <h2>{t('attendance.title')}</h2>
+          <p>{t('attendance.subtitle')}</p>
         </div>
       </section>
 
@@ -203,9 +208,9 @@ export function AttendancePage() {
         </div>
       ) : null}
 
-      <section className="filters-row filters-row-compact" aria-label="Filtros de asistencia">
+      <section className="filters-row filters-row-compact" aria-label={t('attendance.filtersAriaLabel')}>
         <select
-          aria-label="Grupo"
+          aria-label={t('attendance.groupAriaLabel')}
           onChange={(event) => {
             setGroupId(event.target.value)
             setSuccessMessage(null)
@@ -213,7 +218,7 @@ export function AttendancePage() {
           }}
           value={groupId}
         >
-          <option value="">Selecciona un grupo</option>
+          <option value="">{t('attendance.selectGroup')}</option>
           {groups.map(([id, name]) => (
             <option key={id} value={id}>
               {translateBackendSeed(name)}
@@ -221,7 +226,7 @@ export function AttendancePage() {
           ))}
         </select>
         <input
-          aria-label="Fecha"
+          aria-label={t('attendance.dateAriaLabel')}
           max={today}
           onChange={(event) => {
             setDate(event.target.value)
@@ -233,21 +238,16 @@ export function AttendancePage() {
         />
       </section>
 
-      {groupId === '' ? <p className="empty-copy">Selecciona un grupo para ver la lista de estudiantes.</p> : null}
+      {groupId === '' ? <p className="empty-copy">{t('attendance.selectGroupPrompt')}</p> : null}
 
       {groupId !== '' && rosterError ? (
         <div className="notice">
-          {isForbiddenError(rosterError)
-            ? 'No tienes permiso para registrar asistencia en este grupo.'
-            : 'No se pudo cargar la asistencia.'}
+          {isForbiddenError(rosterError) ? t('attendance.forbiddenRoster') : t('attendance.loadRosterError')}
         </div>
       ) : null}
 
       {groupId !== '' && !rosterError && !isToday ? (
-        <div className="notice">
-          Este dia ya quedo archivado: puedes consultar el registro, pero no editarlo. Solo se puede registrar o
-          corregir la asistencia del dia de hoy.
-        </div>
+        <div className="notice">{t('attendance.archivedDayNotice')}</div>
       ) : null}
 
       {groupId !== '' && !rosterError && saveErrorMessage ? <div className="notice">{saveErrorMessage}</div> : null}
@@ -261,17 +261,17 @@ export function AttendancePage() {
               onClick={markAllPresent}
               type="button"
             >
-              Marcar todos presentes
+              {t('attendance.markAllPresent')}
             </button>
           </div>
           <table>
             <thead>
               <tr>
-                <th>Estudiante</th>
-                <th>Estado</th>
-                <th>Notas</th>
-                <th>Registrado por</th>
-                <th>Acciones</th>
+                <th>{t('attendance.colStudent')}</th>
+                <th>{t('attendance.colStatus')}</th>
+                <th>{t('attendance.colNotes')}</th>
+                <th>{t('attendance.colRecordedBy')}</th>
+                <th>{t('attendance.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -289,7 +289,7 @@ export function AttendancePage() {
                         }
                         value={entry.status}
                       >
-                        <option value="">Sin marcar</option>
+                        <option value="">{t('attendance.unmarked')}</option>
                         {Object.entries(statusLabels).map(([value, label]) => (
                           <option key={value} value={value}>
                             {label}
@@ -308,7 +308,11 @@ export function AttendancePage() {
                     <td>{item.recordedByEmail ?? '-'}</td>
                     <td>
                       <div className="row-actions">
-                        <button onClick={() => openHistoryPanel(item)} title="Ver historial de asistencia" type="button">
+                        <button
+                          onClick={() => openHistoryPanel(item)}
+                          title={t('attendance.viewHistoryTitle')}
+                          type="button"
+                        >
                           <History size={16} aria-hidden="true" />
                         </button>
                       </div>
@@ -318,7 +322,7 @@ export function AttendancePage() {
               })}
               {!isRosterLoading && roster.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>Sin estudiantes en este grupo.</td>
+                  <td colSpan={5}>{t('attendance.emptyRoster')}</td>
                 </tr>
               ) : null}
             </tbody>
@@ -330,7 +334,7 @@ export function AttendancePage() {
               onClick={() => saveAttendanceMutation.mutate()}
               type="button"
             >
-              {saveAttendanceMutation.isPending ? 'Guardando...' : 'Guardar asistencia'}
+              {saveAttendanceMutation.isPending ? t('common.saving') : t('attendance.saveAttendance')}
             </button>
           </footer>
         </div>
@@ -347,24 +351,24 @@ export function AttendancePage() {
           >
             <header className="form-panel-heading">
               <div>
-                <h3 id="attendance-history-title">Historial de asistencia</h3>
+                <h3 id="attendance-history-title">{t('attendance.historyTitle')}</h3>
                 <p className="profile-summary">{historyStudent.studentName}</p>
               </div>
-              <button aria-label="Cerrar" className="icon-button" onClick={closeHistoryPanel} type="button">
+              <button aria-label={t('common.close')} className="icon-button" onClick={closeHistoryPanel} type="button">
                 <X size={20} aria-hidden="true" />
               </button>
             </header>
 
-            <section className="filters-row filters-row-compact" aria-label="Filtros de historial">
+            <section className="filters-row filters-row-compact" aria-label={t('attendance.filtersHistoryAriaLabel')}>
               <input
-                aria-label="Desde"
+                aria-label={t('attendance.fromLabel')}
                 max={historyTo || today}
                 onChange={(event) => setHistoryFrom(event.target.value)}
                 type="date"
                 value={historyFrom}
               />
               <input
-                aria-label="Hasta"
+                aria-label={t('attendance.toLabel')}
                 max={today}
                 min={historyFrom || undefined}
                 onChange={(event) => setHistoryTo(event.target.value)}
@@ -373,40 +377,38 @@ export function AttendancePage() {
               />
             </section>
             <p className="empty-copy">
-              {historyFrom || historyTo
-                ? null
-                : 'Mostrando los ultimos 30 dias. Elige un rango de fechas para acotar la busqueda.'}
+              {historyFrom || historyTo ? null : t('attendance.historyDefaultRangeNotice')}
             </p>
 
             {historyError ? (
               <div className="notice">
                 {isForbiddenError(historyError)
-                  ? 'No tienes permiso para ver el historial de este estudiante.'
-                  : 'No se pudo cargar el historial de asistencia.'}
+                  ? t('attendance.forbiddenHistory')
+                  : t('attendance.loadHistoryError')}
               </div>
             ) : (
               <div className="table-shell" aria-busy={isHistoryLoading}>
                 <table>
                   <thead>
                     <tr>
-                      <th>Fecha</th>
-                      <th>Estado</th>
-                      <th>Notas</th>
-                      <th>Registrado por</th>
+                      <th>{t('attendance.colDate')}</th>
+                      <th>{t('attendance.colStatus')}</th>
+                      <th>{t('attendance.colNotes')}</th>
+                      <th>{t('attendance.colRecordedBy')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {history.map((item) => (
                       <tr key={item.date}>
-                        <td>{formatDate(item.date)}</td>
-                        <td>{item.status ? statusLabels[item.status] : 'Sin marcar'}</td>
+                        <td>{formatDate(item.date, i18n.resolvedLanguage ?? 'es')}</td>
+                        <td>{item.status ? statusLabels[item.status] : t('attendance.unmarked')}</td>
                         <td>{item.notes ?? '-'}</td>
                         <td>{item.recordedByEmail ?? '-'}</td>
                       </tr>
                     ))}
                     {!isHistoryLoading && history.length === 0 ? (
                       <tr>
-                        <td colSpan={4}>Sin registros de asistencia en el rango seleccionado.</td>
+                        <td colSpan={4}>{t('attendance.emptyHistory')}</td>
                       </tr>
                     ) : null}
                   </tbody>

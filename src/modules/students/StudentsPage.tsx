@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { Eye, ListFilter, Pencil, Percent, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
 import {
@@ -47,65 +49,43 @@ const emptyContacts: StudentEmergencyContact[] = []
 const emptyGuardians: StudentGuardianSummary[] = []
 const emptyNotes: StudentNote[] = []
 
-const noteTypeLabels: Record<StudentNoteType, string> = {
-  PEDAGOGICAL: 'Pedagogico',
-  BEHAVIOR: 'Comportamiento',
-  INCIDENT: 'Incidente',
-  HEALTH: 'Salud',
-  FAMILY_FOLLOW_UP: 'Seguimiento familiar',
-  ADMINISTRATIVE: 'Administrativo',
-}
-
-const statusLabels: Record<StudentStatus, string> = {
-  active: 'Activo',
-  inactive: 'Inactivo',
-  pending: 'Pendiente',
-  graduated: 'Graduado',
-}
-
 const statusDangerValues = new Set(['inactive'])
 
-const guardianRelationshipLabels: Record<StudentGuardianSummary['relationshipType'], string> = {
-  FATHER: 'Padre',
-  MOTHER: 'Madre',
-  GUARDIAN: 'Tutor legal',
-  RELATIVE: 'Familiar',
-  OTHER: 'Otro',
+function createStudentFormSchema(t: TFunction) {
+  return z
+    .object({
+      studentCode: z.string(),
+      firstName: z.string().trim().min(1, t('students.firstNameRequired')),
+      lastName: z.string().trim().min(1, t('students.lastNameRequired')),
+      birthDate: z.string().min(1, t('students.birthDateRequired')),
+      groupId: z.string(),
+      status: z.enum(['active', 'inactive', 'pending', 'graduated']),
+      enrollmentDate: z.string().min(1, t('students.enrollmentDateRequired')),
+      withdrawalDate: z.string(),
+      medicalNotes: z.string(),
+      allergies: z.string(),
+      notes: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.birthDate && values.enrollmentDate && values.birthDate > values.enrollmentDate) {
+        ctx.addIssue({
+          code: 'custom',
+          message: t('students.enrollmentAfterBirth'),
+          path: ['enrollmentDate'],
+        })
+      }
+
+      if (values.withdrawalDate && values.enrollmentDate && values.withdrawalDate < values.enrollmentDate) {
+        ctx.addIssue({
+          code: 'custom',
+          message: t('students.withdrawalAfterEnrollment'),
+          path: ['withdrawalDate'],
+        })
+      }
+    })
 }
 
-const studentFormSchema = z
-  .object({
-    studentCode: z.string(),
-    firstName: z.string().trim().min(1, 'El nombre es obligatorio.'),
-    lastName: z.string().trim().min(1, 'Los apellidos son obligatorios.'),
-    birthDate: z.string().min(1, 'La fecha de nacimiento es obligatoria.'),
-    groupId: z.string(),
-    status: z.enum(['active', 'inactive', 'pending', 'graduated']),
-    enrollmentDate: z.string().min(1, 'La fecha de ingreso es obligatoria.'),
-    withdrawalDate: z.string(),
-    medicalNotes: z.string(),
-    allergies: z.string(),
-    notes: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.birthDate && values.enrollmentDate && values.birthDate > values.enrollmentDate) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'La fecha de ingreso debe ser posterior al nacimiento.',
-        path: ['enrollmentDate'],
-      })
-    }
-
-    if (values.withdrawalDate && values.enrollmentDate && values.withdrawalDate < values.enrollmentDate) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'La fecha de baja debe ser posterior al ingreso.',
-        path: ['withdrawalDate'],
-      })
-    }
-  })
-
-type StudentFormValues = z.infer<typeof studentFormSchema>
+type StudentFormValues = z.infer<ReturnType<typeof createStudentFormSchema>>
 
 function todayInputValue() {
   const date = new Date()
@@ -179,16 +159,18 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
-const contactFormSchema = z.object({
-  fullName: z.string().trim().min(1, 'El nombre es obligatorio.'),
-  relationship: z.string().trim().min(1, 'La relacion es obligatoria.'),
-  phone: z.string().trim().min(1, 'El telefono es obligatorio.'),
-  alternatePhone: z.string(),
-  notes: z.string(),
-  primary: z.boolean(),
-})
+function createContactFormSchema(t: TFunction) {
+  return z.object({
+    fullName: z.string().trim().min(1, t('students.contactFullNameRequired')),
+    relationship: z.string().trim().min(1, t('students.contactRelationshipRequired')),
+    phone: z.string().trim().min(1, t('students.contactPhoneRequired')),
+    alternatePhone: z.string(),
+    notes: z.string(),
+    primary: z.boolean(),
+  })
+}
 
-type ContactFormValues = z.infer<typeof contactFormSchema>
+type ContactFormValues = z.infer<ReturnType<typeof createContactFormSchema>>
 
 function emptyContactValues(): ContactFormValues {
   return {
@@ -212,12 +194,14 @@ function formValuesForContact(contact: StudentEmergencyContact): ContactFormValu
   }
 }
 
-const noteFormSchema = z.object({
-  noteType: z.enum(['PEDAGOGICAL', 'BEHAVIOR', 'INCIDENT', 'HEALTH', 'FAMILY_FOLLOW_UP', 'ADMINISTRATIVE']),
-  content: z.string().trim().min(1, 'El comentario no puede estar vacio.'),
-})
+function createNoteFormSchema(t: TFunction) {
+  return z.object({
+    noteType: z.enum(['PEDAGOGICAL', 'BEHAVIOR', 'INCIDENT', 'HEALTH', 'FAMILY_FOLLOW_UP', 'ADMINISTRATIVE']),
+    content: z.string().trim().min(1, t('students.noteContentRequired')),
+  })
+}
 
-type NoteFormValues = z.infer<typeof noteFormSchema>
+type NoteFormValues = z.infer<ReturnType<typeof createNoteFormSchema>>
 
 function emptyNoteValues(): NoteFormValues {
   return {
@@ -233,12 +217,12 @@ function formValuesForNote(note: StudentNote): NoteFormValues {
   }
 }
 
-function formatDateTime(value?: string) {
+function formatDateTime(value: string | undefined, locale: string) {
   if (!value) {
     return '-'
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
+  return new Intl.DateTimeFormat(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -251,12 +235,12 @@ function formatStudentName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim()
 }
 
-function formatDate(value?: string) {
+function formatDate(value: string | undefined, locale: string) {
   if (!value) {
     return '-'
   }
 
-  return new Intl.DateTimeFormat('es-MX', {
+  return new Intl.DateTimeFormat(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -264,6 +248,32 @@ function formatDate(value?: string) {
 }
 
 export function StudentsPage() {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage ?? 'es'
+  const noteTypeLabels: Record<StudentNoteType, string> = {
+    PEDAGOGICAL: t('students.noteTypePedagogical'),
+    BEHAVIOR: t('students.noteTypeBehavior'),
+    INCIDENT: t('students.noteTypeIncident'),
+    HEALTH: t('students.noteTypeHealth'),
+    FAMILY_FOLLOW_UP: t('students.noteTypeFamilyFollowUp'),
+    ADMINISTRATIVE: t('students.noteTypeAdministrative'),
+  }
+  const statusLabels: Record<StudentStatus, string> = {
+    active: t('students.statusActive'),
+    inactive: t('students.statusInactive'),
+    pending: t('students.statusPending'),
+    graduated: t('students.statusGraduated'),
+  }
+  const guardianRelationshipLabels: Record<StudentGuardianSummary['relationshipType'], string> = {
+    FATHER: t('students.relationFather'),
+    MOTHER: t('students.relationMother'),
+    GUARDIAN: t('students.relationGuardian'),
+    RELATIVE: t('students.relationRelative'),
+    OTHER: t('students.relationOther'),
+  }
+  const studentFormSchema = useMemo(() => createStudentFormSchema(t), [t])
+  const contactFormSchema = useMemo(() => createContactFormSchema(t), [t])
+  const noteFormSchema = useMemo(() => createNoteFormSchema(t), [t])
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
   const canViewDiscounts = useAuthStore((state) => state.hasAnyRole(financeRoles))
@@ -386,7 +396,7 @@ export function StudentsPage() {
     onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['students'] })
       setSuccessMessage(
-        variables.studentId ? 'Estudiante actualizado correctamente.' : 'Estudiante creado correctamente.',
+        variables.studentId ? t('students.updateSuccess') : t('students.createSuccess'),
       )
       setIsFormOpen(false)
       setEditingStudent(null)
@@ -420,7 +430,7 @@ export function StudentsPage() {
       request: StudentEmergencyContactRequest
     }) => {
       if (!contactsStudent) {
-        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+        return Promise.reject(new Error(t('students.noStudentSelectedError')))
       }
 
       return contactId
@@ -439,7 +449,7 @@ export function StudentsPage() {
   const deleteContactMutation = useMutation({
     mutationFn: (contactId: number) => {
       if (!contactsStudent) {
-        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+        return Promise.reject(new Error(t('students.noStudentSelectedError')))
       }
 
       return deleteStudentEmergencyContact(contactsStudent.studentId, contactId)
@@ -455,7 +465,7 @@ export function StudentsPage() {
   const saveNoteMutation = useMutation({
     mutationFn: ({ noteId, request }: { noteId?: number; request: StudentNoteRequest }) => {
       if (!contactsStudent) {
-        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+        return Promise.reject(new Error(t('students.noStudentSelectedError')))
       }
 
       return noteId
@@ -474,7 +484,7 @@ export function StudentsPage() {
   const deleteNoteMutation = useMutation({
     mutationFn: (noteId: number) => {
       if (!contactsStudent) {
-        return Promise.reject(new Error('No hay un estudiante seleccionado.'))
+        return Promise.reject(new Error(t('students.noStudentSelectedError')))
       }
 
       return deleteStudentNote(contactsStudent.studentId, noteId)
@@ -683,18 +693,18 @@ export function StudentsPage() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Estudiantes</h2>
-          <p>Administra la informacion de los estudiantes.</p>
+          <h2>{t('students.title')}</h2>
+          <p>{t('students.subtitle')}</p>
         </div>
         {canManage ? (
           <div className="page-heading-actions">
             <button className="secondary-button" onClick={openTrash} type="button">
               <Trash2 size={17} aria-hidden="true" />
-              Papelera
+              {t('common.trash')}
             </button>
             <button className="primary-button inline-button" onClick={openNewStudentForm} type="button">
               <Plus size={17} aria-hidden="true" />
-              Nuevo estudiante
+              {t('students.newStudent')}
             </button>
           </div>
         ) : null}
@@ -707,9 +717,7 @@ export function StudentsPage() {
       ) : null}
       {error ? (
         <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver la lista de estudiantes.'
-            : 'No se pudo cargar la lista de estudiantes.'}
+          {isForbiddenError(error) ? t('students.forbiddenList') : t('students.loadError')}
         </div>
       ) : null}
 
@@ -725,12 +733,12 @@ export function StudentsPage() {
           <header className="form-panel-heading">
             <div>
               <h3 id="student-form-title">
-                {editingStudent ? 'Editar estudiante' : 'Nuevo estudiante'}
+                {editingStudent ? t('students.editStudentTitle') : t('students.newStudentTitle')}
               </h3>
-              <p>Completa los datos administrativos basicos.</p>
+              <p>{t('students.formSubtitle')}</p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={saveStudentMutation.isPending}
               onClick={closeStudentForm}
@@ -742,24 +750,24 @@ export function StudentsPage() {
           <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
-                Nombre *
+                {t('students.firstNameLabel')}
                 <input maxLength={100} {...register('firstName')} />
                 {formErrors.firstName ? (
                   <span className="field-error">{formErrors.firstName.message}</span>
                 ) : null}
               </label>
               <label>
-                Apellidos *
+                {t('students.lastNameLabel')}
                 <input maxLength={100} {...register('lastName')} />
                 {formErrors.lastName ? <span className="field-error">{formErrors.lastName.message}</span> : null}
               </label>
               <label>
-                Codigo
+                {t('students.codeLabel')}
                 <input maxLength={50} readOnly {...register('studentCode')} />
-                <span className="field-hint">Se genera automaticamente.</span>
+                <span className="field-hint">{t('students.codeHint')}</span>
               </label>
               <label>
-                Estado
+                {t('students.statusLabel')}
                 <select {...register('status')}>
                   {Object.entries(statusLabels).map(([status, label]) => (
                     <option key={status} value={status}>
@@ -769,46 +777,46 @@ export function StudentsPage() {
                 </select>
               </label>
               <label>
-                Fecha de nacimiento *
+                {t('students.birthDateLabel')}
                 <input type="date" {...register('birthDate')} />
                 {formErrors.birthDate ? <span className="field-error">{formErrors.birthDate.message}</span> : null}
               </label>
               <label>
-                Fecha de ingreso *
+                {t('students.enrollmentDateLabel')}
                 <input type="date" {...register('enrollmentDate')} />
                 {formErrors.enrollmentDate ? (
                   <span className="field-error">{formErrors.enrollmentDate.message}</span>
                 ) : null}
               </label>
               <label>
-                Grupo
+                {t('students.groupLabel')}
                 <select {...register('groupId')}>
-                  <option value="">Sin grupo asignado</option>
+                  <option value="">{t('students.noGroupAssigned')}</option>
                   {formGroups.map(([groupId, groupName]) => (
                     <option key={groupId} value={groupId}>
                       {translateBackendSeed(groupName)}
                     </option>
                   ))}
                 </select>
-                <span className="field-hint">Se muestran los grupos ya presentes en estudiantes.</span>
+                <span className="field-hint">{t('students.groupsHint')}</span>
               </label>
               <label>
-                Fecha de baja
+                {t('students.withdrawalDateLabel')}
                 <input type="date" {...register('withdrawalDate')} />
                 {formErrors.withdrawalDate ? (
                   <span className="field-error">{formErrors.withdrawalDate.message}</span>
                 ) : null}
               </label>
               <label className="entity-form-wide">
-                Alergias
+                {t('students.allergiesLabel')}
                 <textarea rows={2} {...register('allergies')} />
               </label>
               <label className="entity-form-wide">
-                Notas medicas
+                {t('students.medicalNotesLabel')}
                 <textarea rows={2} {...register('medicalNotes')} />
               </label>
               <label className="entity-form-full">
-                Observaciones
+                {t('students.observationsLabel')}
                 <textarea rows={2} {...register('notes')} />
               </label>
             </div>
@@ -816,7 +824,7 @@ export function StudentsPage() {
               <p className="form-error" role="alert">
                 {saveStudentMutation.error instanceof Error
                   ? saveStudentMutation.error.message
-                  : 'No se pudo guardar el estudiante.'}
+                  : t('students.saveStudentError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -826,14 +834,14 @@ export function StudentsPage() {
                 onClick={closeStudentForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={saveStudentMutation.isPending} type="submit">
                 {saveStudentMutation.isPending
-                  ? 'Guardando...'
+                  ? t('common.saving')
                   : editingStudent
-                    ? 'Guardar cambios'
-                    : 'Crear estudiante'}
+                    ? t('students.saveChanges')
+                    : t('students.createStudent')}
               </button>
             </footer>
           </form>
@@ -843,7 +851,7 @@ export function StudentsPage() {
 
       {isTrashOpen ? (
         <TrashPanel
-          emptyMessage="No hay estudiantes eliminados recientemente."
+          emptyMessage={t('students.deletedRecentlyEmpty')}
           getDeletedAt={(student) => student.deletedAt}
           getId={(student) => student.studentId}
           getLabel={(student) => formatStudentName(student.firstName, student.lastName)}
@@ -852,7 +860,7 @@ export function StudentsPage() {
           onClose={closeTrash}
           onRestore={(student) => restoreStudentMutation.mutate(student.studentId)}
           restoringId={restoreStudentMutation.isPending ? restoreStudentMutation.variables : null}
-          title="Estudiantes eliminados"
+          title={t('students.deletedStudentsTitle')}
         />
       ) : null}
 
@@ -870,24 +878,24 @@ export function StudentsPage() {
               <h3 id="emergency-contacts-title">
                 {contactFormOpen
                   ? editingContact
-                    ? 'Editar contacto de emergencia'
-                    : 'Nuevo contacto de emergencia'
+                    ? t('students.editContactTitle')
+                    : t('students.newContactTitle')
                   : noteFormOpen
                     ? editingNote
-                      ? 'Editar comentario'
-                      : 'Nuevo comentario'
+                      ? t('students.editNoteTitle')
+                      : t('students.newNoteTitle')
                     : formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}
               </h3>
               {!contactFormOpen && !noteFormOpen ? (
                 <p className="profile-summary">
-                  {contactsStudent.groupName ? translateBackendSeed(contactsStudent.groupName) : 'Sin grupo'}
+                  {contactsStudent.groupName ? translateBackendSeed(contactsStudent.groupName) : t('students.noGroup')}
                   {' · '}
-                  Nacimiento: {formatDate(contactsStudent.birthDate)}
+                  {t('students.birthLabel')}: {formatDate(contactsStudent.birthDate, locale)}
                 </p>
               ) : null}
             </div>
             <button
-              aria-label="Cerrar"
+              aria-label={t('common.close')}
               className="icon-button"
               onClick={closeContactsPanel}
               type="button"
@@ -900,12 +908,12 @@ export function StudentsPage() {
             <div className="profile-summary">
               {contactsStudent.allergies ? (
                 <p>
-                  <strong>Alergias:</strong> {contactsStudent.allergies}
+                  <strong>{t('students.allergiesColon')}</strong> {contactsStudent.allergies}
                 </p>
               ) : null}
               {contactsStudent.medicalNotes ? (
                 <p>
-                  <strong>Notas medicas:</strong> {contactsStudent.medicalNotes}
+                  <strong>{t('students.medicalNotesColon')}</strong> {contactsStudent.medicalNotes}
                 </p>
               ) : null}
             </div>
@@ -919,7 +927,7 @@ export function StudentsPage() {
                 type="button"
               >
                 <Percent size={16} aria-hidden="true" />
-                Descuentos
+                {t('students.discountsButton')}
               </button>
             </div>
           ) : null}
@@ -928,42 +936,46 @@ export function StudentsPage() {
             <form className="entity-form" onSubmit={onContactSubmit}>
               <div className="entity-form-grid">
                 <label>
-                  Nombre completo *
+                  {t('students.fullNameLabel')}
                   <input maxLength={150} {...registerContact('fullName')} />
                   {contactErrors.fullName ? (
                     <span className="field-error">{contactErrors.fullName.message}</span>
                   ) : null}
                 </label>
                 <label>
-                  Relacion *
-                  <input maxLength={100} placeholder="Abuela, tio, vecino..." {...registerContact('relationship')} />
+                  {t('students.relationshipLabel')}
+                  <input
+                    maxLength={100}
+                    placeholder={t('students.relationshipPlaceholder')}
+                    {...registerContact('relationship')}
+                  />
                   {contactErrors.relationship ? (
                     <span className="field-error">{contactErrors.relationship.message}</span>
                   ) : null}
                 </label>
                 <label>
-                  Telefono *
+                  {t('students.phoneLabel')}
                   <input maxLength={30} {...registerContact('phone')} />
                   {contactErrors.phone ? <span className="field-error">{contactErrors.phone.message}</span> : null}
                 </label>
                 <label>
-                  Telefono alternativo
+                  {t('students.alternatePhoneLabel')}
                   <input maxLength={30} {...registerContact('alternatePhone')} />
                 </label>
                 <label className="entity-form-full">
-                  Notas
+                  {t('students.notesLabel')}
                   <textarea rows={2} {...registerContact('notes')} />
                 </label>
                 <label className="checkbox-field entity-form-full">
                   <input type="checkbox" {...registerContact('primary')} />
-                  Contacto principal
+                  {t('students.primaryContactLabel')}
                 </label>
               </div>
               {saveContactMutation.error ? (
                 <p className="form-error" role="alert">
                   {saveContactMutation.error instanceof Error
                     ? saveContactMutation.error.message
-                    : 'No se pudo guardar el contacto.'}
+                    : t('students.saveContactError')}
                 </p>
               ) : null}
               <footer className="form-actions">
@@ -973,14 +985,14 @@ export function StudentsPage() {
                   onClick={closeContactForm}
                   type="button"
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
                 <button className="primary-button" disabled={saveContactMutation.isPending} type="submit">
                   {saveContactMutation.isPending
-                    ? 'Guardando...'
+                    ? t('common.saving')
                     : editingContact
-                      ? 'Guardar cambios'
-                      : 'Agregar contacto'}
+                      ? t('students.saveChanges')
+                      : t('students.addContact')}
                 </button>
               </footer>
             </form>
@@ -988,7 +1000,7 @@ export function StudentsPage() {
             <form className="entity-form" onSubmit={onNoteSubmit}>
               <div className="entity-form-grid">
                 <label>
-                  Tipo *
+                  {t('students.typeLabel')}
                   <select {...registerNote('noteType')}>
                     {Object.entries(noteTypeLabels).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -998,7 +1010,7 @@ export function StudentsPage() {
                   </select>
                 </label>
                 <label className="entity-form-full">
-                  Comentario *
+                  {t('students.commentLabel')}
                   <textarea rows={4} {...registerNote('content')} />
                   {noteErrors.content ? <span className="field-error">{noteErrors.content.message}</span> : null}
                 </label>
@@ -1007,7 +1019,7 @@ export function StudentsPage() {
                 <p className="form-error" role="alert">
                   {saveNoteMutation.error instanceof Error
                     ? saveNoteMutation.error.message
-                    : 'No se pudo guardar el comentario.'}
+                    : t('students.saveNoteError')}
                 </p>
               ) : null}
               <footer className="form-actions">
@@ -1017,14 +1029,14 @@ export function StudentsPage() {
                   onClick={closeNoteForm}
                   type="button"
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
                 <button className="primary-button" disabled={saveNoteMutation.isPending} type="submit">
                   {saveNoteMutation.isPending
-                    ? 'Guardando...'
+                    ? t('common.saving')
                     : editingNote
-                      ? 'Guardar cambios'
-                      : 'Agregar comentario'}
+                      ? t('students.saveChanges')
+                      : t('students.addComment')}
                 </button>
               </footer>
             </form>
@@ -1033,42 +1045,44 @@ export function StudentsPage() {
               <div className="panel-actions-row">
                 <button className="secondary-button inline-button" onClick={openNewContactForm} type="button">
                   <Plus size={16} aria-hidden="true" />
-                  Agregar contacto
+                  {t('students.addContact')}
                 </button>
               </div>
               {sortedGuardians.length > 0 ? (
                 <>
-                  <p className="panel-section-label">Tutores legales</p>
+                  <p className="panel-section-label">{t('students.legalGuardiansTitle')}</p>
                   <ul className="contact-list">
                     {sortedGuardians.map((guardian) => (
                       <li className="contact-item" key={guardian.parentId}>
                         <div className="contact-item-header">
                           <span className="contact-item-title">
                             <strong>{guardian.parentName}</strong>
-                            {guardian.primaryContact ? <span className="status-badge">Principal</span> : null}
+                            {guardian.primaryContact ? (
+                              <span className="status-badge">{t('students.primaryBadge')}</span>
+                            ) : null}
                           </span>
                         </div>
                         <p className="field-hint">{guardianRelationshipLabels[guardian.relationshipType]}</p>
                         <p className="field-hint">
-                          Tel: {guardian.phone ?? 'Sin telefono'}
+                          {t('students.phonePrefix')} {guardian.phone ?? t('students.noPhone')}
                           {guardian.email ? ` / ${guardian.email}` : ''}
                         </p>
                       </li>
                     ))}
                   </ul>
-                  <p className="panel-section-label">Contactos adicionales</p>
+                  <p className="panel-section-label">{t('students.additionalContactsTitle')}</p>
                 </>
               ) : null}
               {contactsError ? (
                 <p className="notice">
                   {isForbiddenError(contactsError)
-                    ? 'No tienes permiso para ver los contactos de emergencia.'
-                    : 'No se pudieron cargar los contactos de emergencia.'}
+                    ? t('students.forbiddenContacts')
+                    : t('students.loadContactsError')}
                 </p>
               ) : null}
-              {isContactsLoading ? <p>Cargando...</p> : null}
+              {isContactsLoading ? <p>{t('common.loading')}</p> : null}
               {!isContactsLoading && !contactsError && contacts.length === 0 ? (
-                <p>Sin contactos de emergencia registrados.</p>
+                <p>{t('students.emptyContacts')}</p>
               ) : null}
               {!isContactsLoading && contacts.length > 0 ? (
                 <ul className="contact-list">
@@ -1077,15 +1091,15 @@ export function StudentsPage() {
                       <div className="contact-item-header">
                         <span className="contact-item-title">
                           <strong>{contact.fullName}</strong>
-                          {contact.primary ? <span className="status-badge">Principal</span> : null}
+                          {contact.primary ? <span className="status-badge">{t('students.primaryBadge')}</span> : null}
                         </span>
                         <div className="row-actions">
-                          <button onClick={() => openEditContactForm(contact)} title="Editar" type="button">
+                          <button onClick={() => openEditContactForm(contact)} title={t('common.edit')} type="button">
                             <Pencil size={16} aria-hidden="true" />
                           </button>
                           <button
                             onClick={() => setDeleteContactTarget(contact)}
-                            title="Eliminar"
+                            title={t('common.delete')}
                             type="button"
                           >
                             <Trash2 size={16} aria-hidden="true" />
@@ -1094,7 +1108,7 @@ export function StudentsPage() {
                       </div>
                       <p className="field-hint">{contact.relationship}</p>
                       <p className="field-hint">
-                        Tel: {contact.phone}
+                        {t('students.phonePrefix')} {contact.phone}
                         {contact.alternatePhone ? ` / ${contact.alternatePhone}` : ''}
                       </p>
                       {contact.notes ? <p className="field-hint">{contact.notes}</p> : null}
@@ -1102,23 +1116,21 @@ export function StudentsPage() {
                   ))}
                 </ul>
               ) : null}
-              <p className="panel-section-label">Comentarios</p>
+              <p className="panel-section-label">{t('students.commentsTitle')}</p>
               <div className="panel-actions-row">
                 <button className="secondary-button inline-button" onClick={openNewNoteForm} type="button">
                   <Plus size={16} aria-hidden="true" />
-                  Agregar comentario
+                  {t('students.addComment')}
                 </button>
               </div>
               {notesError ? (
                 <p className="notice">
-                  {isForbiddenError(notesError)
-                    ? 'No tienes permiso para ver los comentarios.'
-                    : 'No se pudieron cargar los comentarios.'}
+                  {isForbiddenError(notesError) ? t('students.forbiddenComments') : t('students.loadCommentsError')}
                 </p>
               ) : null}
-              {isNotesLoading ? <p>Cargando...</p> : null}
+              {isNotesLoading ? <p>{t('common.loading')}</p> : null}
               {!isNotesLoading && !notesError && sortedNotes.length === 0 ? (
-                <p>Sin comentarios registrados.</p>
+                <p>{t('students.emptyComments')}</p>
               ) : null}
               {!isNotesLoading && sortedNotes.length > 0 ? (
                 <ul className="contact-list">
@@ -1127,13 +1139,13 @@ export function StudentsPage() {
                       <div className="contact-item-header">
                         <span className="contact-item-title">
                           <strong>{noteTypeLabels[note.noteType]}</strong>
-                          <span className="field-hint">{formatDateTime(note.createdAt)}</span>
+                          <span className="field-hint">{formatDateTime(note.createdAt, locale)}</span>
                         </span>
                         <div className="row-actions">
-                          <button onClick={() => openEditNoteForm(note)} title="Editar" type="button">
+                          <button onClick={() => openEditNoteForm(note)} title={t('common.edit')} type="button">
                             <Pencil size={16} aria-hidden="true" />
                           </button>
-                          <button onClick={() => setDeleteNoteTarget(note)} title="Eliminar" type="button">
+                          <button onClick={() => setDeleteNoteTarget(note)} title={t('common.delete')} type="button">
                             <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </div>
@@ -1150,22 +1162,22 @@ export function StudentsPage() {
         </div>
       ) : null}
 
-      <section className="filters-row" aria-label="Filtros de estudiantes">
+      <section className="filters-row" aria-label={t('students.filtersAriaLabel')}>
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
           <input
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar estudiante..."
+            placeholder={t('students.searchPlaceholder')}
             type="search"
             value={search}
           />
         </label>
         <select
-          aria-label="Grupo"
+          aria-label={t('students.groupAriaLabel')}
           onChange={(event) => setGroupFilter(event.target.value)}
           value={groupFilter}
         >
-          <option value="all">Todos los grupos</option>
+          <option value="all">{t('students.allGroups')}</option>
           {formGroups.map(([groupId, groupName]) => (
             <option key={groupId} value={groupId}>
               {translateBackendSeed(groupName)}
@@ -1173,11 +1185,11 @@ export function StudentsPage() {
           ))}
         </select>
         <select
-          aria-label="Estado"
+          aria-label={t('students.statusAriaLabel')}
           onChange={(event) => setStatusFilter(event.target.value as StudentStatus | 'ALL')}
           value={statusFilter}
         >
-          <option value="ALL">Todos los estados</option>
+          <option value="ALL">{t('students.allStatuses')}</option>
           {Object.entries(statusLabels).map(([status, label]) => (
             <option key={status} value={status}>
               {label}
@@ -1186,7 +1198,7 @@ export function StudentsPage() {
         </select>
         <button className="secondary-button" type="button">
           <ListFilter size={17} aria-hidden="true" />
-          Filtros
+          {t('common.filters')}
         </button>
       </section>
 
@@ -1194,13 +1206,13 @@ export function StudentsPage() {
         <table>
           <thead>
             <tr>
-              <th>Foto</th>
-              <th>Nombre</th>
-              <th>Fecha de nacimiento</th>
-              <th>Grupo</th>
-              <th>Padre / Tutor</th>
-              <th>Estado</th>
-              <th>Acciones</th>
+              <th>{t('students.colPhoto')}</th>
+              <th>{t('students.colName')}</th>
+              <th>{t('students.colBirthDate')}</th>
+              <th>{t('students.colGroup')}</th>
+              <th>{t('students.colGuardian')}</th>
+              <th>{t('students.colStatus')}</th>
+              <th>{t('students.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1219,11 +1231,11 @@ export function StudentsPage() {
                     </span>
                   </td>
                   <td>{formatStudentName(student.firstName, student.lastName)}</td>
-                  <td>{formatDate(student.birthDate)}</td>
+                  <td>{formatDate(student.birthDate, locale)}</td>
                   <td>
                     {student.groupName ? translateBackendSeed(student.groupName) : student.groupId ?? '-'}
                   </td>
-                  <td>{student.primaryGuardianName ?? 'Sin tutor principal'}</td>
+                  <td>{student.primaryGuardianName ?? t('students.noPrimaryGuardian')}</td>
                   <td>
                     <span
                       className={
@@ -1239,17 +1251,17 @@ export function StudentsPage() {
                     <div className="row-actions">
                       <button
                         onClick={() => openContactsPanel(student)}
-                        title="Ver contactos de emergencia"
+                        title={t('students.viewContactsTitle')}
                         type="button"
                       >
                         <Eye size={16} aria-hidden="true" />
                       </button>
                       {canManage ? (
                         <>
-                          <button onClick={() => openEditStudentForm(student)} title="Editar" type="button">
+                          <button onClick={() => openEditStudentForm(student)} title={t('common.edit')} type="button">
                             <Pencil size={16} aria-hidden="true" />
                           </button>
-                          <button onClick={() => openDeleteConfirm(student)} title="Eliminar" type="button">
+                          <button onClick={() => openDeleteConfirm(student)} title={t('common.delete')} type="button">
                             <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </>
@@ -1261,7 +1273,7 @@ export function StudentsPage() {
             })}
             {!isLoading && students.length === 0 ? (
               <tr>
-                <td colSpan={7}>Sin estudiantes para mostrar.</td>
+                <td colSpan={7}>{t('students.emptyTable')}</td>
               </tr>
             ) : null}
           </tbody>
@@ -1269,12 +1281,12 @@ export function StudentsPage() {
         <footer className="table-footer">
           <span>
             {students.length === 0
-              ? 'Mostrando 0 estudiantes'
-              : `Mostrando ${rangeStart}-${rangeEnd} de ${students.length} estudiantes`}
+              ? t('students.showingZero')
+              : t('students.showingRange', { start: rangeStart, end: rangeEnd, total: students.length })}
           </span>
           <div className="pagination">
             <button
-              aria-label="Pagina anterior"
+              aria-label={t('common.previousPage')}
               disabled={safePage <= 1}
               onClick={() => setPage(safePage - 1)}
               type="button"
@@ -1292,7 +1304,7 @@ export function StudentsPage() {
               </button>
             ))}
             <button
-              aria-label="Pagina siguiente"
+              aria-label={t('common.nextPage')}
               disabled={safePage >= totalPages}
               onClick={() => setPage(safePage + 1)}
               type="button"
@@ -1304,13 +1316,17 @@ export function StudentsPage() {
       </div>
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        cancelLabel={t('common.cancel')}
+        confirmLabel={deleteStep === 1 ? t('common.continue') : t('common.confirmDelete')}
         description={
           deleteTarget
             ? deleteStep === 1
-              ? `Se eliminara a ${formatStudentName(deleteTarget.firstName, deleteTarget.lastName)}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
-              : `Confirma que quieres eliminar a ${formatStudentName(deleteTarget.firstName, deleteTarget.lastName)} ahora.`
+              ? t('students.deleteConfirmStep1', {
+                  name: formatStudentName(deleteTarget.firstName, deleteTarget.lastName),
+                })
+              : t('students.deleteConfirmStep2', {
+                  name: formatStudentName(deleteTarget.firstName, deleteTarget.lastName),
+                })
             : ''
         }
         isConfirming={deleteStudentMutation.isPending}
@@ -1326,16 +1342,16 @@ export function StudentsPage() {
           }
         }}
         open={deleteTarget !== null}
-        title={deleteStep === 1 ? 'Eliminar a este estudiante?' : 'Confirmar eliminacion'}
+        title={deleteStep === 1 ? t('students.deleteConfirmTitle') : t('common.confirmDeleteTitle')}
         variant="danger"
       />
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel="Si, eliminar"
+        cancelLabel={t('common.cancel')}
+        confirmLabel={t('common.confirmDelete')}
         description={
           deleteContactTarget
-            ? `Se eliminara el contacto ${deleteContactTarget.fullName}. Esta accion no se puede deshacer.`
+            ? t('students.deleteContactConfirmDescription', { name: deleteContactTarget.fullName })
             : ''
         }
         isConfirming={deleteContactMutation.isPending}
@@ -1346,14 +1362,14 @@ export function StudentsPage() {
           }
         }}
         open={deleteContactTarget !== null}
-        title="Eliminar contacto de emergencia?"
+        title={t('students.deleteContactConfirmTitle')}
         variant="danger"
       />
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel="Si, eliminar"
-        description="Se eliminara este comentario. Esta accion no se puede deshacer."
+        cancelLabel={t('common.cancel')}
+        confirmLabel={t('common.confirmDelete')}
+        description={t('students.deleteNoteConfirmDescription')}
         isConfirming={deleteNoteMutation.isPending}
         onCancel={() => setDeleteNoteTarget(null)}
         onConfirm={() => {
@@ -1362,14 +1378,16 @@ export function StudentsPage() {
           }
         }}
         open={deleteNoteTarget !== null}
-        title="Eliminar este comentario?"
+        title={t('students.deleteNoteConfirmTitle')}
         variant="danger"
       />
 
       {deletedStudent ? (
         <UndoToast
           isActing={restoreStudentMutation.isPending}
-          message={`${formatStudentName(deletedStudent.firstName, deletedStudent.lastName)} fue eliminado.`}
+          message={t('students.deletedToast', {
+            name: formatStudentName(deletedStudent.firstName, deletedStudent.lastName),
+          })}
           onAction={() => restoreStudentMutation.mutate(deletedStudent.studentId)}
           onDismiss={() => setDeletedStudent(null)}
         />

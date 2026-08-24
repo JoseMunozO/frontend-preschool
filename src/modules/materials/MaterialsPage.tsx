@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { ArrowLeftRight, Eye, ListFilter, PackagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import {
@@ -31,33 +33,24 @@ const UNDO_WINDOW_MS = 8000
 
 const emptyMaterials: MaterialItem[] = []
 
-const statusLabels: Record<MaterialStatus, string> = {
-  ACTIVE: 'Activo',
-  ARCHIVED: 'Archivado',
+function createMaterialFormSchema(t: TFunction) {
+  return z.object({
+    sku: z.string(),
+    name: z.string().trim().min(1, t('materials.nameRequired')),
+    category: z.string(),
+    unit: z.string(),
+    quantityOnHand: z
+      .string()
+      .refine((value) => value.trim() !== '' && Number(value) >= 0, t('materials.quantityInvalid')),
+    minimumQuantity: z
+      .string()
+      .refine((value) => value.trim() !== '' && Number(value) >= 0, t('materials.minimumInvalid')),
+    status: z.enum(['ACTIVE', 'ARCHIVED']),
+    notes: z.string(),
+  })
 }
 
-const movementTypeLabels: Record<MaterialMovementType, string> = {
-  IN: 'Entrada',
-  OUT: 'Salida',
-  ADJUSTMENT: 'Ajuste por conteo',
-}
-
-const materialFormSchema = z.object({
-  sku: z.string(),
-  name: z.string().trim().min(1, 'El nombre es obligatorio.'),
-  category: z.string(),
-  unit: z.string(),
-  quantityOnHand: z
-    .string()
-    .refine((value) => value.trim() !== '' && Number(value) >= 0, 'Indica una cantidad valida (0 o mayor).'),
-  minimumQuantity: z
-    .string()
-    .refine((value) => value.trim() !== '' && Number(value) >= 0, 'Indica un minimo valido (0 o mayor).'),
-  status: z.enum(['ACTIVE', 'ARCHIVED']),
-  notes: z.string(),
-})
-
-type MaterialFormValues = z.infer<typeof materialFormSchema>
+type MaterialFormValues = z.infer<ReturnType<typeof createMaterialFormSchema>>
 
 function emptyFormValues(): MaterialFormValues {
   return {
@@ -90,15 +83,17 @@ function optionalValue(value: string) {
   return trimmedValue || undefined
 }
 
-const movementFormSchema = z.object({
-  movementType: z.enum(['IN', 'OUT', 'ADJUSTMENT']),
-  quantity: z
-    .string()
-    .refine((value) => value.trim() !== '' && Number(value) >= 1, 'Indica una cantidad valida (1 o mayor).'),
-  notes: z.string(),
-})
+function createMovementFormSchema(t: TFunction) {
+  return z.object({
+    movementType: z.enum(['IN', 'OUT', 'ADJUSTMENT']),
+    quantity: z
+      .string()
+      .refine((value) => value.trim() !== '' && Number(value) >= 1, t('materials.movementQuantityInvalid')),
+    notes: z.string(),
+  })
+}
 
-type MovementFormValues = z.infer<typeof movementFormSchema>
+type MovementFormValues = z.infer<ReturnType<typeof createMovementFormSchema>>
 
 function emptyMovementValues(): MovementFormValues {
   return {
@@ -109,8 +104,20 @@ function emptyMovementValues(): MovementFormValues {
 }
 
 export function MaterialsPage() {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
+  const statusLabels: Record<MaterialStatus, string> = {
+    ACTIVE: t('materials.statusActive'),
+    ARCHIVED: t('materials.statusArchived'),
+  }
+  const movementTypeLabels: Record<MaterialMovementType, string> = {
+    IN: t('materials.movementIn'),
+    OUT: t('materials.movementOut'),
+    ADJUSTMENT: t('materials.movementAdjustment'),
+  }
+  const materialFormSchema = useMemo(() => createMaterialFormSchema(t), [t])
+  const movementFormSchema = useMemo(() => createMovementFormSchema(t), [t])
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all')
@@ -170,7 +177,7 @@ export function MaterialsPage() {
     onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['materials'] })
       setSuccessMessage(
-        variables.materialId ? 'Material actualizado correctamente.' : 'Material creado correctamente.',
+        variables.materialId ? t('materials.updateSuccess') : t('materials.createSuccess'),
       )
       setIsFormOpen(false)
       setEditingMaterial(null)
@@ -182,7 +189,7 @@ export function MaterialsPage() {
       createMaterialMovement(materialId, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['materials'] })
-      setSuccessMessage('Movimiento registrado correctamente.')
+      setSuccessMessage(t('materials.movementSuccess'))
       setMovementMaterial(null)
       resetMovement(emptyMovementValues())
     },
@@ -328,18 +335,18 @@ export function MaterialsPage() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Material Escolar</h2>
-          <p>Administra inventario, stock minimo y necesidades de reposicion.</p>
+          <h2>{t('materials.title')}</h2>
+          <p>{t('materials.subtitle')}</p>
         </div>
         {canManage ? (
           <div className="page-heading-actions">
             <button className="secondary-button" onClick={openTrash} type="button">
               <Trash2 size={17} aria-hidden="true" />
-              Papelera
+              {t('common.trash')}
             </button>
             <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
               <Plus size={17} aria-hidden="true" />
-              Nuevo material
+              {t('materials.newMaterial')}
             </button>
           </div>
         ) : null}
@@ -352,9 +359,7 @@ export function MaterialsPage() {
       ) : null}
       {error ? (
         <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver la lista de materiales.'
-            : 'No se pudo cargar la lista de materiales.'}
+          {isForbiddenError(error) ? t('materials.forbiddenList') : t('materials.loadError')}
         </div>
       ) : null}
 
@@ -369,11 +374,13 @@ export function MaterialsPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="material-form-title">{editingMaterial ? 'Editar material' : 'Nuevo material'}</h3>
-              <p>Completa los datos del inventario.</p>
+              <h3 id="material-form-title">
+                {editingMaterial ? t('materials.editMaterial') : t('materials.newMaterial')}
+              </h3>
+              <p>{t('materials.completeInventoryData')}</p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={saveMaterialMutation.isPending}
               onClick={closeMaterialForm}
@@ -385,38 +392,38 @@ export function MaterialsPage() {
           <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
-                Nombre *
+                {t('materials.nameLabel')}
                 <input maxLength={150} {...register('name')} />
                 {formErrors.name ? <span className="field-error">{formErrors.name.message}</span> : null}
               </label>
               <label>
-                SKU
+                {t('materials.skuLabel')}
                 <input maxLength={50} {...register('sku')} />
               </label>
               <label>
-                Categoria
+                {t('materials.categoryLabel')}
                 <input maxLength={100} {...register('category')} />
               </label>
               <label>
-                Unidad
-                <input maxLength={50} placeholder="unidad, litro, paquete..." {...register('unit')} />
+                {t('materials.unitLabel')}
+                <input maxLength={50} placeholder={t('materials.unitPlaceholder')} {...register('unit')} />
               </label>
               <label>
-                Cantidad actual *
+                {t('materials.currentQuantityLabel')}
                 <input min={0} type="number" {...register('quantityOnHand')} />
                 {formErrors.quantityOnHand ? (
                   <span className="field-error">{formErrors.quantityOnHand.message}</span>
                 ) : null}
               </label>
               <label>
-                Cantidad minima *
+                {t('materials.minimumQuantityLabel')}
                 <input min={0} type="number" {...register('minimumQuantity')} />
                 {formErrors.minimumQuantity ? (
                   <span className="field-error">{formErrors.minimumQuantity.message}</span>
                 ) : null}
               </label>
               <label>
-                Estado
+                {t('materials.statusLabel')}
                 <select {...register('status')}>
                   {Object.entries(statusLabels).map(([status, label]) => (
                     <option key={status} value={status}>
@@ -426,7 +433,7 @@ export function MaterialsPage() {
                 </select>
               </label>
               <label className="entity-form-full">
-                Notas
+                {t('materials.notesLabel')}
                 <textarea rows={2} {...register('notes')} />
               </label>
             </div>
@@ -434,7 +441,7 @@ export function MaterialsPage() {
               <p className="form-error" role="alert">
                 {saveMaterialMutation.error instanceof Error
                   ? saveMaterialMutation.error.message
-                  : 'No se pudo guardar el material.'}
+                  : t('materials.saveMaterialError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -444,14 +451,14 @@ export function MaterialsPage() {
                 onClick={closeMaterialForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={saveMaterialMutation.isPending} type="submit">
                 {saveMaterialMutation.isPending
-                  ? 'Guardando...'
+                  ? t('common.saving')
                   : editingMaterial
-                    ? 'Guardar cambios'
-                    : 'Crear material'}
+                    ? t('materials.saveChanges')
+                    : t('materials.createMaterial')}
               </button>
             </footer>
           </form>
@@ -470,11 +477,16 @@ export function MaterialsPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="movement-form-title">Registrar movimiento</h3>
-              <p>{translateBackendSeed(movementMaterial.name)} - existencia actual: {movementMaterial.quantityOnHand}</p>
+              <h3 id="movement-form-title">{t('materials.registerMovement')}</h3>
+              <p>
+                {t('materials.movementSubtitle', {
+                  name: translateBackendSeed(movementMaterial.name),
+                  quantity: movementMaterial.quantityOnHand,
+                })}
+              </p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={movementMutation.isPending}
               onClick={closeMovementForm}
@@ -486,7 +498,7 @@ export function MaterialsPage() {
           <form className="entity-form" onSubmit={onMovementSubmit}>
             <div className="entity-form-grid">
               <label>
-                Tipo de movimiento
+                {t('materials.movementTypeLabel')}
                 <select {...registerMovement('movementType')}>
                   {Object.entries(movementTypeLabels).map(([type, label]) => (
                     <option key={type} value={type}>
@@ -496,14 +508,14 @@ export function MaterialsPage() {
                 </select>
               </label>
               <label>
-                Cantidad *
+                {t('materials.quantityLabel')}
                 <input min={1} type="number" {...registerMovement('quantity')} />
                 {movementErrors.quantity ? (
                   <span className="field-error">{movementErrors.quantity.message}</span>
                 ) : null}
               </label>
               <label className="entity-form-full">
-                Comentario
+                {t('materials.commentLabel')}
                 <textarea rows={2} {...registerMovement('notes')} />
               </label>
             </div>
@@ -511,7 +523,7 @@ export function MaterialsPage() {
               <p className="form-error" role="alert">
                 {movementMutation.error instanceof Error
                   ? movementMutation.error.message
-                  : 'No se pudo registrar el movimiento.'}
+                  : t('materials.movementError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -521,10 +533,10 @@ export function MaterialsPage() {
                 onClick={closeMovementForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={movementMutation.isPending} type="submit">
-                {movementMutation.isPending ? 'Guardando...' : 'Registrar movimiento'}
+                {movementMutation.isPending ? t('common.saving') : t('materials.registerMovement')}
               </button>
             </footer>
           </form>
@@ -534,7 +546,7 @@ export function MaterialsPage() {
 
       {isTrashOpen ? (
         <TrashPanel
-          emptyMessage="No hay materiales eliminados recientemente."
+          emptyMessage={t('materials.deletedRecentlyEmpty')}
           getDeletedAt={(material) => material.deletedAt}
           getId={(material) => material.materialId}
           getLabel={(material) => translateBackendSeed(material.name) ?? material.name}
@@ -543,26 +555,26 @@ export function MaterialsPage() {
           onClose={closeTrash}
           onRestore={(material) => restoreMaterialMutation.mutate(material.materialId)}
           restoringId={restoreMaterialMutation.isPending ? restoreMaterialMutation.variables : null}
-          title="Materiales eliminados"
+          title={t('materials.deletedMaterialsTitle')}
         />
       ) : null}
 
-      <section className="filters-row filters-row-materials" aria-label="Filtros de materiales">
+      <section className="filters-row filters-row-materials" aria-label={t('materials.filtersAriaLabel')}>
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
           <input
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar material..."
+            placeholder={t('materials.searchPlaceholder')}
             type="search"
             value={search}
           />
         </label>
         <select
-          aria-label="Categoria"
+          aria-label={t('materials.categoryLabel')}
           onChange={(event) => setCategoryFilter(event.target.value)}
           value={categoryFilter}
         >
-          <option value="all">Todas las categorias</option>
+          <option value="all">{t('materials.allCategories')}</option>
           {categories.map((category) => (
             <option key={category} value={category}>
               {translateBackendSeed(category)}
@@ -570,16 +582,16 @@ export function MaterialsPage() {
           ))}
         </select>
         <select
-          aria-label="Stock"
+          aria-label={t('materials.stockAriaLabel')}
           onChange={(event) => setStockFilter(event.target.value as 'all' | 'low')}
           value={stockFilter}
         >
-          <option value="all">Todo el inventario</option>
-          <option value="low">Stock bajo</option>
+          <option value="all">{t('materials.allInventory')}</option>
+          <option value="low">{t('materials.lowStock')}</option>
         </select>
         <button className="secondary-button" type="button">
           <ListFilter size={17} aria-hidden="true" />
-          Filtros
+          {t('common.filters')}
         </button>
       </section>
 
@@ -587,14 +599,14 @@ export function MaterialsPage() {
         <table>
           <thead>
             <tr>
-              <th>Material</th>
-              <th>SKU</th>
-              <th>Categoria</th>
-              <th>Cantidad</th>
-              <th>Minimo</th>
-              <th>Unidad</th>
-              <th>Estado</th>
-              <th>Acciones</th>
+              <th>{t('materials.colMaterial')}</th>
+              <th>{t('materials.skuLabel')}</th>
+              <th>{t('materials.colCategory')}</th>
+              <th>{t('materials.colQuantity')}</th>
+              <th>{t('materials.colMinimum')}</th>
+              <th>{t('materials.colUnit')}</th>
+              <th>{t('materials.colStatus')}</th>
+              <th>{t('materials.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -623,24 +635,32 @@ export function MaterialsPage() {
                           : 'status-badge'
                     }
                   >
-                    {material.lowStock ? 'Stock bajo' : statusLabels[material.status]}
+                    {material.lowStock ? t('materials.lowStock') : statusLabels[material.status]}
                   </span>
                 </td>
                 <td>
                   <div className="row-actions">
-                    <button title="Ver" type="button">
+                    <button title={t('common.view')} type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
                     {canManage ? (
-                      <button onClick={() => openEditMaterialForm(material)} title="Editar" type="button">
+                      <button onClick={() => openEditMaterialForm(material)} title={t('common.edit')} type="button">
                         <Pencil size={16} aria-hidden="true" />
                       </button>
                     ) : null}
-                    <button onClick={() => openMovementForm(material)} title="Registrar movimiento" type="button">
+                    <button
+                      onClick={() => openMovementForm(material)}
+                      title={t('materials.registerMovement')}
+                      type="button"
+                    >
                       <ArrowLeftRight size={16} aria-hidden="true" />
                     </button>
                     {canManage ? (
-                      <button onClick={() => openDeleteConfirm(material)} title="Eliminar" type="button">
+                      <button
+                        onClick={() => openDeleteConfirm(material)}
+                        title={t('common.delete')}
+                        type="button"
+                      >
                         <Trash2 size={16} aria-hidden="true" />
                       </button>
                     ) : null}
@@ -650,23 +670,23 @@ export function MaterialsPage() {
             ))}
             {!isLoading && filteredMaterials.length === 0 ? (
               <tr>
-                <td colSpan={8}>Sin materiales para mostrar.</td>
+                <td colSpan={8}>{t('materials.emptyTable')}</td>
               </tr>
             ) : null}
           </tbody>
         </table>
         <footer className="table-footer">
           <span>
-            Mostrando {filteredMaterials.length} de {materials.length} materiales
+            {t('materials.showingCount', { filtered: filteredMaterials.length, total: materials.length })}
           </span>
           <div className="pagination">
-            <button aria-label="Pagina anterior" type="button">
+            <button aria-label={t('common.previousPage')} type="button">
               {'<'}
             </button>
             <button className="active" type="button">
               1
             </button>
-            <button aria-label="Pagina siguiente" type="button">
+            <button aria-label={t('common.nextPage')} type="button">
               {'>'}
             </button>
           </div>
@@ -674,13 +694,17 @@ export function MaterialsPage() {
       </div>
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        cancelLabel={t('common.cancel')}
+        confirmLabel={deleteStep === 1 ? t('common.continue') : t('common.confirmDelete')}
         description={
           deleteTarget
             ? deleteStep === 1
-              ? `Se eliminara ${translateBackendSeed(deleteTarget.name) ?? deleteTarget.name}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
-              : `Confirma que quieres eliminar ${translateBackendSeed(deleteTarget.name) ?? deleteTarget.name} ahora.`
+              ? t('materials.deleteConfirmStep1', {
+                  name: translateBackendSeed(deleteTarget.name) ?? deleteTarget.name,
+                })
+              : t('materials.deleteConfirmStep2', {
+                  name: translateBackendSeed(deleteTarget.name) ?? deleteTarget.name,
+                })
             : ''
         }
         isConfirming={deleteMaterialMutation.isPending}
@@ -696,14 +720,16 @@ export function MaterialsPage() {
           }
         }}
         open={deleteTarget !== null}
-        title={deleteStep === 1 ? 'Eliminar este material?' : 'Confirmar eliminacion'}
+        title={deleteStep === 1 ? t('materials.deleteConfirmTitle') : t('common.confirmDeleteTitle')}
         variant="danger"
       />
 
       {deletedMaterial ? (
         <UndoToast
           isActing={restoreMaterialMutation.isPending}
-          message={`${translateBackendSeed(deletedMaterial.name) ?? deletedMaterial.name} fue eliminado.`}
+          message={t('materials.deletedToast', {
+            name: translateBackendSeed(deletedMaterial.name) ?? deletedMaterial.name,
+          })}
           onAction={() => restoreMaterialMutation.mutate(deletedMaterial.materialId)}
           onDismiss={() => setDeletedMaterial(null)}
         />

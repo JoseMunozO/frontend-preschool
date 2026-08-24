@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 type ConfirmDialogProps = {
   open: boolean
@@ -16,13 +17,15 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = 'Confirmar',
-  cancelLabel = 'Cancelar',
+  confirmLabel,
+  cancelLabel,
   variant = 'default',
   isConfirming = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation()
+
   if (!open) {
     return null
   }
@@ -41,7 +44,7 @@ export function ConfirmDialog({
         <p id="confirm-dialog-description">{description}</p>
         <footer className="form-actions">
           <button className="secondary-button" disabled={isConfirming} onClick={onCancel} type="button">
-            {cancelLabel}
+            {cancelLabel ?? t('common.cancel')}
           </button>
           <button
             className={variant === 'danger' ? 'danger-button' : 'primary-button'}
@@ -49,7 +52,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             type="button"
           >
-            {isConfirming ? 'Procesando...' : confirmLabel}
+            {isConfirming ? t('common.processing') : (confirmLabel ?? t('common.confirm'))}
           </button>
         </footer>
       </div>

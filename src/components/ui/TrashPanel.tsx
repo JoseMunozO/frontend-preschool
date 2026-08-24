@@ -1,4 +1,5 @@
 import { RotateCcw, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 type TrashPanelProps<T> = {
   title: string
@@ -13,20 +14,6 @@ type TrashPanelProps<T> = {
   emptyMessage?: string
 }
 
-function formatDeletedAt(value: string | null | undefined) {
-  if (!value) {
-    return '-'
-  }
-
-  return new Intl.DateTimeFormat('es-MX', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
 export function TrashPanel<T>({
   title,
   items,
@@ -37,21 +24,37 @@ export function TrashPanel<T>({
   restoringId,
   onRestore,
   onClose,
-  emptyMessage = 'No hay elementos eliminados recientemente.',
+  emptyMessage,
 }: TrashPanelProps<T>) {
+  const { t, i18n } = useTranslation()
+
+  function formatDeletedAt(value: string | null | undefined) {
+    if (!value) {
+      return '-'
+    }
+
+    return new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value))
+  }
+
   return (
     <section className="panel trash-panel" aria-labelledby="trash-panel-title">
       <header className="form-panel-heading">
         <div>
           <h3 id="trash-panel-title">{title}</h3>
-          <p>Elementos eliminados en los ultimos 7 dias. Se pueden restaurar hasta que se cumpla ese plazo.</p>
+          <p>{t('common.trashSubtitle')}</p>
         </div>
-        <button aria-label="Cerrar papelera" className="icon-button" onClick={onClose} type="button">
+        <button aria-label={t('common.closeTrash')} className="icon-button" onClick={onClose} type="button">
           <X size={20} aria-hidden="true" />
         </button>
       </header>
 
-      {isLoading ? <p>Cargando...</p> : null}
+      {isLoading ? <p>{t('common.loading')}</p> : null}
 
       {!isLoading && items.length === 0 ? <p>{emptyMessage}</p> : null}
 
@@ -65,7 +68,9 @@ export function TrashPanel<T>({
               <li className="trash-list-item" key={id}>
                 <div>
                   <strong>{getLabel(item)}</strong>
-                  <span className="field-hint">Eliminado el {formatDeletedAt(getDeletedAt(item))}</span>
+                  <span className="field-hint">
+                    {t('common.deletedOn', { date: formatDeletedAt(getDeletedAt(item)) })}
+                  </span>
                 </div>
                 <button
                   className="secondary-button"
@@ -74,7 +79,7 @@ export function TrashPanel<T>({
                   type="button"
                 >
                   <RotateCcw size={16} aria-hidden="true" />
-                  {isRestoring ? 'Restaurando...' : 'Restaurar'}
+                  {isRestoring ? t('common.restoring') : t('common.restore')}
                 </button>
               </li>
             )

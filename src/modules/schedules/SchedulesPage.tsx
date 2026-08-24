@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { CalendarDays, Eye, LayoutGrid, ListFilter, Pencil, Plus, Search, Table, Trash2, X } from 'lucide-react'
 import {
@@ -24,16 +26,6 @@ const UNDO_WINDOW_MS = 8000
 
 const emptySchedules: ScheduleItem[] = []
 
-const dayLabels: Record<DayOfWeek, string> = {
-  MONDAY: 'Lunes',
-  TUESDAY: 'Martes',
-  WEDNESDAY: 'Miercoles',
-  THURSDAY: 'Jueves',
-  FRIDAY: 'Viernes',
-  SATURDAY: 'Sabado',
-  SUNDAY: 'Domingo',
-}
-
 const weekDays: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
 
 const WEEK_VIEW_DEFAULT_START_MINUTES = 8 * 60
@@ -53,32 +45,30 @@ function formatHourLabel(minutes: number) {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:00`
 }
 
-function formatScheduleLabel(schedule: ScheduleItem) {
-  return `${schedule.activityTitle} (${dayLabels[schedule.dayOfWeek]})`
+function createScheduleFormSchema(t: TFunction) {
+  return z
+    .object({
+      groupId: z.string().min(1, t('schedules.groupRequired')),
+      primaryStaffId: z.string(),
+      dayOfWeek: z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']),
+      startTime: z.string().min(1, t('schedules.startTimeRequired')),
+      endTime: z.string().min(1, t('schedules.endTimeRequired')),
+      activityTitle: z.string().trim().min(1, t('schedules.activityRequired')),
+      roomName: z.string(),
+      notes: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.startTime && values.endTime && values.startTime >= values.endTime) {
+        ctx.addIssue({
+          code: 'custom',
+          message: t('schedules.endTimeAfterStart'),
+          path: ['endTime'],
+        })
+      }
+    })
 }
 
-const scheduleFormSchema = z
-  .object({
-    groupId: z.string().min(1, 'Selecciona un grupo.'),
-    primaryStaffId: z.string(),
-    dayOfWeek: z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']),
-    startTime: z.string().min(1, 'La hora de inicio es obligatoria.'),
-    endTime: z.string().min(1, 'La hora de fin es obligatoria.'),
-    activityTitle: z.string().trim().min(1, 'La actividad es obligatoria.'),
-    roomName: z.string(),
-    notes: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.startTime && values.endTime && values.startTime >= values.endTime) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'La hora de fin debe ser posterior al inicio.',
-        path: ['endTime'],
-      })
-    }
-  })
-
-type ScheduleFormValues = z.infer<typeof scheduleFormSchema>
+type ScheduleFormValues = z.infer<ReturnType<typeof createScheduleFormSchema>>
 
 function emptyFormValues(): ScheduleFormValues {
   return {
@@ -112,8 +102,22 @@ function optionalValue(value: string) {
 }
 
 export function SchedulesPage() {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
+  const dayLabels: Record<DayOfWeek, string> = {
+    MONDAY: t('days.monday'),
+    TUESDAY: t('days.tuesday'),
+    WEDNESDAY: t('days.wednesday'),
+    THURSDAY: t('days.thursday'),
+    FRIDAY: t('days.friday'),
+    SATURDAY: t('days.saturday'),
+    SUNDAY: t('days.sunday'),
+  }
+  const scheduleFormSchema = useMemo(() => createScheduleFormSchema(t), [t])
+  function formatScheduleLabel(schedule: ScheduleItem) {
+    return `${schedule.activityTitle} (${dayLabels[schedule.dayOfWeek]})`
+  }
   const [search, setSearch] = useState('')
   const [dayFilter, setDayFilter] = useState<DayOfWeek | 'ALL'>('ALL')
   const [groupFilter, setGroupFilter] = useState('all')
@@ -162,7 +166,7 @@ export function SchedulesPage() {
     onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['schedules'] })
       setSuccessMessage(
-        variables.scheduleSlotId ? 'Horario actualizado correctamente.' : 'Horario creado correctamente.',
+        variables.scheduleSlotId ? t('schedules.updateSuccess') : t('schedules.createSuccess'),
       )
       setIsFormOpen(false)
       setEditingSchedule(null)
@@ -315,18 +319,18 @@ export function SchedulesPage() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Horarios</h2>
-          <p>Organiza rutinas por grupo, dia, aula y responsable asignado.</p>
+          <h2>{t('schedules.title')}</h2>
+          <p>{t('schedules.subtitle')}</p>
         </div>
         {canManage ? (
           <div className="page-heading-actions">
             <button className="secondary-button" onClick={openTrash} type="button">
               <Trash2 size={17} aria-hidden="true" />
-              Papelera
+              {t('common.trash')}
             </button>
             <button className="primary-button inline-button" onClick={openNewScheduleForm} type="button">
               <Plus size={17} aria-hidden="true" />
-              Nueva actividad
+              {t('schedules.newActivity')}
             </button>
           </div>
         ) : null}
@@ -339,7 +343,7 @@ export function SchedulesPage() {
           type="button"
         >
           <Table size={16} aria-hidden="true" />
-          Tabla
+          {t('schedules.tableViewLabel')}
         </button>
         <button
           className={viewMode === 'week' ? 'active' : undefined}
@@ -350,7 +354,7 @@ export function SchedulesPage() {
           type="button"
         >
           <LayoutGrid size={16} aria-hidden="true" />
-          Semana
+          {t('schedules.weekViewLabel')}
         </button>
       </div>
 
@@ -361,9 +365,7 @@ export function SchedulesPage() {
       ) : null}
       {error ? (
         <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver la lista de horarios.'
-            : 'No se pudo cargar la lista de horarios.'}
+          {isForbiddenError(error) ? t('schedules.forbiddenList') : t('schedules.loadError')}
         </div>
       ) : null}
 
@@ -378,11 +380,13 @@ export function SchedulesPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="schedule-form-title">{editingSchedule ? 'Editar actividad' : 'Nueva actividad'}</h3>
-              <p>Define el horario, grupo y responsable de la actividad.</p>
+              <h3 id="schedule-form-title">
+                {editingSchedule ? t('schedules.editActivity') : t('schedules.newActivity')}
+              </h3>
+              <p>{t('schedules.formSubtitle')}</p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={saveScheduleMutation.isPending}
               onClick={closeScheduleForm}
@@ -394,16 +398,16 @@ export function SchedulesPage() {
           <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
-                Actividad *
+                {t('schedules.activityLabel')}
                 <input maxLength={150} {...register('activityTitle')} />
                 {formErrors.activityTitle ? (
                   <span className="field-error">{formErrors.activityTitle.message}</span>
                 ) : null}
               </label>
               <label>
-                Grupo *
+                {t('schedules.groupLabel')}
                 <select {...register('groupId')}>
-                  <option value="">Selecciona un grupo</option>
+                  <option value="">{t('schedules.selectGroup')}</option>
                   {groups.map(([groupId, groupName]) => (
                     <option key={groupId} value={groupId}>
                       {translateBackendSeed(groupName)}
@@ -411,10 +415,10 @@ export function SchedulesPage() {
                   ))}
                 </select>
                 {formErrors.groupId ? <span className="field-error">{formErrors.groupId.message}</span> : null}
-                <span className="field-hint">Se muestran los grupos ya presentes en horarios.</span>
+                <span className="field-hint">{t('schedules.groupsHint')}</span>
               </label>
               <label>
-                Dia
+                {t('schedules.dayLabel')}
                 <select {...register('dayOfWeek')}>
                   {Object.entries(dayLabels).map(([day, label]) => (
                     <option key={day} value={day}>
@@ -424,33 +428,33 @@ export function SchedulesPage() {
                 </select>
               </label>
               <label>
-                Aula
+                {t('schedules.roomLabel')}
                 <input maxLength={100} {...register('roomName')} />
               </label>
               <label>
-                Hora de inicio *
+                {t('schedules.startTimeLabel')}
                 <input type="time" {...register('startTime')} />
                 {formErrors.startTime ? <span className="field-error">{formErrors.startTime.message}</span> : null}
               </label>
               <label>
-                Hora de fin *
+                {t('schedules.endTimeLabel')}
                 <input type="time" {...register('endTime')} />
                 {formErrors.endTime ? <span className="field-error">{formErrors.endTime.message}</span> : null}
               </label>
               <label>
-                Responsable
+                {t('schedules.responsibleLabel')}
                 <select {...register('primaryStaffId')}>
-                  <option value="">Sin responsable asignado</option>
+                  <option value="">{t('schedules.noResponsibleAssigned')}</option>
                   {staffOptions.map(([staffId, staffName]) => (
                     <option key={staffId} value={staffId}>
                       {translateBackendSeed(staffName)}
                     </option>
                   ))}
                 </select>
-                <span className="field-hint">Se muestra el personal ya asignado en otros horarios.</span>
+                <span className="field-hint">{t('schedules.staffHint')}</span>
               </label>
               <label className="entity-form-full">
-                Notas
+                {t('schedules.notesLabel')}
                 <textarea rows={2} {...register('notes')} />
               </label>
             </div>
@@ -458,7 +462,7 @@ export function SchedulesPage() {
               <p className="form-error" role="alert">
                 {saveScheduleMutation.error instanceof Error
                   ? saveScheduleMutation.error.message
-                  : 'No se pudo guardar el horario.'}
+                  : t('schedules.saveScheduleError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -468,14 +472,14 @@ export function SchedulesPage() {
                 onClick={closeScheduleForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={saveScheduleMutation.isPending} type="submit">
                 {saveScheduleMutation.isPending
-                  ? 'Guardando...'
+                  ? t('common.saving')
                   : editingSchedule
-                    ? 'Guardar cambios'
-                    : 'Crear actividad'}
+                    ? t('schedules.saveChanges')
+                    : t('schedules.createActivity')}
               </button>
             </footer>
           </form>
@@ -485,7 +489,7 @@ export function SchedulesPage() {
 
       {isTrashOpen ? (
         <TrashPanel
-          emptyMessage="No hay actividades eliminadas recientemente."
+          emptyMessage={t('schedules.deletedRecentlyEmpty')}
           getDeletedAt={(schedule) => schedule.deletedAt}
           getId={(schedule) => schedule.scheduleSlotId}
           getLabel={formatScheduleLabel}
@@ -494,27 +498,27 @@ export function SchedulesPage() {
           onClose={closeTrash}
           onRestore={(schedule) => restoreScheduleMutation.mutate(schedule.scheduleSlotId)}
           restoringId={restoreScheduleMutation.isPending ? restoreScheduleMutation.variables : null}
-          title="Actividades eliminadas"
+          title={t('schedules.deletedActivitiesTitle')}
         />
       ) : null}
 
-      <section className="filters-row filters-row-schedules" aria-label="Filtros de horarios">
+      <section className="filters-row filters-row-schedules" aria-label={t('schedules.filtersAriaLabel')}>
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
           <input
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar actividad, aula o responsable..."
+            placeholder={t('schedules.searchPlaceholder')}
             type="search"
             value={search}
           />
         </label>
         <select
-          aria-label="Dia"
+          aria-label={t('schedules.dayAriaLabel')}
           disabled={viewMode === 'week'}
           onChange={(event) => setDayFilter(event.target.value as DayOfWeek | 'ALL')}
           value={dayFilter}
         >
-          <option value="ALL">Todos los dias</option>
+          <option value="ALL">{t('schedules.allDays')}</option>
           {Object.entries(dayLabels).map(([day, label]) => (
             <option key={day} value={day}>
               {label}
@@ -522,11 +526,11 @@ export function SchedulesPage() {
           ))}
         </select>
         <select
-          aria-label="Grupo"
+          aria-label={t('schedules.groupAriaLabel')}
           onChange={(event) => setGroupFilter(event.target.value)}
           value={groupFilter}
         >
-          <option value="all">Todos los grupos</option>
+          <option value="all">{t('schedules.allGroups')}</option>
           {groups.map(([groupId, groupName]) => (
             <option key={groupId} value={groupId}>
               {translateBackendSeed(groupName)}
@@ -535,7 +539,7 @@ export function SchedulesPage() {
         </select>
         <button className="secondary-button" type="button">
           <ListFilter size={17} aria-hidden="true" />
-          Filtros
+          {t('common.filters')}
         </button>
       </section>
 
@@ -544,14 +548,14 @@ export function SchedulesPage() {
         <table>
           <thead>
             <tr>
-              <th>Dia</th>
-              <th>Horario</th>
-              <th>Actividad</th>
-              <th>Grupo</th>
-              <th>Aula</th>
-              <th>Responsable</th>
-              <th>Notas</th>
-              <th>Acciones</th>
+              <th>{t('schedules.colDay')}</th>
+              <th>{t('schedules.colSchedule')}</th>
+              <th>{t('schedules.colActivity')}</th>
+              <th>{t('schedules.colGroup')}</th>
+              <th>{t('schedules.colRoom')}</th>
+              <th>{t('schedules.colResponsible')}</th>
+              <th>{t('schedules.colNotes')}</th>
+              <th>{t('schedules.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -581,15 +585,19 @@ export function SchedulesPage() {
                 <td>{schedule.notes ? translateBackendSeed(schedule.notes) : '-'}</td>
                 <td>
                   <div className="row-actions">
-                    <button title="Ver horario" type="button">
+                    <button title={t('schedules.viewScheduleTitle')} type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
                     {canManage ? (
                       <>
-                        <button onClick={() => openEditScheduleForm(schedule)} title="Editar horario" type="button">
+                        <button
+                          onClick={() => openEditScheduleForm(schedule)}
+                          title={t('schedules.editScheduleTitle')}
+                          type="button"
+                        >
                           <Pencil size={16} aria-hidden="true" />
                         </button>
-                        <button onClick={() => openDeleteConfirm(schedule)} title="Eliminar" type="button">
+                        <button onClick={() => openDeleteConfirm(schedule)} title={t('common.delete')} type="button">
                           <Trash2 size={16} aria-hidden="true" />
                         </button>
                       </>
@@ -600,23 +608,23 @@ export function SchedulesPage() {
             ))}
             {!isLoading && filteredSchedules.length === 0 ? (
               <tr>
-                <td colSpan={8}>Sin horarios para mostrar.</td>
+                <td colSpan={8}>{t('schedules.emptyTable')}</td>
               </tr>
             ) : null}
           </tbody>
         </table>
         <footer className="table-footer">
           <span>
-            Mostrando {filteredSchedules.length} de {schedules.length} actividades
+            {t('schedules.showingCount', { filtered: filteredSchedules.length, total: schedules.length })}
           </span>
           <div className="pagination">
-            <button aria-label="Pagina anterior" type="button">
+            <button aria-label={t('common.previousPage')} type="button">
               {'<'}
             </button>
             <button className="active" type="button">
               1
             </button>
-            <button aria-label="Pagina siguiente" type="button">
+            <button aria-label={t('common.nextPage')} type="button">
               {'>'}
             </button>
           </div>
@@ -671,19 +679,19 @@ export function SchedulesPage() {
             ))}
           </div>
           {!isLoading && filteredSchedules.length === 0 ? (
-            <p className="empty-copy">Sin horarios para mostrar.</p>
+            <p className="empty-copy">{t('schedules.emptyTable')}</p>
           ) : null}
         </div>
       ) : null}
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel={deleteStep === 1 ? 'Continuar' : 'Si, eliminar'}
+        cancelLabel={t('common.cancel')}
+        confirmLabel={deleteStep === 1 ? t('common.continue') : t('common.confirmDelete')}
         description={
           deleteTarget
             ? deleteStep === 1
-              ? `Se eliminara ${formatScheduleLabel(deleteTarget)}. Vas a tener unos segundos para deshacerlo justo despues, y se puede restaurar manualmente hasta 7 dias.`
-              : `Confirma que quieres eliminar ${formatScheduleLabel(deleteTarget)} ahora.`
+              ? t('schedules.deleteConfirmStep1', { name: formatScheduleLabel(deleteTarget) })
+              : t('schedules.deleteConfirmStep2', { name: formatScheduleLabel(deleteTarget) })
             : ''
         }
         isConfirming={deleteScheduleMutation.isPending}
@@ -699,14 +707,14 @@ export function SchedulesPage() {
           }
         }}
         open={deleteTarget !== null}
-        title={deleteStep === 1 ? 'Eliminar esta actividad?' : 'Confirmar eliminacion'}
+        title={deleteStep === 1 ? t('schedules.deleteConfirmTitle') : t('common.confirmDeleteTitle')}
         variant="danger"
       />
 
       {deletedSchedule ? (
         <UndoToast
           isActing={restoreScheduleMutation.isPending}
-          message={`${formatScheduleLabel(deletedSchedule)} fue eliminada.`}
+          message={t('schedules.deletedToast', { name: formatScheduleLabel(deletedSchedule) })}
           onAction={() => restoreScheduleMutation.mutate(deletedSchedule.scheduleSlotId)}
           onDismiss={() => setDeletedSchedule(null)}
         />
