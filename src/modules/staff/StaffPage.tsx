@@ -5,18 +5,11 @@ import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
-import { Plus, RotateCcw, ShieldCheck, Trash2, UserCircle, X } from 'lucide-react'
+import { Plus, ShieldCheck, Trash2, UserCircle, X } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { getRoles } from '../../api/roles.api'
 import type { Role, RoleCode } from '../../api/roles.api'
-import {
-  assignRole,
-  createStaff,
-  deleteStaff,
-  getStaffList,
-  removeRole,
-  restoreStaff,
-} from '../../api/staff.api'
+import { assignRole, createStaff, deleteStaff, getStaffList, removeRole } from '../../api/staff.api'
 import type { StaffMember, StaffRequest } from '../../api/staff.api'
 import { useAuthStore } from '../../auth/auth.store'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
@@ -116,7 +109,6 @@ export function StaffPage() {
   const [roleError, setRoleError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const {
     register,
     handleSubmit,
@@ -141,15 +133,8 @@ export function StaffPage() {
     staleTime: Infinity,
   })
 
-  const { data: trashData, isLoading: isTrashLoading } = useQuery({
-    queryKey: ['staff', 'trash'],
-    queryFn: () => getStaffList({ includeDeleted: true }),
-    enabled: isTrashOpen,
-  })
-
   const staffList = data ?? emptyStaff
   const roles = rolesData ?? emptyRoles
-  const trashedStaff = (trashData ?? emptyStaff).filter((staff) => staff.deletedAt)
   const managingStaff = staffList.find((staff) => staff.staffId === manageRolesStaffId) ?? null
 
   const currentMaxRank = useMemo(() => {
@@ -193,19 +178,11 @@ export function StaffPage() {
     },
   })
 
-  const restoreStaffMutation = useMutation({
-    mutationFn: (staffId: number) => restoreStaff(staffId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['staff'] })
-    },
-  })
-
   function openNewStaffForm() {
     reset(emptyFormValues())
     createStaffMutation.reset()
     setSuccessMessage(null)
     setManageRolesStaffId(null)
-    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -218,7 +195,6 @@ export function StaffPage() {
     setManageRolesStaffId(staff.staffId)
     setRoleError(null)
     setIsFormOpen(false)
-    setIsTrashOpen(false)
     setSuccessMessage(null)
   }
 
@@ -236,16 +212,6 @@ export function StaffPage() {
   function closeDeleteConfirm() {
     setDeleteTarget(null)
     setDeleteError(null)
-  }
-
-  function openTrash() {
-    setIsFormOpen(false)
-    setManageRolesStaffId(null)
-    setIsTrashOpen(true)
-  }
-
-  function closeTrash() {
-    setIsTrashOpen(false)
   }
 
   function toggleRole(role: Role, hasRole: boolean) {
@@ -279,16 +245,6 @@ export function StaffPage() {
         <div>
           <h2>{t('staff.title')}</h2>
           <p>{t('staff.subtitle')}</p>
-        </div>
-        <div className="page-heading-actions">
-          <button className="secondary-button" onClick={openTrash} type="button">
-            <Trash2 size={17} aria-hidden="true" />
-            {t('common.trash')}
-          </button>
-          <button className="primary-button inline-button" onClick={openNewStaffForm} type="button">
-            <Plus size={17} aria-hidden="true" />
-            {t('staff.newPosition')}
-          </button>
         </div>
       </section>
 
@@ -487,50 +443,6 @@ export function StaffPage() {
         </div>
       ) : null}
 
-      {isTrashOpen ? (
-        <section className="panel trash-panel" aria-labelledby="staff-trash-title">
-          <header className="form-panel-heading">
-            <div>
-              <h3 id="staff-trash-title">{t('staff.trashTitle')}</h3>
-              <p>{t('staff.trashSubtitle')}</p>
-            </div>
-            <button aria-label={t('common.closeTrash')} className="icon-button" onClick={closeTrash} type="button">
-              <X size={20} aria-hidden="true" />
-            </button>
-          </header>
-
-          {isTrashLoading ? <p>{t('common.loading')}</p> : null}
-
-          {!isTrashLoading && trashedStaff.length === 0 ? <p>{t('staff.noStaffDeactivated')}</p> : null}
-
-          {!isTrashLoading && trashedStaff.length > 0 ? (
-            <ul className="trash-list">
-              {trashedStaff.map((staff) => {
-                const isRestoring = restoreStaffMutation.isPending && restoreStaffMutation.variables === staff.staffId
-
-                return (
-                  <li className="trash-list-item" key={staff.staffId}>
-                    <div>
-                      <strong>{formatStaffName(staff)}</strong>
-                      <span className="field-hint">{staff.positionTitle ?? t('staff.noPosition')}</span>
-                    </div>
-                    <button
-                      className="secondary-button"
-                      disabled={isRestoring}
-                      onClick={() => restoreStaffMutation.mutate(staff.staffId)}
-                      type="button"
-                    >
-                      <RotateCcw size={16} aria-hidden="true" />
-                      {isRestoring ? t('staff.reactivating') : t('staff.reactivate')}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
-        </section>
-      ) : null}
-
       <div className="table-shell" aria-busy={isLoading}>
         <table>
           <thead>
@@ -595,6 +507,13 @@ export function StaffPage() {
           </tbody>
         </table>
       </div>
+
+      <section className="page-footer-actions">
+        <button className="primary-button inline-button" onClick={openNewStaffForm} type="button">
+          <Plus size={17} aria-hidden="true" />
+          {t('staff.newPosition')}
+        </button>
+      </section>
 
       <ConfirmDialog
         cancelLabel={t('common.cancel')}

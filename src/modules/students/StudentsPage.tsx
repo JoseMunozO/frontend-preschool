@@ -34,7 +34,6 @@ import type {
 } from '../../api/students.api'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { StudentDiscountsPanel } from '../../components/ui/StudentDiscountsPanel'
-import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { useAuthStore } from '../../auth/auth.store'
 import { adminRoles, financeRoles } from '../../auth/roleAccess'
@@ -257,7 +256,6 @@ export function StudentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<StudentListItem | null>(null)
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
   const [deletedStudent, setDeletedStudent] = useState<StudentListItem | null>(null)
-  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [contactsStudent, setContactsStudent] = useState<StudentListItem | null>(null)
   const [contactFormOpen, setContactFormOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<StudentEmergencyContact | null>(null)
@@ -324,12 +322,6 @@ export function StudentsPage() {
     queryKey: ['students', 'groups-lookup'],
     queryFn: () => getStudents(),
     staleTime: Infinity,
-  })
-
-  const { data: trashData, isLoading: isTrashLoading } = useQuery({
-    queryKey: ['students', 'trash'],
-    queryFn: () => getStudents({ includeDeleted: true }),
-    enabled: isTrashOpen,
   })
 
   const {
@@ -482,7 +474,6 @@ export function StudentsPage() {
   const rangeEnd = Math.min(safePage * STUDENTS_PAGE_SIZE, students.length)
 
   const allGroups = allGroupsData ?? emptyStudents
-  const trashedStudents = (trashData ?? emptyStudents).filter((student) => student.deletedAt)
   const contacts = contactsData ?? emptyContacts
   const notes = notesData ?? emptyNotes
   const sortedNotes = useMemo(
@@ -511,19 +502,8 @@ export function StudentsPage() {
     reset({ ...emptyFormValues(), studentCode: nextStudentCode(allGroups) })
     saveStudentMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
     setContactsStudent(null)
     setIsFormOpen(true)
-  }
-
-  function openTrash() {
-    setIsFormOpen(false)
-    setContactsStudent(null)
-    setIsTrashOpen(true)
-  }
-
-  function closeTrash() {
-    setIsTrashOpen(false)
   }
 
   function openEditStudentForm(student: StudentListItem) {
@@ -531,14 +511,12 @@ export function StudentsPage() {
     reset(formValuesForStudent(student))
     saveStudentMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
     setContactsStudent(null)
     setIsFormOpen(true)
   }
 
   function openContactsPanel(student: StudentListItem) {
     setIsFormOpen(false)
-    setIsTrashOpen(false)
     setContactFormOpen(false)
     setEditingContact(null)
     setIsDiscountsPanelOpen(false)
@@ -663,18 +641,6 @@ export function StudentsPage() {
           <h2>{t('students.title')}</h2>
           <p>{t('students.subtitle')}</p>
         </div>
-        {canManage ? (
-          <div className="page-heading-actions">
-            <button className="secondary-button" onClick={openTrash} type="button">
-              <Trash2 size={17} aria-hidden="true" />
-              {t('common.trash')}
-            </button>
-            <button className="primary-button inline-button" onClick={openNewStudentForm} type="button">
-              <Plus size={17} aria-hidden="true" />
-              {t('students.newStudent')}
-            </button>
-          </div>
-        ) : null}
       </section>
 
       {successMessage ? (
@@ -814,21 +780,6 @@ export function StudentsPage() {
           </form>
         </section>
         </div>
-      ) : null}
-
-      {isTrashOpen ? (
-        <TrashPanel
-          emptyMessage={t('students.deletedRecentlyEmpty')}
-          getDeletedAt={(student) => student.deletedAt}
-          getId={(student) => student.studentId}
-          getLabel={(student) => formatStudentName(student.firstName, student.lastName)}
-          isLoading={isTrashLoading}
-          items={trashedStudents}
-          onClose={closeTrash}
-          onRestore={(student) => restoreStudentMutation.mutate(student.studentId)}
-          restoringId={restoreStudentMutation.isPending ? restoreStudentMutation.variables : null}
-          title={t('students.deletedStudentsTitle')}
-        />
       ) : null}
 
       {contactsStudent ? (
@@ -1283,6 +1234,15 @@ export function StudentsPage() {
           </div>
         </footer>
       </div>
+
+      {canManage ? (
+        <section className="page-footer-actions">
+          <button className="primary-button inline-button" onClick={openNewStudentForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            {t('students.newStudent')}
+          </button>
+        </section>
+      ) : null}
 
       <ConfirmDialog
         cancelLabel={t('common.cancel')}

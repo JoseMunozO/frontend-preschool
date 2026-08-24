@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import {
-  Archive,
   Eye,
   ListFilter,
   Pencil,
@@ -16,18 +15,15 @@ import {
   UserCheck,
   UserCircle,
   UserMinus,
-  UserPlus,
   UserX,
   X,
 } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { useAuthStore } from '../../auth/auth.store'
 import { adminRoles } from '../../auth/roleAccess'
 import {
   activateParent,
-  claimParent,
   createParent,
   deactivateParent,
   deleteParent,
@@ -102,32 +98,6 @@ function formValuesForParent(parent: ParentListItem): ParentFormValues {
   }
 }
 
-function claimFormValues(parent: ParentListItem): ParentFormValues {
-  return {
-    firstName: parent.firstName,
-    lastName: parent.lastName,
-    email: parent.email ?? '',
-    phone: '',
-    address: '',
-    preferredLanguage: '',
-    status: 'ACTIVE',
-    notes: '',
-    password: '',
-  }
-}
-
-function claimErrorMessage(error: unknown, t: TFunction) {
-  if (error instanceof ApiError && error.status === 409) {
-    return t('parents.claimWindowExpiredError')
-  }
-
-  if (error instanceof ApiError && error.status === 404) {
-    return t('parents.claimNotArchivedError')
-  }
-
-  return t('parents.claimGenericError')
-}
-
 function optionalValue(value: string) {
   const trimmedValue = value.trim()
   return trimmedValue || undefined
@@ -194,9 +164,6 @@ export function ParentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<ParentListItem | null>(null)
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
   const [deletedParent, setDeletedParent] = useState<ParentListItem | null>(null)
-  const [isTrashOpen, setIsTrashOpen] = useState(false)
-  const [isArchivedOpen, setIsArchivedOpen] = useState(false)
-  const [claimTarget, setClaimTarget] = useState<ParentListItem | null>(null)
   const [linkingParent, setLinkingParent] = useState<ParentListItem | null>(null)
   const [unlinkTarget, setUnlinkTarget] = useState<StudentGuardian | null>(null)
   const {
@@ -221,12 +188,6 @@ export function ParentsPage() {
     queryKey: ['parents'],
     queryFn: () => getParents(),
     retry: false,
-  })
-
-  const { data: trashData, isLoading: isTrashLoading } = useQuery({
-    queryKey: ['parents', 'trash'],
-    queryFn: () => getParents({ includeDeleted: true }),
-    enabled: isTrashOpen || isArchivedOpen,
   })
 
   const {
@@ -295,17 +256,6 @@ export function ParentsPage() {
     },
   })
 
-  const claimParentMutation = useMutation({
-    mutationFn: ({ parentId, request }: { parentId: number; request: ParentRequest }) =>
-      claimParent(parentId, request),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['parents'] })
-      setSuccessMessage(t('parents.claimSuccess'))
-      setIsFormOpen(false)
-      setClaimTarget(null)
-    },
-  })
-
   const linkStudentMutation = useMutation({
     mutationFn: (request: StudentGuardianRequest) => {
       if (!linkingParent) {
@@ -335,8 +285,6 @@ export function ParentsPage() {
   })
 
   const parents = data ?? emptyParents
-  const trashedParents = (trashData ?? emptyParents).filter((parent) => parent.deletedAt && !parent.archivedAt)
-  const archivedParents = (trashData ?? emptyParents).filter((parent) => parent.archivedAt)
   const linkedStudents = linkedStudentsData ?? emptyGuardianLinks
   const linkableStudents = useMemo(() => {
     const allStudents = studentOptionsData ?? emptyStudentOptions
@@ -380,48 +328,20 @@ export function ParentsPage() {
     })
   }, [parents, search])
 
-  const filteredArchivedParents = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase()
-
-    return archivedParents.filter((parent) => {
-      const name = formatParentName(parent.firstName, parent.lastName).toLowerCase()
-      const email = parent.email?.toLowerCase() ?? ''
-
-      return !normalizedSearch || name.includes(normalizedSearch) || email.includes(normalizedSearch)
-    })
-  }, [archivedParents, search])
-
   function openNewParentForm() {
     setEditingParent(null)
-    setClaimTarget(null)
     reset(emptyFormValues())
     saveParentMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
-    setIsArchivedOpen(false)
     setLinkingParent(null)
     setIsFormOpen(true)
   }
 
   function openEditParentForm(parent: ParentListItem) {
     setEditingParent(parent)
-    setClaimTarget(null)
     reset(formValuesForParent(parent))
     saveParentMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
-    setIsArchivedOpen(false)
-    setLinkingParent(null)
-    setIsFormOpen(true)
-  }
-
-  function openClaimForm(parent: ParentListItem) {
-    setEditingParent(null)
-    setClaimTarget(parent)
-    reset(claimFormValues(parent))
-    claimParentMutation.reset()
-    setSuccessMessage(null)
-    setIsArchivedOpen(false)
     setLinkingParent(null)
     setIsFormOpen(true)
   }
@@ -432,8 +352,6 @@ export function ParentsPage() {
     resetLinkForm(emptyLinkFormValues())
     linkStudentMutation.reset()
     setIsFormOpen(false)
-    setIsTrashOpen(false)
-    setIsArchivedOpen(false)
   }
 
   function closeLinkPanel() {
@@ -444,9 +362,7 @@ export function ParentsPage() {
   function closeParentForm() {
     setIsFormOpen(false)
     setEditingParent(null)
-    setClaimTarget(null)
     saveParentMutation.reset()
-    claimParentMutation.reset()
   }
 
   function openDeleteConfirm(parent: ParentListItem) {
@@ -461,28 +377,6 @@ export function ParentsPage() {
     deleteParentMutation.reset()
   }
 
-  function openTrash() {
-    setIsFormOpen(false)
-    setIsArchivedOpen(false)
-    setLinkingParent(null)
-    setIsTrashOpen(true)
-  }
-
-  function closeTrash() {
-    setIsTrashOpen(false)
-  }
-
-  function openArchived() {
-    setIsFormOpen(false)
-    setIsTrashOpen(false)
-    setLinkingParent(null)
-    setIsArchivedOpen(true)
-  }
-
-  function closeArchived() {
-    setIsArchivedOpen(false)
-  }
-
   const onSubmit = handleSubmit((values) => {
     const request: ParentRequest = {
       firstName: values.firstName,
@@ -494,11 +388,6 @@ export function ParentsPage() {
       status: values.status,
       notes: optionalValue(values.notes),
       password: optionalValue(values.password),
-    }
-
-    if (claimTarget) {
-      claimParentMutation.mutate({ parentId: claimTarget.parentId, request })
-      return
     }
 
     saveParentMutation.mutate({ parentId: editingParent?.parentId, request })
@@ -524,22 +413,6 @@ export function ParentsPage() {
           <h2>{t('parents.title')}</h2>
           <p>{t('parents.subtitle')}</p>
         </div>
-        {canManage ? (
-          <div className="page-heading-actions">
-            <button className="secondary-button" onClick={openArchived} type="button">
-              <Archive size={17} aria-hidden="true" />
-              {t('parents.archivedButton')}
-            </button>
-            <button className="secondary-button" onClick={openTrash} type="button">
-              <Trash2 size={17} aria-hidden="true" />
-              {t('common.trash')}
-            </button>
-            <button className="primary-button inline-button" onClick={openNewParentForm} type="button">
-              <Plus size={17} aria-hidden="true" />
-              {t('parents.newParent')}
-            </button>
-          </div>
-        ) : null}
       </section>
 
       {successMessage ? (
@@ -565,18 +438,14 @@ export function ParentsPage() {
           <header className="form-panel-heading">
             <div>
               <h3 id="parent-form-title">
-                {claimTarget
-                  ? t('parents.claimFormTitle')
-                  : editingParent
-                    ? t('parents.editParentTitle')
-                    : t('parents.newParentTitle')}
+                {editingParent ? t('parents.editParentTitle') : t('parents.newParentTitle')}
               </h3>
-              <p>{claimTarget ? t('parents.claimFormSubtitle') : t('parents.formSubtitle')}</p>
+              <p>{t('parents.formSubtitle')}</p>
             </div>
             <button
               aria-label={t('common.closeForm')}
               className="icon-button"
-              disabled={saveParentMutation.isPending || claimParentMutation.isPending}
+              disabled={saveParentMutation.isPending}
               onClick={closeParentForm}
               type="button"
             >
@@ -624,7 +493,7 @@ export function ParentsPage() {
                 {t('parents.addressLabel')}
                 <input maxLength={255} {...register('address')} />
               </label>
-              {!editingParent && !claimTarget ? (
+              {!editingParent ? (
                 <label>
                   {t('parents.passwordLabel')}
                   <input
@@ -645,12 +514,7 @@ export function ParentsPage() {
                 <textarea rows={2} {...register('notes')} />
               </label>
             </div>
-            {claimTarget && claimParentMutation.error ? (
-              <p className="form-error" role="alert">
-                {claimErrorMessage(claimParentMutation.error, t)}
-              </p>
-            ) : null}
-            {!claimTarget && saveParentMutation.error ? (
+            {saveParentMutation.error ? (
               <p className="form-error" role="alert">
                 {saveParentMutation.error instanceof Error
                   ? saveParentMutation.error.message
@@ -660,83 +524,23 @@ export function ParentsPage() {
             <footer className="form-actions">
               <button
                 className="secondary-button"
-                disabled={saveParentMutation.isPending || claimParentMutation.isPending}
+                disabled={saveParentMutation.isPending}
                 onClick={closeParentForm}
                 type="button"
               >
                 {t('common.cancel')}
               </button>
-              <button
-                className="primary-button"
-                disabled={saveParentMutation.isPending || claimParentMutation.isPending}
-                type="submit"
-              >
-                {claimTarget
-                  ? claimParentMutation.isPending
-                    ? t('parents.reactivating')
-                    : t('parents.reactivateParent')
-                  : saveParentMutation.isPending
-                    ? t('common.saving')
-                    : editingParent
-                      ? t('parents.saveChanges')
-                      : t('parents.createParent')}
+              <button className="primary-button" disabled={saveParentMutation.isPending} type="submit">
+                {saveParentMutation.isPending
+                  ? t('common.saving')
+                  : editingParent
+                    ? t('parents.saveChanges')
+                    : t('parents.createParent')}
               </button>
             </footer>
           </form>
         </section>
         </div>
-      ) : null}
-
-      {isTrashOpen ? (
-        <TrashPanel
-          emptyMessage={t('parents.deletedRecentlyEmpty')}
-          getDeletedAt={(parent) => parent.deletedAt}
-          getId={(parent) => parent.parentId}
-          getLabel={(parent) => formatParentName(parent.firstName, parent.lastName)}
-          isLoading={isTrashLoading}
-          items={trashedParents}
-          onClose={closeTrash}
-          onRestore={(parent) => restoreParentMutation.mutate(parent.parentId)}
-          restoringId={restoreParentMutation.isPending ? restoreParentMutation.variables : null}
-          title={t('parents.deletedParentsTitle')}
-        />
-      ) : null}
-
-      {isArchivedOpen ? (
-        <section className="panel trash-panel" aria-labelledby="archived-panel-title">
-          <header className="form-panel-heading">
-            <div>
-              <h3 id="archived-panel-title">{t('parents.archivedTitle')}</h3>
-              <p>{t('parents.archivedDescription')}</p>
-            </div>
-            <button aria-label={t('parents.closeArchived')} className="icon-button" onClick={closeArchived} type="button">
-              <X size={20} aria-hidden="true" />
-            </button>
-          </header>
-
-          {isTrashLoading ? <p>{t('common.loading')}</p> : null}
-
-          {!isTrashLoading && filteredArchivedParents.length === 0 ? (
-            <p>{t('parents.emptyArchivedSearch')}</p>
-          ) : null}
-
-          {!isTrashLoading && filteredArchivedParents.length > 0 ? (
-            <ul className="trash-list">
-              {filteredArchivedParents.map((parent) => (
-                <li className="trash-list-item" key={parent.parentId}>
-                  <div>
-                    <strong>{formatParentName(parent.firstName, parent.lastName)}</strong>
-                    <span className="field-hint">{parent.email ?? t('parents.noEmail')}</span>
-                  </div>
-                  <button className="secondary-button" onClick={() => openClaimForm(parent)} type="button">
-                    <UserPlus size={16} aria-hidden="true" />
-                    {t('parents.claim')}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </section>
       ) : null}
 
       {linkingParent ? (
@@ -1007,6 +811,15 @@ export function ParentsPage() {
           </div>
         </footer>
       </div>
+
+      {canManage ? (
+        <section className="page-footer-actions">
+          <button className="primary-button inline-button" onClick={openNewParentForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            {t('parents.newParent')}
+          </button>
+        </section>
+      ) : null}
 
       <ConfirmDialog
         cancelLabel={t('common.cancel')}
