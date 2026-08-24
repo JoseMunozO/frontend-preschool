@@ -88,7 +88,17 @@
   },
   "reports": {
     "title": "Reports",
-    "description": "Administrative, financial, and operational reports."
+    "monthlyPaymentsSubtitle": "Monthly report of pending and overdue charges.",
+    "monthAriaLabel": "Report month",
+    "forbidden": "You don't have permission to view reports.",
+    "loadError": "Could not load the report. Try again.",
+    "pendingBalance": "Pending balance",
+    "overdueBalance": "Overdue balance",
+    "paymentsReceived": "Payments received this month",
+    "pendingChargesTitle": "Pending charges ({{count}})",
+    "overdueChargesTitle": "Overdue charges ({{count}})",
+    "emptyPending": "No pending charges this month.",
+    "emptyOverdue": "No overdue charges this month."
   },
   "days": {
     "monday": "Monday",

@@ -88,7 +88,17 @@
   },
   "reports": {
     "title": "Rapporter",
-    "description": "Administrativa, ekonomiska och operativa rapporter."
+    "monthlyPaymentsSubtitle": "Månadsrapport över väntande och försenade avgifter.",
+    "monthAriaLabel": "Rapportmånad",
+    "forbidden": "Du har inte behörighet att se rapporter.",
+    "loadError": "Kunde inte läsa in rapporten. Försök igen.",
+    "pendingBalance": "Väntande saldo",
+    "overdueBalance": "Försenat saldo",
+    "paymentsReceived": "Mottagna betalningar denna månad",
+    "pendingChargesTitle": "Väntande avgifter ({{count}})",
+    "overdueChargesTitle": "Försenade avgifter ({{count}})",
+    "emptyPending": "Inga väntande avgifter denna månad.",
+    "emptyOverdue": "Inga försenade avgifter denna månad."
   },
   "days": {
     "monday": "Måndag",

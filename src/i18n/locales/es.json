@@ -88,7 +88,17 @@
   },
   "reports": {
     "title": "Reportes",
-    "description": "Reportes administrativos, financieros y operativos."
+    "monthlyPaymentsSubtitle": "Reporte mensual de cargos pendientes y atrasados.",
+    "monthAriaLabel": "Mes del reporte",
+    "forbidden": "No tienes permiso para ver los reportes.",
+    "loadError": "No se pudo cargar el reporte. Intenta de nuevo.",
+    "pendingBalance": "Saldo pendiente",
+    "overdueBalance": "Saldo atrasado",
+    "paymentsReceived": "Pagos recibidos este mes",
+    "pendingChargesTitle": "Cargos pendientes ({{count}})",
+    "overdueChargesTitle": "Cargos atrasados ({{count}})",
+    "emptyPending": "Sin cargos pendientes este mes.",
+    "emptyOverdue": "Sin cargos atrasados este mes."
   },
   "days": {
     "monday": "Lunes",
