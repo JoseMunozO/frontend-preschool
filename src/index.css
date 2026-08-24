@@ -31,6 +31,50 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #10141f;
+    --surface: #1a2032;
+    --surface-muted: #212840;
+    --text: #e5e7f0;
+    --text-muted: #9aa1b5;
+    --border: #2c3348;
+    --primary: #7c6cf0;
+    --primary-strong: #6c5ce7;
+    --green: #3ecb7c;
+    --green-soft: #163826;
+    --orange: #e8944a;
+    --orange-soft: #3a2712;
+    --yellow: #d1a53a;
+    --yellow-soft: #392c0d;
+    --red: #f0646a;
+    --red-soft: #3a1518;
+    --purple-soft: #262042;
+    --shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #10141f;
+  --surface: #1a2032;
+  --surface-muted: #212840;
+  --text: #e5e7f0;
+  --text-muted: #9aa1b5;
+  --border: #2c3348;
+  --primary: #7c6cf0;
+  --primary-strong: #6c5ce7;
+  --green: #3ecb7c;
+  --green-soft: #163826;
+  --orange: #e8944a;
+  --orange-soft: #3a2712;
+  --yellow: #d1a53a;
+  --yellow-soft: #392c0d;
+  --red: #f0646a;
+  --red-soft: #3a1518;
+  --purple-soft: #262042;
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -138,7 +182,7 @@ a {
 .entity-form input,
 .entity-form select,
 .entity-form textarea {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
@@ -190,7 +234,7 @@ a {
 
 .secondary-button {
   align-items: center;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
   display: inline-flex;
@@ -316,7 +360,7 @@ a {
   background: var(--red-soft);
   border: 1px solid rgba(229, 72, 77, 0.22);
   border-radius: 6px;
-  color: #b42318;
+  color: var(--red);
   padding: 12px 14px;
 }
 
@@ -324,7 +368,7 @@ a {
   background: var(--green-soft);
   border: 1px solid rgba(54, 179, 106, 0.2);
   border-radius: 6px;
-  color: #16834d;
+  color: var(--green);
   padding: 12px 14px;
 }
 
@@ -450,7 +494,7 @@ a {
   align-items: center;
   background: transparent;
   border: 0;
-  color: #6b7280;
+  color: var(--text-muted);
   display: inline-flex;
   height: 38px;
   justify-content: center;
@@ -704,10 +748,10 @@ a {
 }
 
 .view-toggle button {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  color: #303747;
+  color: var(--text);
   font-size: 13px;
   font-weight: 600;
   padding: 8px 14px;
@@ -935,7 +979,7 @@ a {
 }
 
 .field-error {
-  color: #b42318;
+  color: var(--red);
   font-size: 12px;
   font-weight: 500;
 }
@@ -987,7 +1031,7 @@ a {
 }
 
 .donut-chart::after {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 999px;
   content: '';
   inset: 34px;
@@ -1008,7 +1052,7 @@ a {
 
 .donut-summary dt {
   align-items: center;
-  color: #303747;
+  color: var(--text);
   display: flex;
   font-size: 14px;
   gap: 10px;
@@ -1098,7 +1142,7 @@ a {
 }
 
 .search-field svg {
-  color: #8a93a5;
+  color: var(--text-muted);
   left: 14px;
   position: absolute;
 }
@@ -1127,19 +1171,19 @@ td {
 
 th {
   background: var(--surface-muted);
-  color: #303747;
+  color: var(--text);
   font-size: 12px;
   font-weight: 760;
 }
 
 td {
-  color: #303747;
+  color: var(--text);
   font-size: 13px;
 }
 
 td select,
 td input[type='text'] {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
@@ -1165,7 +1209,7 @@ td input[type='text'] {
 .status-badge {
   background: var(--green-soft);
   border-radius: 5px;
-  color: #16834d;
+  color: var(--green);
   display: inline-flex;
   font-size: 12px;
   font-weight: 720;
@@ -1202,7 +1246,7 @@ td input[type='text'] {
   align-items: center;
   background: transparent;
   border: 0;
-  color: #6f7788;
+  color: var(--text-muted);
   display: inline-flex;
   height: 30px;
   justify-content: center;
@@ -1236,9 +1280,9 @@ td input[type='text'] {
 }
 
 .pagination button {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
-  color: #303747;
+  color: var(--text);
   height: 34px;
   min-width: 34px;
 }
