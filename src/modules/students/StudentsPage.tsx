@@ -40,6 +40,8 @@ import { useAuthStore } from '../../auth/auth.store'
 import { adminRoles, financeRoles } from '../../auth/roleAccess'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
+import { createStudentFormSchema } from './students.schema'
+import type { StudentFormValues } from './students.schema'
 
 const UNDO_WINDOW_MS = 8000
 const STUDENTS_PAGE_SIZE = 10
@@ -50,42 +52,6 @@ const emptyGuardians: StudentGuardianSummary[] = []
 const emptyNotes: StudentNote[] = []
 
 const statusDangerValues = new Set(['inactive'])
-
-function createStudentFormSchema(t: TFunction) {
-  return z
-    .object({
-      studentCode: z.string(),
-      firstName: z.string().trim().min(1, t('students.firstNameRequired')),
-      lastName: z.string().trim().min(1, t('students.lastNameRequired')),
-      birthDate: z.string().min(1, t('students.birthDateRequired')),
-      groupId: z.string(),
-      status: z.enum(['active', 'inactive', 'pending', 'graduated']),
-      enrollmentDate: z.string().min(1, t('students.enrollmentDateRequired')),
-      withdrawalDate: z.string(),
-      medicalNotes: z.string(),
-      allergies: z.string(),
-      notes: z.string(),
-    })
-    .superRefine((values, ctx) => {
-      if (values.birthDate && values.enrollmentDate && values.birthDate > values.enrollmentDate) {
-        ctx.addIssue({
-          code: 'custom',
-          message: t('students.enrollmentAfterBirth'),
-          path: ['enrollmentDate'],
-        })
-      }
-
-      if (values.withdrawalDate && values.enrollmentDate && values.withdrawalDate < values.enrollmentDate) {
-        ctx.addIssue({
-          code: 'custom',
-          message: t('students.withdrawalAfterEnrollment'),
-          path: ['withdrawalDate'],
-        })
-      }
-    })
-}
-
-type StudentFormValues = z.infer<ReturnType<typeof createStudentFormSchema>>
 
 function todayInputValue() {
   const date = new Date()

@@ -3,8 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import type { TFunction } from 'i18next'
-import { z } from 'zod'
 import { CalendarDays, Eye, LayoutGrid, ListFilter, Pencil, Plus, Search, Table, Trash2, X } from 'lucide-react'
 import {
   createSchedule,
@@ -21,6 +19,8 @@ import { useAuthStore } from '../../auth/auth.store'
 import { adminRoles } from '../../auth/roleAccess'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
+import { createScheduleFormSchema } from './schedules.schema'
+import type { ScheduleFormValues } from './schedules.schema'
 
 const UNDO_WINDOW_MS = 8000
 
@@ -44,31 +44,6 @@ function timeToMinutes(value: string) {
 function formatHourLabel(minutes: number) {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:00`
 }
-
-function createScheduleFormSchema(t: TFunction) {
-  return z
-    .object({
-      groupId: z.string().min(1, t('schedules.groupRequired')),
-      primaryStaffId: z.string(),
-      dayOfWeek: z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']),
-      startTime: z.string().min(1, t('schedules.startTimeRequired')),
-      endTime: z.string().min(1, t('schedules.endTimeRequired')),
-      activityTitle: z.string().trim().min(1, t('schedules.activityRequired')),
-      roomName: z.string(),
-      notes: z.string(),
-    })
-    .superRefine((values, ctx) => {
-      if (values.startTime && values.endTime && values.startTime >= values.endTime) {
-        ctx.addIssue({
-          code: 'custom',
-          message: t('schedules.endTimeAfterStart'),
-          path: ['endTime'],
-        })
-      }
-    })
-}
-
-type ScheduleFormValues = z.infer<ReturnType<typeof createScheduleFormSchema>>
 
 function emptyFormValues(): ScheduleFormValues {
   return {
