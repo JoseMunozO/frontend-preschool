@@ -620,7 +620,9 @@
     "statusOverdue": "Overdue",
     "methodCash": "Cash",
     "methodCard": "Card",
-    "methodTransfer": "Transfer"
+    "methodTransfer": "Transfer",
+    "methodSwish": "Swish",
+    "methodOther": "Other"
   },
   "discounts": {
     "title": "Discounts",

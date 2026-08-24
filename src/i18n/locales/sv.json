@@ -620,7 +620,9 @@
     "statusOverdue": "Försenad",
     "methodCash": "Kontant",
     "methodCard": "Kort",
-    "methodTransfer": "Överföring"
+    "methodTransfer": "Överföring",
+    "methodSwish": "Swish",
+    "methodOther": "Övrigt"
   },
   "discounts": {
     "title": "Rabatter",
