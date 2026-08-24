@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-23 (sidebar como drawer en mobile).
+Ultima actualizacion: 2026-08-24 (descuentos por estudiante).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -80,25 +80,20 @@ Ultima actualizacion: 2026-08-23 (sidebar como drawer en mobile).
 
 - Responsive: sidebar como drawer en mobile (PR #64). Al revisar "responsive real de dashboard y tablas principales" se encontro el problema real: en viewport mobile (≤1000px) el sidebar ocupaba toda la pantalla apilado arriba del contenido, asi que habia que scrollear las 10 opciones de navegacion antes de ver cualquier pagina. El boton de hamburguesa en `Topbar.tsx` ya existia pero sin funcion (dejado intacto a proposito en PR #38, con la nota de reintroducirlo como toggle real en este trabajo). Fix: el sidebar ahora es un drawer deslizable (`position: fixed`, `transform: translateX(-100%)` por defecto, clase `.sidebar-open` lo desliza a la vista) con overlay oscuro de fondo; el boton de hamburguesa ahora tiene `onClick` real que lo abre/cierra y se oculta automaticamente en desktop. Clic en un link de navegacion o en el overlay cierra el drawer. Estado (`isSidebarOpen`) vive en `AppLayout.tsx`, pasado como props a `Sidebar`/`Topbar`, sin store nuevo. El resto de la app (dashboard, formularios/modales, tablas principales) ya se comportaba bien en mobile/tablet gracias a los media queries existentes de Fase 1 — no se encontraron mas roturas. Verificado en el navegador contra el backend real en viewport mobile (390px) y desktop (1400px, sin cambios visuales).
 
+- Pagos: boton "Nuevo cargo" (PR #67). Antes solo existian "Registrar pago" (contra un cargo ya creado) y "Editar cargo" (PUT); no habia forma de crear un cargo nuevo desde la UI. Nuevas `createCharge()`/`getChargeTypes()` en `payments.api.ts` contra `POST /api/payments/charges` y `GET /api/payments/charge-types?activeOnly=true` (contrato confirmado en vivo). Boton "Nuevo cargo" junto a "Registrar pago" abre un modal con estudiante, tipo de cargo, fecha de vencimiento, monto, periodo de facturacion y descripcion; seleccionar el tipo de cargo auto-rellena el monto con `defaultAmount` (editable despues). Verificado en el navegador contra el backend real: cargo de prueba creado para Oliver Brown, confirmado el registro exacto via API, cancelado despues (Pagos no tiene `DELETE` por diseno).
+
+- Pagos: descuentos por estudiante (PR #68). Segunda mitad del pedido de Pagos. Contrato confirmado en vivo: `GET`/`POST /api/payments/students/{studentId}/discounts`, `PATCH .../discounts/{discountId}/deactivate` (`StudentDiscountRequest`: `discountType` `PERCENTAGE`/`FIXED_AMOUNT`, `value`, `reason` obligatorio, `validFrom`, `validUntil` opcional). Nuevo componente compartido `StudentDiscountsPanel.tsx` (`src/components/ui/`, formulario crear + historial con badge activo/inactivo + desactivar con `ConfirmDialog`), reutilizado en 3 puntos de entrada acordados con Jose: boton "Descuentos" por fila de cargo en `PaymentsPage.tsx`, enlace "Ver descuentos de este estudiante" dentro del modal "Nuevo cargo" (se apila encima sin cerrarlo), y una seccion nueva en el perfil del estudiante (`StudentsPage.tsx`) visible solo para `financeRoles` (`SUPER_ADMIN`/`OWNER`/`DIRECTOR`/`ADMIN`/`FINANCE`). Verificado en el navegador contra el backend real: descuento de prueba creado y desactivado en Lucas Andersson, datos reales confirmados (Sofia Lindberg con descuento activo "Hermanos inscritos"), apilado de modales correcto, boton oculto para `TEACHER`.
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
-- **Pagos: generacion automatica mensual de cargos + descuentos por estudiante** (backend, 2026-08-23, sin PR de frontend todavia). Jose reporto que los cargos se quedaban solo hasta mayo/junio porque nunca hubo generacion automatica, cada cargo se creaba a mano. Backend lo resolvio: un job corre solo todos los dias a las 02:00 (o manual, `POST /api/payments/generate-monthly-charges?month=YYYY-MM`, admin/finanzas) y genera el cargo del mes para cada estudiante activo, prorrateado si se inscribe a mitad de mes — cero cambio de frontend necesario para esto, los cargos nuevos simplemente van a aparecer en `GET /api/payments/charges` como cualquier otro. Ademas, nuevo: descuentos por estudiante (hermanos/becas/referidos), confirmado en vivo contra el OpenAPI real del backend (no estaba en `docs/backend-api-reference.md`, que quedo desactualizado en este punto):
-  - `GET /api/payments/students/{studentId}/discounts` — historial de descuentos del estudiante.
-  - `POST /api/payments/students/{studentId}/discounts` — body `StudentDiscountRequest`: `{ discountType: "PERCENTAGE"|"FIXED_AMOUNT", value: number, reason: string, validFrom: ISODate, validUntil?: ISODate }`. Requeridos: `discountType`, `value`, `reason`, `validFrom`. Responde `201` con `StudentDiscountResponse` (mismos campos + `studentDiscountId`, `active`, `createdByUserId`/`createdByEmail`, `createdAt`/`updatedAt`).
-  - `PATCH /api/payments/students/{studentId}/discounts/{discountId}/deactivate` — desactiva antes de tiempo.
-  - Un descuento vigente se aplica solo al cargo generado ese mes (`amountDue` ya viene con el descuento restado, `description` incluye una nota tipo "Monthly fee - 2026-08 (Hermanos: -10.00%)"). Mismos permisos que el resto de `/api/payments` (`SUPER_ADMIN`/`ADMIN`/`DIRECTOR`/`FINANCE`).
-  - **Trabajo pendiente del lado frontend** (pedido directo de Jose, marcado como prioridad — no esperar a que se libere tiempo, pero tampoco tiene fecha limite explicita): (1) boton "Nuevo cargo" en `PaymentsPage.tsx` — hoy solo existen "Registrar pago" (contra un cargo ya creado) y "Editar cargo" (PUT), no hay forma de crear un cargo nuevo desde la UI. `POST /api/payments/charges` ya existe y reutiliza el mismo `StudentChargeRequest` que ya se usa en `updateCharge()` — falta el `createCharge()` en `payments.api.ts` y el formulario (selects de estudiante + tipo de cargo via `GET /api/payments/charge-types?activeOnly=true`, que tampoco esta consumido todavia — `ChargeTypeResponse`: `{ chargeTypeId, code, name, recurrenceType: "ONE_TIME"|"MONTHLY"|"CUSTOM", defaultAmount, active }`). (2) UI de descuentos por estudiante — probablemente como seccion nueva dentro del perfil del estudiante o desde `PaymentsPage.tsx`, todavia sin decidir la ubicacion exacta.
+- **Backend: generacion automatica mensual de cargos** (2026-08-23). Jose reporto que los cargos se quedaban solo hasta mayo/junio porque nunca hubo generacion automatica, cada cargo se creaba a mano. Backend lo resolvio: un job corre solo todos los dias a las 02:00 (o manual, `POST /api/payments/generate-monthly-charges?month=YYYY-MM`, admin/finanzas) y genera el cargo del mes para cada estudiante activo, prorrateado si se inscribe a mitad de mes — cero cambio de frontend necesario para esto, los cargos nuevos simplemente aparecen en `GET /api/payments/charges` como cualquier otro (confirmado en el navegador: cargos de agosto ya generados automaticamente).
 
 ## Siguiente Punto Recomendado
 
 **Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado, editar/cancelar cargo, tutores como contactos de emergencia, la ronda completa de rol `TEACHER` (nav/acciones por rol, perfil de estudiante en popup, comentarios, dashboard de profesor), la pagina real de asistencia, y personal/roles por rango — todo completo y verificado end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
-
-**Prioridad (pedido directo de Jose, 2026-08-23, sin fecha limite explicita pero no esperar a que se libere tiempo):**
-
-- Pagos: boton "Nuevo cargo" + UI de descuentos por estudiante. Contrato ya confirmado en vivo, ver detalle completo en la seccion "Backend API — cambios pendientes de aprovechar" de arriba.
 
 Con menor prioridad, no urgente para el martes:
 
@@ -174,6 +169,8 @@ Con menor prioridad, no urgente para el martes:
 - [x] Pagos: registrar pago desde cargo.
 - [x] Pagos: historial de pagos por estudiante (`GET /api/payments/students/{studentId}`), verificado contra el backend real.
 - [x] Pagos: editar y cancelar/reactivar un cargo existente (`PUT /api/payments/charges/{studentChargeId}`), verificado contra el backend real.
+- [x] Pagos: crear un cargo nuevo (`POST /api/payments/charges`), verificado contra el backend real.
+- [x] Pagos: descuentos por estudiante (`GET`/`POST /api/payments/students/{studentId}/discounts`, `PATCH .../deactivate`), verificado contra el backend real.
 - [x] Materiales: tabla visual inicial.
 - [x] Materiales: adaptar campos reales del backend.
 - [x] Materiales: busqueda local por nombre, SKU o categoria.
@@ -272,6 +269,8 @@ feat/student-code-autogenerate
 fix/entity-form-field-hint-overflow
 feat/schedule-week-view
 feat/responsive-sidebar-drawer
+feat/payments-new-charge
+feat/student-discounts
 ```
 
 Siguientes:
