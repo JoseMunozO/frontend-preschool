@@ -1,4 +1,4 @@
-import { apiRequest } from './client'
+import { apiRequest, apiRequestBlob } from './client'
 import type {
   ChargeType,
   Payment,
@@ -39,6 +39,10 @@ export function createPayment(request: PaymentRequest) {
 
 export function getPaymentsByStudent(studentId: number) {
   return apiRequest<Payment[]>(`/api/payments/students/${studentId}`)
+}
+
+export function getPaymentReceipt(paymentId: number) {
+  return apiRequestBlob(`/api/payments/${paymentId}/receipt`)
 }
 
 export function updateCharge(studentChargeId: number, request: StudentChargeRequest) {
