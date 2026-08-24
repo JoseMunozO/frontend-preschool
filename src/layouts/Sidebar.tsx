@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   BarChart3,
   Boxes,
@@ -16,16 +17,16 @@ import { useAuthStore } from '../auth/auth.store'
 import { adminRoles, financeRoles } from '../auth/roleAccess'
 
 const navItems = [
-  { to: '/', label: 'Inicio', icon: Home },
-  { to: '/students', label: 'Estudiantes', icon: GraduationCap },
-  { to: '/parents', label: 'Padres / Tutores', icon: UsersRound },
-  { to: '/payments', label: 'Pagos', icon: CreditCard, roles: financeRoles },
-  { to: '/materials', label: 'Material Escolar', icon: Boxes },
-  { to: '/schedules', label: 'Horarios', icon: CalendarDays },
-  { to: '/attendance', label: 'Asistencia', icon: ClipboardList },
-  { to: '/staff', label: 'Personal', icon: UserCog, roles: adminRoles },
-  { to: '/reports', label: 'Reportes', icon: FileText },
-  { to: '/settings', label: 'Configuracion', icon: Settings },
+  { to: '/', labelKey: 'nav.home', icon: Home },
+  { to: '/students', labelKey: 'nav.students', icon: GraduationCap },
+  { to: '/parents', labelKey: 'nav.parents', icon: UsersRound },
+  { to: '/payments', labelKey: 'nav.payments', icon: CreditCard, roles: financeRoles },
+  { to: '/materials', labelKey: 'nav.materials', icon: Boxes },
+  { to: '/schedules', labelKey: 'nav.schedules', icon: CalendarDays },
+  { to: '/attendance', labelKey: 'nav.attendance', icon: ClipboardList },
+  { to: '/staff', labelKey: 'nav.staff', icon: UserCog, roles: adminRoles },
+  { to: '/reports', labelKey: 'nav.reports', icon: FileText },
+  { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
 type SidebarProps = {
@@ -34,6 +35,7 @@ type SidebarProps = {
 }
 
 export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
+  const { t } = useTranslation()
   const hasAnyRole = useAuthStore((state) => state.hasAnyRole)
   const visibleNavItems = navItems.filter((item) => !item.roles || hasAnyRole(item.roles))
 
@@ -43,7 +45,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
         <span className="brand-mark-small" aria-hidden="true">
           <BarChart3 size={18} />
         </span>
-        <span>Mi Preescolar</span>
+        <span>{t('nav.brand')}</span>
       </div>
       <nav className="sidebar-nav" aria-label="Principal">
         {visibleNavItems.map((item) => {
@@ -52,7 +54,7 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
           return (
             <NavLink className="nav-link" end={item.to === '/'} key={item.to} onClick={onNavigate} to={item.to}>
               <Icon size={17} aria-hidden="true" />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
             </NavLink>
           )
         })}
@@ -60,8 +62,8 @@ export function Sidebar({ isOpen, onNavigate }: SidebarProps) {
       <div className="sidebar-account">
         <span className="avatar" aria-hidden="true" />
         <div>
-          <strong>Administrador</strong>
-          <span>admin@preescolar.com</span>
+          <strong>{t('nav.accountRole')}</strong>
+          <span>{t('nav.accountEmail')}</span>
         </div>
       </div>
     </aside>

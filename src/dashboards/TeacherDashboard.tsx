@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Cake, GraduationCap, Thermometer } from 'lucide-react'
 import { getTeacherDashboardSummary } from '../api/dashboard.api'
 import { StatCard } from '../components/ui/StatCard'
@@ -27,6 +28,7 @@ function formatTimeRange(item: DashboardScheduleItem) {
 }
 
 export function TeacherDashboard() {
+  const { t } = useTranslation()
   const { data, error, isLoading } = useQuery({
     queryKey: ['dashboard-teacher-summary'],
     queryFn: getTeacherDashboardSummary,
@@ -69,34 +71,32 @@ export function TeacherDashboard() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Panel Principal</h2>
-          <p>Bienvenido, Profesor.</p>
+          <h2>{t('dashboard.title')}</h2>
+          <p>{t('dashboard.welcomeTeacher')}</p>
         </div>
       </section>
 
       {error ? (
         <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver el dashboard.'
-            : 'No se pudo cargar el dashboard. Verifica que el backend este iniciado.'}
+          {isForbiddenError(error) ? t('dashboard.forbidden') : t('dashboard.loadError')}
         </div>
       ) : null}
 
       <section className="stats-grid stats-grid-3" aria-busy={isLoading}>
         <StatCard
           icon={<GraduationCap size={28} aria-hidden="true" />}
-          label="Estudiantes"
+          label={t('dashboard.students')}
           value={data ? numberFormatter.format(data.activeStudents) : '-'}
         />
         <StatCard
           icon={<Cake size={28} aria-hidden="true" />}
-          label="Cumpleanos proximos"
+          label={t('dashboard.upcomingBirthdays')}
           tone="green"
           value={data ? numberFormatter.format(data.upcomingBirthdays.length) : '-'}
         />
         <StatCard
           icon={<Thermometer size={28} aria-hidden="true" />}
-          label="Ninos enfermos hoy"
+          label={t('dashboard.sickChildrenToday')}
           tone={attendance && attendance.sickCount > 0 ? 'danger' : 'neutral'}
           value={attendance ? numberFormatter.format(attendance.sickCount) : '-'}
         />
@@ -104,10 +104,10 @@ export function TeacherDashboard() {
 
       <section className="work-grid work-grid-single">
         <article className="panel">
-          <h3>Horario de hoy</h3>
-          {isLoading ? <p className="empty-copy">Cargando...</p> : null}
+          <h3>{t('dashboard.todaysSchedule')}</h3>
+          {isLoading ? <p className="empty-copy">{t('dashboard.loading')}</p> : null}
           {!isLoading && !error && todaySchedule.length === 0 ? (
-            <p className="empty-copy">No hay actividades programadas para hoy.</p>
+            <p className="empty-copy">{t('dashboard.noActivitiesToday')}</p>
           ) : null}
           {!isLoading && todaySchedule.length > 0 ? (
             <div className="teacher-timeline">
@@ -132,7 +132,7 @@ export function TeacherDashboard() {
                       height: (gap.end - gap.start) * PIXELS_PER_MINUTE,
                     }}
                   >
-                    <span>Descanso</span>
+                    <span>{t('dashboard.break')}</span>
                   </div>
                 ))}
                 {todaySchedule.map((item) => {
