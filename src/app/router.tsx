@@ -10,6 +10,7 @@ import { ParentsPage } from '../modules/parents/ParentsPage'
 import { PaymentsPage } from '../modules/payments/PaymentsPage'
 import { SchedulesPage } from '../modules/schedules/SchedulesPage'
 import { PlaceholderPage } from '../modules/shared/PlaceholderPage'
+import { SettingsPage } from '../modules/settings/SettingsPage'
 import { StaffPage } from '../modules/staff/StaffPage'
 import { StudentsPage } from '../modules/students/StudentsPage'
 
@@ -49,15 +50,7 @@ export const router = createBrowserRouter([
               />
             ),
           },
-          {
-            path: 'settings',
-            element: (
-              <PlaceholderPage
-                description="Configuracion general del centro, usuarios y preferencias."
-                title="Configuracion"
-              />
-            ),
-          },
+          { path: 'settings', element: <SettingsPage /> },
         ],
       },
     ],
