@@ -3,6 +3,7 @@ import type {
   ChargeType,
   Payment,
   PaymentChargeStatus,
+  PaymentMonthlyReport,
   PaymentRequest,
   StudentCharge,
   StudentChargeRequest,
@@ -85,4 +86,9 @@ export function deactivateDiscount(studentId: number, discountId: number) {
   return apiRequest<StudentDiscount>(`/api/payments/students/${studentId}/discounts/${discountId}/deactivate`, {
     method: 'PATCH',
   })
+}
+
+export function getMonthlyPaymentsReport(month?: string) {
+  const query = month ? `?month=${month}` : ''
+  return apiRequest<PaymentMonthlyReport>(`/api/payments/reports/monthly${query}`)
 }

@@ -99,6 +99,17 @@ export type PaymentAllocation = {
   createdAt?: string
 }
 
+export type PaymentMonthlyReport = {
+  month: string
+  pendingCount: number
+  pendingBalance: number
+  pendingCharges: StudentCharge[]
+  overdueCount: number
+  overdueBalance: number
+  overdueCharges: StudentCharge[]
+  paymentsReceived: number
+}
+
 export type Payment = {
   paymentId: number
   parentId?: number

@@ -25,7 +25,7 @@ const navItems = [
   { to: '/schedules', labelKey: 'nav.schedules', icon: CalendarDays },
   { to: '/attendance', labelKey: 'nav.attendance', icon: ClipboardList },
   { to: '/staff', labelKey: 'nav.staff', icon: UserCog, roles: adminRoles },
-  { to: '/reports', labelKey: 'nav.reports', icon: FileText },
+  { to: '/reports', labelKey: 'nav.reports', icon: FileText, roles: financeRoles },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 

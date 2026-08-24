@@ -9,7 +9,7 @@ import { MaterialsPage } from '../modules/materials/MaterialsPage'
 import { ParentsPage } from '../modules/parents/ParentsPage'
 import { PaymentsPage } from '../modules/payments/PaymentsPage'
 import { SchedulesPage } from '../modules/schedules/SchedulesPage'
-import { PlaceholderPage } from '../modules/shared/PlaceholderPage'
+import { ReportsPage } from '../modules/reports/ReportsPage'
 import { SettingsPage } from '../modules/settings/SettingsPage'
 import { StaffPage } from '../modules/staff/StaffPage'
 import { StudentsPage } from '../modules/students/StudentsPage'
@@ -43,9 +43,8 @@ export const router = createBrowserRouter([
           { path: 'attendance', element: <AttendancePage /> },
           {
             path: 'reports',
-            element: (
-              <PlaceholderPage descriptionKey="reports.description" titleKey="reports.title" />
-            ),
+            element: <ProtectedRoute roles={financeRoles} />,
+            children: [{ index: true, element: <ReportsPage /> }],
           },
           { path: 'settings', element: <SettingsPage /> },
         ],
