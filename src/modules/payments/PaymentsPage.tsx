@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { Ban, Eye, FilePlus2, FileText, ListFilter, Pencil, Plus, RotateCcw, Search, X } from 'lucide-react'
+import { Ban, Eye, FilePlus2, FileText, ListFilter, Pencil, Percent, Plus, RotateCcw, Search, X } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { StudentDiscountsPanel } from '../../components/ui/StudentDiscountsPanel'
 import {
   createCharge,
   createPayment,
@@ -217,6 +218,7 @@ export function PaymentsPage() {
   const [isEditFormOpen, setIsEditFormOpen] = useState(false)
   const [editingCharge, setEditingCharge] = useState<StudentCharge | null>(null)
   const [isNewChargeFormOpen, setIsNewChargeFormOpen] = useState(false)
+  const [discountsStudent, setDiscountsStudent] = useState<{ studentId: number; studentName: string } | null>(null)
   const [confirmingStatusCharge, setConfirmingStatusCharge] = useState<StudentCharge | null>(null)
   const {
     register,
@@ -252,11 +254,13 @@ export function PaymentsPage() {
     handleSubmit: handleSubmitNewCharge,
     reset: resetNewCharge,
     setValue: setNewChargeValue,
+    control: newChargeControl,
     formState: { errors: newChargeErrors },
   } = useForm<NewChargeFormValues>({
     resolver: zodResolver(newChargeFormSchema),
     defaultValues: emptyNewChargeValues(),
   })
+  const newChargeStudentId = useWatch({ control: newChargeControl, name: 'studentId' })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['student-charges', month, status],
@@ -358,6 +362,7 @@ export function PaymentsPage() {
     setIsFormOpen(false)
     setIsEditFormOpen(false)
     setIsNewChargeFormOpen(false)
+    setDiscountsStudent(null)
     setHistoryStudent({ studentId: charge.studentId, studentName: charge.studentName })
   }
 
@@ -373,6 +378,7 @@ export function PaymentsPage() {
     setHistoryStudent(null)
     setIsEditFormOpen(false)
     setIsNewChargeFormOpen(false)
+    setDiscountsStudent(null)
     setIsFormOpen(true)
   }
 
@@ -391,6 +397,7 @@ export function PaymentsPage() {
     setIsFormOpen(false)
     setSelectedCharge(null)
     setIsNewChargeFormOpen(false)
+    setDiscountsStudent(null)
     setIsEditFormOpen(true)
   }
 
@@ -407,12 +414,24 @@ export function PaymentsPage() {
     setHistoryStudent(null)
     setIsFormOpen(false)
     setIsEditFormOpen(false)
+    setDiscountsStudent(null)
     setIsNewChargeFormOpen(true)
   }
 
   function closeNewChargeForm() {
     setIsNewChargeFormOpen(false)
     createChargeMutation.reset()
+  }
+
+  function openDiscountsPanel(student: { studentId: number; studentName: string }) {
+    setIsFormOpen(false)
+    setIsEditFormOpen(false)
+    setHistoryStudent(null)
+    setDiscountsStudent(student)
+  }
+
+  function closeDiscountsPanel() {
+    setDiscountsStudent(null)
   }
 
   function handleChargeTypeChange(newChargeTypeId: string) {
@@ -757,6 +776,26 @@ export function PaymentsPage() {
                 {newChargeErrors.studentId ? (
                   <span className="field-error">{newChargeErrors.studentId.message}</span>
                 ) : null}
+                {newChargeStudentId ? (
+                  <button
+                    className="text-action"
+                    onClick={() => {
+                      const selectedStudent = studentOptions.find(
+                        (student) => String(student.studentId) === newChargeStudentId,
+                      )
+
+                      if (selectedStudent) {
+                        openDiscountsPanel({
+                          studentId: selectedStudent.studentId,
+                          studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+                        })
+                      }
+                    }}
+                    type="button"
+                  >
+                    Ver descuentos de este estudiante
+                  </button>
+                ) : null}
               </label>
               <label>
                 Tipo de cargo *
@@ -951,6 +990,15 @@ export function PaymentsPage() {
                     <button onClick={() => openPaymentHistory(charge)} title="Ver historial de pagos" type="button">
                       <Eye size={16} aria-hidden="true" />
                     </button>
+                    <button
+                      onClick={() =>
+                        openDiscountsPanel({ studentId: charge.studentId, studentName: charge.studentName })
+                      }
+                      title="Descuentos"
+                      type="button"
+                    >
+                      <Percent size={16} aria-hidden="true" />
+                    </button>
                     {payableStatuses.has(charge.status) ? (
                       <button onClick={() => openPaymentForm(charge)} title="Registrar pago" type="button">
                         <FileText size={16} aria-hidden="true" />
@@ -1023,6 +1071,14 @@ export function PaymentsPage() {
         title={confirmingStatusCharge?.status === 'CANCELLED' ? 'Reactivar este cargo?' : 'Cancelar este cargo?'}
         variant={confirmingStatusCharge?.status === 'CANCELLED' ? 'default' : 'danger'}
       />
+
+      {discountsStudent ? (
+        <StudentDiscountsPanel
+          onClose={closeDiscountsPanel}
+          studentId={discountsStudent.studentId}
+          studentName={discountsStudent.studentName}
+        />
+      ) : null}
     </main>
   )
 }
