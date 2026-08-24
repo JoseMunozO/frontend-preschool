@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-24 (fix de metodo de pago SWISH/OTHER, descarga de recibo PDF, notas solo editables por su autor).
+Ultima actualizacion: 2026-08-24 (pantalla real de Reportes con el reporte mensual de pagos).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -97,12 +97,15 @@ Ultima actualizacion: 2026-08-24 (fix de metodo de pago SWISH/OTHER, descarga de
 
 - Fix: notas de estudiante solo editables/eliminables por su autor (PR #78). El backend esta por restringir editar/eliminar una nota al propio autor (admin/director sin restriccion) — antes solo verificaba pertenencia al grupo, asi que cualquier `TEACHER` asignado al grupo podia editar/eliminar la nota de otro profesor. El frontend mostraba los botones de editar/eliminar sin condicion en cada nota, lo cual iba a empezar a fallar con `403` en cuanto ese cambio de backend aterrice. Ahora los botones solo se renderizan para `adminRoles` o cuando `note.authorEmail` coincide con el usuario logueado (`StudentsPage.tsx`).
 
+- Reportes: pantalla real con el reporte mensual de pagos (PR #80). `Reportes` era un `PlaceholderPage` desde el scaffolding inicial, nunca se habia construido nada ahi. Jose pregunto por que estaba vacio; se coordino en vivo con la sesion de `backend-preschool` para confirmar el estado real: hoy solo existe un endpoint de reportes, `GET /api/payments/reports/monthly?month=YYYY-MM` (cargos pendientes/atrasados del mes con sus saldos, mas el total de pagos recibidos) — reportes de estudiantes o inventario no existen todavia en el backend, siguen sin marcar en su roadmap y sin fecha planeada (dependen de que Jose defina alcance). Nuevo `getMonthlyPaymentsReport()` en `payments.api.ts` y `PaymentMonthlyReport` en `types/payments.ts` (contrato confirmado campo por campo con la sesion de backend, coincide con el que ya estaba mirrorado en `docs/backend-api-reference.md`). Nueva `ReportsPage.tsx`: selector de mes, 3 tarjetas resumen (saldo pendiente, saldo atrasado, pagos recibidos) y dos tablas de cargos (pendientes/atrasados), reutilizando el mismo formateo y labels de estado que `PaymentsPage`. Ruta `/reports` y el link del sidebar gateados a `financeRoles`, igual que exige el backend en ese endpoint (mismo patron que `/payments` y `/staff`). `PlaceholderPage.tsx` eliminado, Reportes era su ultimo llamador. Verificado end-to-end contra el backend real: datos reales de agosto 2026 (10 cargos pendientes, $37,500 MXN pendiente, $0 atrasado, $100 MXN recibido) logueado como `admin@school.com`, y como `TEACHER` (`assistant@school.com`) sin el link "Reportes" en el sidebar y `ForbiddenPage` al entrar por URL directa.
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
 - **Backend: generacion automatica mensual de cargos** (2026-08-23). Jose reporto que los cargos se quedaban solo hasta mayo/junio porque nunca hubo generacion automatica, cada cargo se creaba a mano. Backend lo resolvio: un job corre solo todos los dias a las 02:00 (o manual, `POST /api/payments/generate-monthly-charges?month=YYYY-MM`, admin/finanzas) y genera el cargo del mes para cada estudiante activo, prorrateado si se inscribe a mitad de mes — cero cambio de frontend necesario para esto, los cargos nuevos simplemente aparecen en `GET /api/payments/charges` como cualquier otro (confirmado en el navegador: cargos de agosto ya generados automaticamente).
+- **Reportes de estudiantes o inventario: no existen en el backend todavia** (confirmado en vivo con la sesion de `backend-preschool`, 2026-08-24). Solo esta construido el reporte mensual de pagos (ver PR #80 en Estado Actual). Sin fecha planeada — es una pregunta abierta en el propio roadmap del backend, depende de que Jose defina que reportes especificos quiere antes de construir el endpoint.
 
 ## Siguiente Punto Recomendado
 
@@ -200,6 +203,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Asistencia: pagina real por grupo/fecha con guardado en lote (`GET/POST /api/attendance`), verificada contra el backend real.
 - [x] Asistencia: modal de historial por estudiante (`GET /api/attendance/students/{studentId}?from=&to=`), verificado contra el backend real.
 - [x] Personal: alta de puestos, administracion de roles por rango, y dar de baja/reactivar (`GET/POST /api/staff`, `DELETE/POST /api/staff/{id}(/restore)`, `GET /api/roles`, `POST/DELETE /api/users/{userId}/roles`), verificado contra el backend real.
+- [x] Reportes: reporte mensual de pagos pendientes/atrasados (`GET /api/payments/reports/monthly?month=YYYY-MM`), verificado contra el backend real. Reportes de estudiantes/inventario sin construir todavia en el backend (ver "Backend API — cambios pendientes de aprovechar").
 
 ## Fase 5 - Formularios
 
