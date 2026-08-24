@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { Plus, RotateCcw, ShieldCheck, Trash2, UserCircle, X } from 'lucide-react'
 import { ApiError } from '../../api/client'
@@ -25,43 +27,45 @@ const emptyRoles: Role[] = []
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const staffFormSchema = z
-  .object({
-    firstName: z.string().trim().min(1, 'El nombre es obligatorio.'),
-    lastName: z.string().trim().min(1, 'Los apellidos son obligatorios.'),
-    email: z.string().trim(),
-    phone: z.string(),
-    employeeCode: z.string(),
-    positionTitle: z.string().trim().min(1, 'El puesto es obligatorio.'),
-    staffType: z.string().trim().min(1, 'El tipo de personal es obligatorio.'),
-    hireDate: z.string(),
-    createLogin: z.boolean(),
-    password: z.string(),
-    roles: z.array(z.string()),
-  })
-  .superRefine((values, ctx) => {
-    if (!values.createLogin) {
-      return
-    }
+function createStaffFormSchema(t: TFunction) {
+  return z
+    .object({
+      firstName: z.string().trim().min(1, t('staff.firstNameRequired')),
+      lastName: z.string().trim().min(1, t('staff.lastNameRequired')),
+      email: z.string().trim(),
+      phone: z.string(),
+      employeeCode: z.string(),
+      positionTitle: z.string().trim().min(1, t('staff.positionRequired')),
+      staffType: z.string().trim().min(1, t('staff.staffTypeRequired')),
+      hireDate: z.string(),
+      createLogin: z.boolean(),
+      password: z.string(),
+      roles: z.array(z.string()),
+    })
+    .superRefine((values, ctx) => {
+      if (!values.createLogin) {
+        return
+      }
 
-    if (!emailPattern.test(values.email.trim())) {
-      ctx.addIssue({ code: 'custom', message: 'Ingresa un correo valido.', path: ['email'] })
-    }
+      if (!emailPattern.test(values.email.trim())) {
+        ctx.addIssue({ code: 'custom', message: t('staff.emailInvalid'), path: ['email'] })
+      }
 
-    if (values.password.trim().length < 6) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'La contrasena debe tener al menos 6 caracteres.',
-        path: ['password'],
-      })
-    }
+      if (values.password.trim().length < 6) {
+        ctx.addIssue({
+          code: 'custom',
+          message: t('staff.passwordInvalid'),
+          path: ['password'],
+        })
+      }
 
-    if (values.roles.length === 0) {
-      ctx.addIssue({ code: 'custom', message: 'Selecciona al menos un rol.', path: ['roles'] })
-    }
-  })
+      if (values.roles.length === 0) {
+        ctx.addIssue({ code: 'custom', message: t('staff.rolesRequired'), path: ['roles'] })
+      }
+    })
+}
 
-type StaffFormValues = z.infer<typeof staffFormSchema>
+type StaffFormValues = z.infer<ReturnType<typeof createStaffFormSchema>>
 
 function emptyFormValues(): StaffFormValues {
   return {
@@ -88,12 +92,12 @@ function formatStaffName(staff: StaffMember) {
   return `${staff.firstName} ${staff.lastName}`.trim()
 }
 
-function roleErrorMessage(error: unknown) {
+function roleErrorMessage(error: unknown, t: TFunction) {
   if (error instanceof ApiError) {
     return error.message
   }
 
-  return 'No se pudo actualizar el rol.'
+  return t('staff.roleUpdateError')
 }
 
 function staffMaxRank(staff: StaffMember) {
@@ -102,6 +106,8 @@ function staffMaxRank(staff: StaffMember) {
 }
 
 export function StaffPage() {
+  const { t } = useTranslation()
+  const staffFormSchema = useMemo(() => createStaffFormSchema(t), [t])
   const queryClient = useQueryClient()
   const session = useAuthStore((state) => state.session)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -158,7 +164,7 @@ export function StaffPage() {
     mutationFn: (request: StaffRequest) => createStaff(request),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['staff'] })
-      setSuccessMessage('Puesto de trabajo creado correctamente.')
+      setSuccessMessage(t('staff.createSuccess'))
       setIsFormOpen(false)
     },
   })
@@ -171,7 +177,7 @@ export function StaffPage() {
       setRoleError(null)
     },
     onError: (mutationError) => {
-      setRoleError(roleErrorMessage(mutationError))
+      setRoleError(roleErrorMessage(mutationError, t))
     },
   })
 
@@ -183,7 +189,7 @@ export function StaffPage() {
       setDeleteError(null)
     },
     onError: (mutationError) => {
-      setDeleteError(roleErrorMessage(mutationError))
+      setDeleteError(roleErrorMessage(mutationError, t))
     },
   })
 
@@ -271,17 +277,17 @@ export function StaffPage() {
     <main className="page-content">
       <section className="page-heading page-heading-row">
         <div>
-          <h2>Personal</h2>
-          <p>Administra los puestos de trabajo y los roles de acceso al sistema.</p>
+          <h2>{t('staff.title')}</h2>
+          <p>{t('staff.subtitle')}</p>
         </div>
         <div className="page-heading-actions">
           <button className="secondary-button" onClick={openTrash} type="button">
             <Trash2 size={17} aria-hidden="true" />
-            Papelera
+            {t('common.trash')}
           </button>
           <button className="primary-button inline-button" onClick={openNewStaffForm} type="button">
             <Plus size={17} aria-hidden="true" />
-            Nuevo puesto
+            {t('staff.newPosition')}
           </button>
         </div>
       </section>
@@ -292,11 +298,7 @@ export function StaffPage() {
         </div>
       ) : null}
       {error ? (
-        <div className="notice">
-          {isForbiddenError(error)
-            ? 'No tienes permiso para ver el personal.'
-            : 'No se pudo cargar el personal.'}
-        </div>
+        <div className="notice">{isForbiddenError(error) ? t('staff.forbiddenList') : t('staff.loadError')}</div>
       ) : null}
 
       {isFormOpen ? (
@@ -310,11 +312,11 @@ export function StaffPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="staff-form-title">Nuevo puesto de trabajo</h3>
-              <p>Datos del empleado. La cuenta de acceso al sistema es opcional.</p>
+              <h3 id="staff-form-title">{t('staff.newPositionTitle')}</h3>
+              <p>{t('staff.formSubtitle')}</p>
             </div>
             <button
-              aria-label="Cerrar formulario"
+              aria-label={t('common.closeForm')}
               className="icon-button"
               disabled={createStaffMutation.isPending}
               onClick={closeStaffForm}
@@ -326,63 +328,71 @@ export function StaffPage() {
           <form className="entity-form" onSubmit={onSubmit}>
             <div className="entity-form-grid">
               <label>
-                Nombre *
+                {t('staff.firstNameLabel')}
                 <input maxLength={100} {...register('firstName')} />
                 {formErrors.firstName ? (
                   <span className="field-error">{formErrors.firstName.message}</span>
                 ) : null}
               </label>
               <label>
-                Apellidos *
+                {t('staff.lastNameLabel')}
                 <input maxLength={100} {...register('lastName')} />
                 {formErrors.lastName ? <span className="field-error">{formErrors.lastName.message}</span> : null}
               </label>
               <label>
-                Telefono
+                {t('staff.phoneLabel')}
                 <input maxLength={30} {...register('phone')} />
               </label>
               <label>
-                Codigo de empleado
+                {t('staff.employeeCodeLabel')}
                 <input maxLength={50} {...register('employeeCode')} />
               </label>
               <label>
-                Puesto *
-                <input maxLength={100} placeholder="Lead Teacher, Finance Officer..." {...register('positionTitle')} />
+                {t('staff.positionLabel')}
+                <input
+                  maxLength={100}
+                  placeholder={t('staff.positionPlaceholder')}
+                  {...register('positionTitle')}
+                />
                 {formErrors.positionTitle ? (
                   <span className="field-error">{formErrors.positionTitle.message}</span>
                 ) : null}
               </label>
               <label>
-                Tipo de personal *
-                <input maxLength={50} placeholder="teacher, director, admin, support..." {...register('staffType')} />
+                {t('staff.staffTypeLabel')}
+                <input
+                  maxLength={50}
+                  placeholder={t('staff.staffTypePlaceholder')}
+                  {...register('staffType')}
+                />
                 {formErrors.staffType ? (
                   <span className="field-error">{formErrors.staffType.message}</span>
                 ) : null}
               </label>
               <label>
-                Fecha de contratacion
+                {t('staff.hireDateLabel')}
                 <input type="date" {...register('hireDate')} />
               </label>
               <label className="checkbox-field entity-form-full">
                 <input type="checkbox" {...register('createLogin')} />
-                Crear cuenta de acceso al sistema
+                {t('staff.createLoginLabel')}
               </label>
               {createLogin ? (
                 <>
                   <label>
-                    Correo electronico *
+                    {t('staff.emailLabel')}
                     <input maxLength={150} type="email" {...register('email')} />
                     {formErrors.email ? <span className="field-error">{formErrors.email.message}</span> : null}
                   </label>
                   <label>
-                    Contrasena *
+                    {t('staff.passwordLabel')}
                     <input autoComplete="new-password" maxLength={100} type="password" {...register('password')} />
                     {formErrors.password ? (
                       <span className="field-error">{formErrors.password.message}</span>
                     ) : null}
                   </label>
                   <fieldset className="entity-form-full">
-                    <legend>Roles *</legend>
+                    <legend>{t('staff.rolesLabel')}</legend>
                     {roles.map((role) => (
                       <label className="checkbox-field" key={role.roleId}>
                         <input
@@ -403,7 +413,7 @@ export function StaffPage() {
               <p className="form-error" role="alert">
                 {createStaffMutation.error instanceof ApiError
                   ? createStaffMutation.error.message
-                  : 'No se pudo crear el puesto de trabajo.'}
+                  : t('staff.createStaffError')}
               </p>
             ) : null}
             <footer className="form-actions">
@@ -413,10 +423,10 @@ export function StaffPage() {
                 onClick={closeStaffForm}
                 type="button"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button className="primary-button" disabled={createStaffMutation.isPending} type="submit">
-                {createStaffMutation.isPending ? 'Guardando...' : 'Crear puesto'}
+                {createStaffMutation.isPending ? t('common.saving') : t('staff.createPosition')}
               </button>
             </footer>
           </form>
@@ -435,10 +445,10 @@ export function StaffPage() {
         >
           <header className="form-panel-heading">
             <div>
-              <h3 id="manage-roles-title">Roles de {formatStaffName(managingStaff)}</h3>
-              <p>Activa o desactiva los roles de acceso de este usuario.</p>
+              <h3 id="manage-roles-title">{t('staff.rolesOf', { name: formatStaffName(managingStaff) })}</h3>
+              <p>{t('staff.manageRolesSubtitle')}</p>
             </div>
-            <button aria-label="Cerrar" className="icon-button" onClick={closeManageRoles} type="button">
+            <button aria-label={t('common.close')} className="icon-button" onClick={closeManageRoles} type="button">
               <X size={20} aria-hidden="true" />
             </button>
           </header>
@@ -465,7 +475,7 @@ export function StaffPage() {
                         onChange={() => toggleRole(role, hasRole)}
                         type="checkbox"
                       />
-                      Activo
+                      {t('staff.active')}
                     </label>
                   </div>
                   <p className="field-hint">{role.description}</p>
@@ -481,20 +491,17 @@ export function StaffPage() {
         <section className="panel trash-panel" aria-labelledby="staff-trash-title">
           <header className="form-panel-heading">
             <div>
-              <h3 id="staff-trash-title">Personal dado de baja</h3>
-              <p>
-                No hay limite de tiempo para reactivar — se puede hacer en cualquier momento, no se purga
-                nunca.
-              </p>
+              <h3 id="staff-trash-title">{t('staff.trashTitle')}</h3>
+              <p>{t('staff.trashSubtitle')}</p>
             </div>
-            <button aria-label="Cerrar papelera" className="icon-button" onClick={closeTrash} type="button">
+            <button aria-label={t('common.closeTrash')} className="icon-button" onClick={closeTrash} type="button">
               <X size={20} aria-hidden="true" />
             </button>
           </header>
 
-          {isTrashLoading ? <p>Cargando...</p> : null}
+          {isTrashLoading ? <p>{t('common.loading')}</p> : null}
 
-          {!isTrashLoading && trashedStaff.length === 0 ? <p>No hay personal dado de baja.</p> : null}
+          {!isTrashLoading && trashedStaff.length === 0 ? <p>{t('staff.noStaffDeactivated')}</p> : null}
 
           {!isTrashLoading && trashedStaff.length > 0 ? (
             <ul className="trash-list">
@@ -505,7 +512,7 @@ export function StaffPage() {
                   <li className="trash-list-item" key={staff.staffId}>
                     <div>
                       <strong>{formatStaffName(staff)}</strong>
-                      <span className="field-hint">{staff.positionTitle ?? 'Sin puesto'}</span>
+                      <span className="field-hint">{staff.positionTitle ?? t('staff.noPosition')}</span>
                     </div>
                     <button
                       className="secondary-button"
@@ -514,7 +521,7 @@ export function StaffPage() {
                       type="button"
                     >
                       <RotateCcw size={16} aria-hidden="true" />
-                      {isRestoring ? 'Reactivando...' : 'Reactivar'}
+                      {isRestoring ? t('staff.reactivating') : t('staff.reactivate')}
                     </button>
                   </li>
                 )
@@ -528,11 +535,11 @@ export function StaffPage() {
         <table>
           <thead>
             <tr>
-              <th>Nombre</th>
-              <th>Puesto</th>
-              <th>Correo</th>
-              <th>Roles</th>
-              <th>Acciones</th>
+              <th>{t('staff.colName')}</th>
+              <th>{t('staff.colPosition')}</th>
+              <th>{t('staff.colEmail')}</th>
+              <th>{t('staff.colRoles')}</th>
+              <th>{t('staff.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -558,20 +565,20 @@ export function StaffPage() {
                       ))}
                     </div>
                   ) : (
-                    'Sin cuenta de acceso'
+                    t('staff.noLoginAccount')
                   )}
                 </td>
                 <td>
                   <div className="row-actions">
                     {staff.userId ? (
-                      <button onClick={() => openManageRoles(staff)} title="Gestionar roles" type="button">
+                      <button onClick={() => openManageRoles(staff)} title={t('staff.manageRolesTitle')} type="button">
                         <ShieldCheck size={16} aria-hidden="true" />
                       </button>
                     ) : null}
                     <button
                       disabled={staffMaxRank(staff) > currentMaxRank}
                       onClick={() => openDeleteConfirm(staff)}
-                      title="Dar de baja"
+                      title={t('staff.deactivateTitle')}
                       type="button"
                     >
                       <Trash2 size={16} aria-hidden="true" />
@@ -582,7 +589,7 @@ export function StaffPage() {
             ))}
             {!isLoading && staffList.length === 0 ? (
               <tr>
-                <td colSpan={5}>Sin personal para mostrar.</td>
+                <td colSpan={5}>{t('staff.emptyTable')}</td>
               </tr>
             ) : null}
           </tbody>
@@ -590,16 +597,14 @@ export function StaffPage() {
       </div>
 
       <ConfirmDialog
-        cancelLabel="Cancelar"
-        confirmLabel="Si, dar de baja"
+        cancelLabel={t('common.cancel')}
+        confirmLabel={t('staff.deactivateConfirmYes')}
         description={
           deleteTarget ? (
             <>
-              {`Se dara de baja a ${formatStaffName(deleteTarget)}. `}
-              {deleteTarget.userId
-                ? 'Su cuenta de acceso quedara desactivada. '
-                : ''}
-              Se puede reactivar en cualquier momento, sin limite de tiempo.
+              {t('staff.deactivateConfirmPrefix', { name: formatStaffName(deleteTarget) })}
+              {deleteTarget.userId ? t('staff.deactivateConfirmAccountNote') : ''}
+              {t('staff.deactivateConfirmSuffix')}
               {deleteError ? (
                 <span className="field-error" role="alert">
                   {' '}
@@ -619,7 +624,7 @@ export function StaffPage() {
           }
         }}
         open={deleteTarget !== null}
-        title="Dar de baja a este puesto?"
+        title={t('staff.deactivateConfirmTitle')}
         variant="danger"
       />
     </main>
