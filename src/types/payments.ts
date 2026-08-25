@@ -50,11 +50,14 @@ export type ChargeType = {
 
 export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT'
 
+export type DiscountDurationType = 'INSTANT' | 'SCHEDULED'
+
 export type StudentDiscount = {
   studentDiscountId: number
   studentId: number
   studentName: string
   discountType: DiscountType
+  durationType: DiscountDurationType
   value: number
   reason: string
   validFrom: string
@@ -68,9 +71,10 @@ export type StudentDiscount = {
 
 export type StudentDiscountRequest = {
   discountType: DiscountType
+  durationType: DiscountDurationType
   value: number
   reason: string
-  validFrom: string
+  validFrom?: string
   validUntil?: string
 }
 
