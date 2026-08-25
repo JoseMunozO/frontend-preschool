@@ -7,9 +7,10 @@ import { AttendanceSummaryReport } from './AttendanceSummaryReport'
 import { NotesHistoryReport } from './NotesHistoryReport'
 import { HealthReport } from './HealthReport'
 import { MaterialMovementsReport } from './MaterialMovementsReport'
+import { DiscountsReport } from './DiscountsReport'
 import { TrashReport } from './TrashReport'
 
-type ReportTabKey = 'financial' | 'attendance' | 'notesHistory' | 'health' | 'materials' | 'trash'
+type ReportTabKey = 'financial' | 'attendance' | 'notesHistory' | 'health' | 'materials' | 'discounts' | 'trash'
 
 const REPORT_TABS: { key: ReportTabKey; labelKey: string; roles: string[] }[] = [
   { key: 'financial', labelKey: 'reports.tabs.financial', roles: financeRoles },
@@ -17,6 +18,7 @@ const REPORT_TABS: { key: ReportTabKey; labelKey: string; roles: string[] }[] = 
   { key: 'notesHistory', labelKey: 'reports.tabs.notesHistory', roles: teacherReportRoles },
   { key: 'health', labelKey: 'reports.tabs.health', roles: teacherReportRoles },
   { key: 'materials', labelKey: 'reports.tabs.materials', roles: internalRoles },
+  { key: 'discounts', labelKey: 'reports.tabs.discounts', roles: financeRoles },
   { key: 'trash', labelKey: 'reports.tabs.trash', roles: adminRoles },
 ]
 
@@ -52,6 +54,7 @@ export function ReportsPage() {
       {activeTab === 'notesHistory' ? <NotesHistoryReport /> : null}
       {activeTab === 'health' ? <HealthReport /> : null}
       {activeTab === 'materials' ? <MaterialMovementsReport /> : null}
+      {activeTab === 'discounts' ? <DiscountsReport /> : null}
       {activeTab === 'trash' ? <TrashReport /> : null}
     </main>
   )

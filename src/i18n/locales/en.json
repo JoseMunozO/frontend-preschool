@@ -91,6 +91,7 @@
       "notesHistory": "Notes",
       "health": "Health",
       "materials": "Materials",
+      "discounts": "Discounts",
       "trash": "Trash"
     },
     "financial": {
@@ -168,6 +169,19 @@
       "colPerformedBy": "Recorded by",
       "colRunningBalance": "Balance",
       "emptyTable": "No movements for this filter."
+    },
+    "discounts": {
+      "subtitle": "Charges that currently have a discount applied.",
+      "filtersAriaLabel": "Month filter",
+      "monthAriaLabel": "Report month",
+      "forbidden": "You don't have permission to view this report.",
+      "loadError": "Could not load the report. Try again.",
+      "colOriginalAmount": "Original amount",
+      "colCurrentAmount": "Current amount",
+      "colDiscountType": "Discount type",
+      "colDiscountValue": "Discount value",
+      "colReason": "Reason",
+      "emptyTable": "No discounted charges for this filter."
     },
     "trash": {
       "subtitle": "Deleted or archived students, parents, materials, schedules, and staff.",
@@ -431,6 +445,7 @@
     "allergiesColon": "Allergies:",
     "medicalNotesLabel": "Medical notes",
     "medicalNotesColon": "Medical notes:",
+    "activeDiscountsTitle": "Active discounts",
     "observationsLabel": "Observations",
     "saveStudentError": "Could not save the student.",
     "saveChanges": "Save changes",

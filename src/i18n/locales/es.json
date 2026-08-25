@@ -91,6 +91,7 @@
       "notesHistory": "Notas",
       "health": "Salud",
       "materials": "Materiales",
+      "discounts": "Descuentos",
       "trash": "Papeleras"
     },
     "financial": {
@@ -168,6 +169,19 @@
       "colPerformedBy": "Registrado por",
       "colRunningBalance": "Saldo",
       "emptyTable": "Sin movimientos para este filtro."
+    },
+    "discounts": {
+      "subtitle": "Cargos que tienen un descuento aplicado actualmente.",
+      "filtersAriaLabel": "Filtro de mes",
+      "monthAriaLabel": "Mes del reporte",
+      "forbidden": "No tienes permiso para ver este reporte.",
+      "loadError": "No se pudo cargar el reporte. Intenta de nuevo.",
+      "colOriginalAmount": "Monto original",
+      "colCurrentAmount": "Monto actual",
+      "colDiscountType": "Tipo de descuento",
+      "colDiscountValue": "Valor del descuento",
+      "colReason": "Motivo",
+      "emptyTable": "Sin cargos con descuento para este filtro."
     },
     "trash": {
       "subtitle": "Estudiantes, padres, materiales, horarios y personal eliminados o archivados.",
@@ -431,6 +445,7 @@
     "allergiesColon": "Alergias:",
     "medicalNotesLabel": "Notas medicas",
     "medicalNotesColon": "Notas medicas:",
+    "activeDiscountsTitle": "Descuentos activos",
     "observationsLabel": "Observaciones",
     "saveStudentError": "No se pudo guardar el estudiante.",
     "saveChanges": "Guardar cambios",

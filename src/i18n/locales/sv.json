@@ -91,6 +91,7 @@
       "notesHistory": "Anteckningar",
       "health": "Hälsa",
       "materials": "Material",
+      "discounts": "Rabatter",
       "trash": "Papperskorg"
     },
     "financial": {
@@ -168,6 +169,19 @@
       "colPerformedBy": "Registrerad av",
       "colRunningBalance": "Saldo",
       "emptyTable": "Inga rörelser för detta filter."
+    },
+    "discounts": {
+      "subtitle": "Avgifter som just nu har en rabatt tillämpad.",
+      "filtersAriaLabel": "Månadsfilter",
+      "monthAriaLabel": "Rapportmånad",
+      "forbidden": "Du har inte behörighet att se den här rapporten.",
+      "loadError": "Kunde inte läsa in rapporten. Försök igen.",
+      "colOriginalAmount": "Ursprungligt belopp",
+      "colCurrentAmount": "Aktuellt belopp",
+      "colDiscountType": "Rabatttyp",
+      "colDiscountValue": "Rabattvärde",
+      "colReason": "Anledning",
+      "emptyTable": "Inga rabatterade avgifter för detta filter."
     },
     "trash": {
       "subtitle": "Borttagna eller arkiverade elever, föräldrar, material, scheman och personal.",
@@ -431,6 +445,7 @@
     "allergiesColon": "Allergier:",
     "medicalNotesLabel": "Medicinska anteckningar",
     "medicalNotesColon": "Medicinska anteckningar:",
+    "activeDiscountsTitle": "Aktiva rabatter",
     "observationsLabel": "Observationer",
     "saveStudentError": "Det gick inte att spara eleven.",
     "saveChanges": "Spara ändringar",

@@ -35,7 +35,9 @@ import type {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { useAuthStore } from '../../auth/auth.store'
-import { adminRoles } from '../../auth/roleAccess'
+import { adminRoles, financeRoles } from '../../auth/roleAccess'
+import { getStudentCharges } from '../../api/payments.api'
+import type { DiscountType } from '../../types/payments'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 import { createStudentFormSchema } from './students.schema'
@@ -211,6 +213,17 @@ function formatDate(value: string | undefined, locale: string) {
   }).format(new Date(`${value}T00:00:00`))
 }
 
+function formatCurrency(value: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    currency: 'DOP',
+    style: 'currency',
+  }).format(value)
+}
+
+function formatDiscountValue(discountType: DiscountType, value: number, locale: string) {
+  return discountType === 'PERCENTAGE' ? `${value}%` : formatCurrency(value, locale)
+}
+
 export function StudentsPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.resolvedLanguage ?? 'es'
@@ -240,6 +253,7 @@ export function StudentsPage() {
   const noteFormSchema = useMemo(() => createNoteFormSchema(t), [t])
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
+  const canViewDiscounts = useAuthStore((state) => state.hasAnyRole(financeRoles))
   const currentUserEmail = useAuthStore((state) => state.session?.user.email)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -329,6 +343,12 @@ export function StudentsPage() {
     queryKey: ['students', contactsStudent?.studentId, 'emergency-contacts'],
     queryFn: () => getStudentEmergencyContacts(contactsStudent!.studentId),
     enabled: contactsStudent !== null,
+  })
+
+  const { data: activeDiscountsData } = useQuery({
+    queryKey: ['students', contactsStudent?.studentId, 'active-discounts'],
+    queryFn: () => getStudentCharges({ studentId: contactsStudent!.studentId, hasDiscount: true }),
+    enabled: contactsStudent !== null && canViewDiscounts,
   })
 
   const {
@@ -478,6 +498,9 @@ export function StudentsPage() {
     [notes],
   )
   const guardians = contactsStudent?.guardians ?? emptyGuardians
+  const activeDiscountedCharges = (activeDiscountsData ?? []).filter(
+    (charge) => charge.discountType && charge.status !== 'CANCELLED',
+  )
   const sortedGuardians = useMemo(
     () => [...guardians].sort((a, b) => Number(b.primaryContact) - Number(a.primaryContact)),
     [guardians],
@@ -829,6 +852,29 @@ export function StudentsPage() {
                   <strong>{t('students.medicalNotesColon')}</strong> {contactsStudent.medicalNotes}
                 </p>
               ) : null}
+            </div>
+          ) : null}
+
+          {!contactFormOpen && !noteFormOpen && canViewDiscounts && activeDiscountedCharges.length > 0 ? (
+            <div className="profile-summary">
+              <p className="panel-section-label">{t('students.activeDiscountsTitle')}</p>
+              <ul className="contact-list">
+                {activeDiscountedCharges.map((charge) => (
+                  <li className="contact-item" key={charge.studentChargeId}>
+                    <span className="contact-item-title">
+                      <strong>{translateBackendSeed(charge.chargeTypeName)}</strong>
+                      <span className="status-badge">
+                        {formatDiscountValue(charge.discountType!, charge.discountValue ?? 0, locale)}
+                      </span>
+                    </span>
+                    <p className="field-hint">{charge.discountReason}</p>
+                    <p className="field-hint">
+                      {formatCurrency(charge.originalAmount ?? charge.amountDue, locale)} {'->'}{' '}
+                      {formatCurrency(charge.amountDue, locale)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
 
