@@ -11,6 +11,7 @@ import { translateBackendSeed } from '../utils/displayText'
 function formatCurrency(value: number, locale: string) {
   return new Intl.NumberFormat(locale, {
     currency: 'DOP',
+    maximumFractionDigits: 0,
     style: 'currency',
   }).format(value)
 }
