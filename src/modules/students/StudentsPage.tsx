@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
-import { Eye, ListFilter, Pencil, Percent, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
+import { Eye, ListFilter, Pencil, Plus, Search, Trash2, UserCircle, X } from 'lucide-react'
 import {
   createStudent,
   createStudentEmergencyContact,
@@ -33,10 +33,9 @@ import type {
   StudentStatus,
 } from '../../api/students.api'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { StudentDiscountsPanel } from '../../components/ui/StudentDiscountsPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { useAuthStore } from '../../auth/auth.store'
-import { adminRoles, financeRoles } from '../../auth/roleAccess'
+import { adminRoles } from '../../auth/roleAccess'
 import { isForbiddenError } from '../../utils/apiErrors'
 import { translateBackendSeed } from '../../utils/displayText'
 import { createStudentFormSchema } from './students.schema'
@@ -241,9 +240,7 @@ export function StudentsPage() {
   const noteFormSchema = useMemo(() => createNoteFormSchema(t), [t])
   const queryClient = useQueryClient()
   const canManage = useAuthStore((state) => state.hasAnyRole(adminRoles))
-  const canViewDiscounts = useAuthStore((state) => state.hasAnyRole(financeRoles))
   const currentUserEmail = useAuthStore((state) => state.session?.user.email)
-  const [isDiscountsPanelOpen, setIsDiscountsPanelOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('all')
@@ -519,7 +516,6 @@ export function StudentsPage() {
     setIsFormOpen(false)
     setContactFormOpen(false)
     setEditingContact(null)
-    setIsDiscountsPanelOpen(false)
     setContactsStudent(student)
   }
 
@@ -529,7 +525,6 @@ export function StudentsPage() {
     setEditingContact(null)
     setNoteFormOpen(false)
     setEditingNote(null)
-    setIsDiscountsPanelOpen(false)
   }
 
   function openNewContactForm() {
@@ -834,19 +829,6 @@ export function StudentsPage() {
                   <strong>{t('students.medicalNotesColon')}</strong> {contactsStudent.medicalNotes}
                 </p>
               ) : null}
-            </div>
-          ) : null}
-
-          {!contactFormOpen && !noteFormOpen && canViewDiscounts ? (
-            <div className="panel-actions-row">
-              <button
-                className="secondary-button inline-button"
-                onClick={() => setIsDiscountsPanelOpen(true)}
-                type="button"
-              >
-                <Percent size={16} aria-hidden="true" />
-                {t('students.discountsButton')}
-              </button>
             </div>
           ) : null}
 
@@ -1322,13 +1304,6 @@ export function StudentsPage() {
         />
       ) : null}
 
-      {contactsStudent && isDiscountsPanelOpen ? (
-        <StudentDiscountsPanel
-          onClose={() => setIsDiscountsPanelOpen(false)}
-          studentId={contactsStudent.studentId}
-          studentName={formatStudentName(contactsStudent.firstName, contactsStudent.lastName)}
-        />
-      ) : null}
     </main>
   )
 }

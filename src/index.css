@@ -1012,6 +1012,11 @@ a {
   font-weight: 500;
 }
 
+.strikethrough {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
 .form-actions {
   display: flex;
   gap: 12px;

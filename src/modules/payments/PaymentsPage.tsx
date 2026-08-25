@@ -7,18 +7,21 @@ import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { Ban, Eye, FilePlus2, FileText, ListFilter, Pencil, Percent, Plus, RotateCcw, Search, X } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { StudentDiscountsPanel } from '../../components/ui/StudentDiscountsPanel'
 import {
+  applyChargeDiscount,
   createCharge,
   createPayment,
   getChargeTypes,
   getPaymentReceipt,
   getPaymentsByStudent,
   getStudentCharges,
+  removeChargeDiscount,
   updateCharge,
 } from '../../api/payments.api'
 import type {
+  ChargeDiscountRequest,
   ChargeType,
+  DiscountType,
   PaymentChargeStatus,
   PaymentMethod,
   PaymentRequest,
@@ -160,6 +163,10 @@ function createNewChargeFormSchema(t: TFunction) {
         .string()
         .refine((value) => value.trim() !== '' && Number(value) > 0, t('payments.amountInvalid')),
       description: z.string(),
+      applyDiscount: z.boolean(),
+      discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT']),
+      discountValue: z.string(),
+      discountReason: z.string(),
     })
     .superRefine((values, ctx) => {
       if (values.billingPeriodStart && values.billingPeriodEnd && values.billingPeriodStart > values.billingPeriodEnd) {
@@ -168,6 +175,24 @@ function createNewChargeFormSchema(t: TFunction) {
           message: t('payments.periodEndAfterStart'),
           path: ['billingPeriodEnd'],
         })
+      }
+
+      if (values.applyDiscount) {
+        if (values.discountValue.trim() === '' || Number(values.discountValue) <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('payments.discountValueInvalid'),
+            path: ['discountValue'],
+          })
+        }
+
+        if (!values.discountReason.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('payments.discountReasonRequired'),
+            path: ['discountReason'],
+          })
+        }
       }
     })
 }
@@ -183,6 +208,28 @@ function emptyNewChargeValues(): NewChargeFormValues {
     billingPeriodEnd: '',
     amountDue: '',
     description: '',
+    applyDiscount: false,
+    discountType: 'PERCENTAGE',
+    discountValue: '',
+    discountReason: '',
+  }
+}
+
+function createChargeDiscountFormSchema(t: TFunction) {
+  return z.object({
+    discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT']),
+    value: z.string().refine((value) => value.trim() !== '' && Number(value) > 0, t('payments.discountValueInvalid')),
+    reason: z.string().trim().min(1, t('payments.discountReasonRequired')),
+  })
+}
+
+type ChargeDiscountFormValues = z.infer<ReturnType<typeof createChargeDiscountFormSchema>>
+
+function discountFormValuesForCharge(charge: StudentCharge | null): ChargeDiscountFormValues {
+  return {
+    discountType: charge?.discountType ?? 'PERCENTAGE',
+    value: charge?.discountValue ? String(charge.discountValue) : '',
+    reason: charge?.discountReason ?? '',
   }
 }
 
@@ -219,9 +266,14 @@ export function PaymentsPage() {
     SWISH: t('payments.methodSwish'),
     OTHER: t('payments.methodOther'),
   }
+  const discountTypeLabels: Record<DiscountType, string> = {
+    PERCENTAGE: t('payments.discountTypePercentage'),
+    FIXED_AMOUNT: t('payments.discountTypeFixedAmount'),
+  }
   const paymentFormSchema = useMemo(() => createPaymentFormSchema(t), [t])
   const chargeEditFormSchema = useMemo(() => createChargeEditFormSchema(t), [t])
   const newChargeFormSchema = useMemo(() => createNewChargeFormSchema(t), [t])
+  const chargeDiscountFormSchema = useMemo(() => createChargeDiscountFormSchema(t), [t])
   const queryClient = useQueryClient()
   const [month, setMonth] = useState(getCurrentMonth())
   const [status, setStatus] = useState<PaymentChargeStatus | 'ALL'>('ALL')
@@ -233,8 +285,9 @@ export function PaymentsPage() {
   const [isEditFormOpen, setIsEditFormOpen] = useState(false)
   const [editingCharge, setEditingCharge] = useState<StudentCharge | null>(null)
   const [isNewChargeFormOpen, setIsNewChargeFormOpen] = useState(false)
-  const [discountsStudent, setDiscountsStudent] = useState<{ studentId: number; studentName: string } | null>(null)
+  const [discountCharge, setDiscountCharge] = useState<StudentCharge | null>(null)
   const [confirmingStatusCharge, setConfirmingStatusCharge] = useState<StudentCharge | null>(null)
+  const [confirmingRemoveDiscount, setConfirmingRemoveDiscount] = useState(false)
   const {
     register,
     handleSubmit,
@@ -275,7 +328,16 @@ export function PaymentsPage() {
     resolver: zodResolver(newChargeFormSchema),
     defaultValues: emptyNewChargeValues(),
   })
-  const newChargeStudentId = useWatch({ control: newChargeControl, name: 'studentId' })
+  const newChargeApplyDiscount = useWatch({ control: newChargeControl, name: 'applyDiscount' })
+  const {
+    register: registerDiscount,
+    handleSubmit: handleSubmitDiscount,
+    reset: resetDiscount,
+    formState: { errors: discountFormErrors },
+  } = useForm<ChargeDiscountFormValues>({
+    resolver: zodResolver(chargeDiscountFormSchema),
+    defaultValues: discountFormValuesForCharge(null),
+  })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['student-charges', month, status],
@@ -357,6 +419,29 @@ export function PaymentsPage() {
     },
   })
 
+  const applyDiscountMutation = useMutation({
+    mutationFn: ({ studentChargeId: id, request }: { studentChargeId: number; request: ChargeDiscountRequest }) =>
+      applyChargeDiscount(id, request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'student-charges',
+      })
+      setSuccessMessage(t('payments.discountApplySuccess'))
+      setDiscountCharge(null)
+    },
+  })
+
+  const removeDiscountMutation = useMutation({
+    mutationFn: (studentChargeId: number) => removeChargeDiscount(studentChargeId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'student-charges',
+      })
+      setSuccessMessage(t('payments.discountRemoveSuccess'))
+      setDiscountCharge(null)
+    },
+  })
+
   const charges = data ?? emptyCharges
   const chargeTypes = chargeTypesData ?? emptyChargeTypes
   const studentOptions = studentOptionsData ?? emptyStudentOptions
@@ -384,7 +469,7 @@ export function PaymentsPage() {
     setIsFormOpen(false)
     setIsEditFormOpen(false)
     setIsNewChargeFormOpen(false)
-    setDiscountsStudent(null)
+    setDiscountCharge(null)
     setHistoryStudent({ studentId: charge.studentId, studentName: charge.studentName })
   }
 
@@ -400,7 +485,7 @@ export function PaymentsPage() {
     setHistoryStudent(null)
     setIsEditFormOpen(false)
     setIsNewChargeFormOpen(false)
-    setDiscountsStudent(null)
+    setDiscountCharge(null)
     setIsFormOpen(true)
   }
 
@@ -419,7 +504,7 @@ export function PaymentsPage() {
     setIsFormOpen(false)
     setSelectedCharge(null)
     setIsNewChargeFormOpen(false)
-    setDiscountsStudent(null)
+    setDiscountCharge(null)
     setIsEditFormOpen(true)
   }
 
@@ -436,7 +521,7 @@ export function PaymentsPage() {
     setHistoryStudent(null)
     setIsFormOpen(false)
     setIsEditFormOpen(false)
-    setDiscountsStudent(null)
+    setDiscountCharge(null)
     setIsNewChargeFormOpen(true)
   }
 
@@ -445,15 +530,22 @@ export function PaymentsPage() {
     createChargeMutation.reset()
   }
 
-  function openDiscountsPanel(student: { studentId: number; studentName: string }) {
+  function openDiscountForm(charge: StudentCharge) {
     setIsFormOpen(false)
     setIsEditFormOpen(false)
+    setIsNewChargeFormOpen(false)
     setHistoryStudent(null)
-    setDiscountsStudent(student)
+    resetDiscount(discountFormValuesForCharge(charge))
+    applyDiscountMutation.reset()
+    removeDiscountMutation.reset()
+    setSuccessMessage(null)
+    setDiscountCharge(charge)
   }
 
-  function closeDiscountsPanel() {
-    setDiscountsStudent(null)
+  function closeDiscountForm() {
+    setDiscountCharge(null)
+    applyDiscountMutation.reset()
+    removeDiscountMutation.reset()
   }
 
   function handleChargeTypeChange(newChargeTypeId: string) {
@@ -523,9 +615,30 @@ export function PaymentsPage() {
       billingPeriodEnd: optionalValue(values.billingPeriodEnd),
       amountDue: Number(values.amountDue),
       description: optionalValue(values.description),
+      ...(values.applyDiscount
+        ? {
+            discountType: values.discountType,
+            discountValue: Number(values.discountValue),
+            discountReason: values.discountReason.trim(),
+          }
+        : {}),
     }
 
     createChargeMutation.mutate(request)
+  })
+
+  const onSubmitDiscount = handleSubmitDiscount((values) => {
+    if (!discountCharge) {
+      return
+    }
+
+    const request: ChargeDiscountRequest = {
+      discountType: values.discountType,
+      value: Number(values.value),
+      reason: values.reason.trim(),
+    }
+
+    applyDiscountMutation.mutate({ studentChargeId: discountCharge.studentChargeId, request })
   })
 
   return (
@@ -796,26 +909,6 @@ export function PaymentsPage() {
                 {newChargeErrors.studentId ? (
                   <span className="field-error">{newChargeErrors.studentId.message}</span>
                 ) : null}
-                {newChargeStudentId ? (
-                  <button
-                    className="text-action"
-                    onClick={() => {
-                      const selectedStudent = studentOptions.find(
-                        (student) => String(student.studentId) === newChargeStudentId,
-                      )
-
-                      if (selectedStudent) {
-                        openDiscountsPanel({
-                          studentId: selectedStudent.studentId,
-                          studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
-                        })
-                      }
-                    }}
-                    type="button"
-                  >
-                    {t('payments.viewStudentDiscounts')}
-                  </button>
-                ) : null}
               </label>
               <label>
                 {t('payments.chargeTypeLabel')}
@@ -864,6 +957,38 @@ export function PaymentsPage() {
                 {t('payments.descriptionLabel')}
                 <textarea rows={2} {...registerNewCharge('description')} />
               </label>
+              <label className="checkbox-field entity-form-full">
+                <input type="checkbox" {...registerNewCharge('applyDiscount')} />
+                {t('payments.applyDiscountLabel')}
+              </label>
+              {newChargeApplyDiscount ? (
+                <>
+                  <label>
+                    {t('payments.discountTypeLabel')}
+                    <select {...registerNewCharge('discountType')}>
+                      {Object.entries(discountTypeLabels).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {t('payments.discountValueLabel')}
+                    <input min={0} step="0.01" type="number" {...registerNewCharge('discountValue')} />
+                    {newChargeErrors.discountValue ? (
+                      <span className="field-error">{newChargeErrors.discountValue.message}</span>
+                    ) : null}
+                  </label>
+                  <label className="entity-form-wide">
+                    {t('payments.discountReasonLabel')}
+                    <input maxLength={255} {...registerNewCharge('discountReason')} />
+                    {newChargeErrors.discountReason ? (
+                      <span className="field-error">{newChargeErrors.discountReason.message}</span>
+                    ) : null}
+                  </label>
+                </>
+              ) : null}
             </div>
             {createChargeMutation.error ? (
               <p className="form-error" role="alert">
@@ -1014,7 +1139,16 @@ export function PaymentsPage() {
                 <td>{charge.studentName}</td>
                 <td>{translateBackendSeed(charge.chargeTypeName)}</td>
                 <td>{formatBillingPeriod(charge, locale)}</td>
-                <td>{formatCurrency(charge.amountDue, locale)}</td>
+                <td>
+                  {charge.originalAmount ? (
+                    <>
+                      <span className="strikethrough">{formatCurrency(charge.originalAmount, locale)}</span>{' '}
+                      {formatCurrency(charge.amountDue, locale)}
+                    </>
+                  ) : (
+                    formatCurrency(charge.amountDue, locale)
+                  )}
+                </td>
                 <td>{formatCurrency(charge.amountPaid, locale)}</td>
                 <td>{formatCurrency(charge.balance, locale)}</td>
                 <td>
@@ -1029,10 +1163,8 @@ export function PaymentsPage() {
                       <Eye size={16} aria-hidden="true" />
                     </button>
                     <button
-                      onClick={() =>
-                        openDiscountsPanel({ studentId: charge.studentId, studentName: charge.studentName })
-                      }
-                      title={t('payments.discountsAction')}
+                      onClick={() => openDiscountForm(charge)}
+                      title={charge.discountType ? t('payments.editDiscountAction') : t('payments.discountsAction')}
                       type="button"
                     >
                       <Percent size={16} aria-hidden="true" />
@@ -1114,13 +1246,118 @@ export function PaymentsPage() {
         variant={confirmingStatusCharge?.status === 'CANCELLED' ? 'default' : 'danger'}
       />
 
-      {discountsStudent ? (
-        <StudentDiscountsPanel
-          onClose={closeDiscountsPanel}
-          studentId={discountsStudent.studentId}
-          studentName={discountsStudent.studentName}
-        />
+      {discountCharge ? (
+        <div className="dialog-overlay" onClick={closeDiscountForm} role="presentation">
+          <section
+            aria-labelledby="charge-discount-form-title"
+            aria-modal="true"
+            className="panel entity-form-panel dialog-panel-wide"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="form-panel-heading">
+              <div>
+                <h3 id="charge-discount-form-title">
+                  {discountCharge.discountType ? t('payments.editDiscountTitle') : t('payments.newDiscountTitle')}
+                </h3>
+                <p>
+                  {discountCharge.studentName} - {translateBackendSeed(discountCharge.chargeTypeName)}
+                </p>
+              </div>
+              <button
+                aria-label={t('common.closeForm')}
+                className="icon-button"
+                disabled={applyDiscountMutation.isPending || removeDiscountMutation.isPending}
+                onClick={closeDiscountForm}
+                type="button"
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
+            </header>
+            <form className="entity-form" onSubmit={onSubmitDiscount}>
+              <div className="entity-form-grid">
+                <label>
+                  {t('payments.discountTypeLabel')}
+                  <select {...registerDiscount('discountType')}>
+                    {Object.entries(discountTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t('payments.discountValueLabel')}
+                  <input min={0} step="0.01" type="number" {...registerDiscount('value')} />
+                  {discountFormErrors.value ? (
+                    <span className="field-error">{discountFormErrors.value.message}</span>
+                  ) : null}
+                </label>
+                <label className="entity-form-full">
+                  {t('payments.discountReasonLabel')}
+                  <input maxLength={255} {...registerDiscount('reason')} />
+                  {discountFormErrors.reason ? (
+                    <span className="field-error">{discountFormErrors.reason.message}</span>
+                  ) : null}
+                </label>
+              </div>
+              {applyDiscountMutation.error ? (
+                <p className="form-error" role="alert">
+                  {applyDiscountMutation.error instanceof Error
+                    ? applyDiscountMutation.error.message
+                    : t('payments.discountApplyError')}
+                </p>
+              ) : null}
+              <footer className="form-actions">
+                {discountCharge.discountType ? (
+                  <button
+                    className="secondary-button"
+                    disabled={applyDiscountMutation.isPending || removeDiscountMutation.isPending}
+                    onClick={() => setConfirmingRemoveDiscount(true)}
+                    type="button"
+                  >
+                    {t('payments.removeDiscountAction')}
+                  </button>
+                ) : null}
+                <button
+                  className="secondary-button"
+                  disabled={applyDiscountMutation.isPending || removeDiscountMutation.isPending}
+                  onClick={closeDiscountForm}
+                  type="button"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button className="primary-button" disabled={applyDiscountMutation.isPending} type="submit">
+                  {applyDiscountMutation.isPending ? t('common.saving') : t('payments.saveDiscount')}
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
       ) : null}
+
+      <ConfirmDialog
+        cancelLabel={t('common.cancel')}
+        confirmLabel={t('payments.removeDiscountConfirmYes')}
+        description={
+          discountCharge
+            ? t('payments.removeDiscountConfirmDescription', {
+                charge: `${discountCharge.studentName} - ${translateBackendSeed(discountCharge.chargeTypeName)}`,
+              })
+            : ''
+        }
+        isConfirming={removeDiscountMutation.isPending}
+        onCancel={() => setConfirmingRemoveDiscount(false)}
+        onConfirm={() => {
+          if (discountCharge) {
+            removeDiscountMutation.mutate(discountCharge.studentChargeId)
+          }
+          setConfirmingRemoveDiscount(false)
+        }}
+        open={confirmingRemoveDiscount}
+        title={t('payments.removeDiscountConfirmTitle')}
+        variant="danger"
+      />
     </main>
   )
 }
