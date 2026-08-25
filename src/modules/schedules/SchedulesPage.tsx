@@ -13,7 +13,6 @@ import {
 } from '../../api/schedules.api'
 import type { DayOfWeek, ScheduleItem, ScheduleRequest } from '../../types/schedules'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { useAuthStore } from '../../auth/auth.store'
 import { adminRoles } from '../../auth/roleAccess'
@@ -103,7 +102,6 @@ export function SchedulesPage() {
   const [deleteTarget, setDeleteTarget] = useState<ScheduleItem | null>(null)
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
   const [deletedSchedule, setDeletedSchedule] = useState<ScheduleItem | null>(null)
-  const [isTrashOpen, setIsTrashOpen] = useState(false)
   const {
     register,
     handleSubmit,
@@ -118,12 +116,6 @@ export function SchedulesPage() {
     queryKey: ['schedules', dayFilter],
     queryFn: () => getSchedules({ dayOfWeek: dayFilter }),
     retry: false,
-  })
-
-  const { data: trashData, isLoading: isTrashLoading } = useQuery({
-    queryKey: ['schedules', 'trash'],
-    queryFn: () => getSchedules({ includeDeleted: true }),
-    enabled: isTrashOpen,
   })
 
   useEffect(() => {
@@ -167,7 +159,6 @@ export function SchedulesPage() {
   })
 
   const schedules = data ?? emptySchedules
-  const trashedSchedules = (trashData ?? emptySchedules).filter((schedule) => schedule.deletedAt)
   const groups = useMemo(
     () =>
       Array.from(
@@ -235,7 +226,6 @@ export function SchedulesPage() {
     reset(emptyFormValues())
     saveScheduleMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -244,7 +234,6 @@ export function SchedulesPage() {
     reset(formValuesForSchedule(schedule))
     saveScheduleMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -264,15 +253,6 @@ export function SchedulesPage() {
     setDeleteTarget(null)
     setDeleteStep(1)
     deleteScheduleMutation.reset()
-  }
-
-  function openTrash() {
-    setIsFormOpen(false)
-    setIsTrashOpen(true)
-  }
-
-  function closeTrash() {
-    setIsTrashOpen(false)
   }
 
   const onSubmit = handleSubmit((values) => {
@@ -297,18 +277,6 @@ export function SchedulesPage() {
           <h2>{t('schedules.title')}</h2>
           <p>{t('schedules.subtitle')}</p>
         </div>
-        {canManage ? (
-          <div className="page-heading-actions">
-            <button className="secondary-button" onClick={openTrash} type="button">
-              <Trash2 size={17} aria-hidden="true" />
-              {t('common.trash')}
-            </button>
-            <button className="primary-button inline-button" onClick={openNewScheduleForm} type="button">
-              <Plus size={17} aria-hidden="true" />
-              {t('schedules.newActivity')}
-            </button>
-          </div>
-        ) : null}
       </section>
 
       <div className="view-toggle">
@@ -460,21 +428,6 @@ export function SchedulesPage() {
           </form>
         </section>
         </div>
-      ) : null}
-
-      {isTrashOpen ? (
-        <TrashPanel
-          emptyMessage={t('schedules.deletedRecentlyEmpty')}
-          getDeletedAt={(schedule) => schedule.deletedAt}
-          getId={(schedule) => schedule.scheduleSlotId}
-          getLabel={formatScheduleLabel}
-          isLoading={isTrashLoading}
-          items={trashedSchedules}
-          onClose={closeTrash}
-          onRestore={(schedule) => restoreScheduleMutation.mutate(schedule.scheduleSlotId)}
-          restoringId={restoreScheduleMutation.isPending ? restoreScheduleMutation.variables : null}
-          title={t('schedules.deletedActivitiesTitle')}
-        />
       ) : null}
 
       <section className="filters-row filters-row-schedules" aria-label={t('schedules.filtersAriaLabel')}>
@@ -657,6 +610,15 @@ export function SchedulesPage() {
             <p className="empty-copy">{t('schedules.emptyTable')}</p>
           ) : null}
         </div>
+      ) : null}
+
+      {canManage ? (
+        <section className="page-footer-actions">
+          <button className="primary-button inline-button" onClick={openNewScheduleForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            {t('schedules.newActivity')}
+          </button>
+        </section>
       ) : null}
 
       <ConfirmDialog

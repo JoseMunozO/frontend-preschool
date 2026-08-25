@@ -22,7 +22,6 @@ import type {
   MaterialStatus,
 } from '../../types/materials'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { TrashPanel } from '../../components/ui/TrashPanel'
 import { UndoToast } from '../../components/ui/UndoToast'
 import { useAuthStore } from '../../auth/auth.store'
 import { adminRoles } from '../../auth/roleAccess'
@@ -128,7 +127,6 @@ export function MaterialsPage() {
   const [deleteTarget, setDeleteTarget] = useState<MaterialItem | null>(null)
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1)
   const [deletedMaterial, setDeletedMaterial] = useState<MaterialItem | null>(null)
-  const [isTrashOpen, setIsTrashOpen] = useState(false)
 
   const {
     register,
@@ -154,12 +152,6 @@ export function MaterialsPage() {
     queryKey: ['materials'],
     queryFn: () => getMaterials(),
     retry: false,
-  })
-
-  const { data: trashData, isLoading: isTrashLoading } = useQuery({
-    queryKey: ['materials', 'trash'],
-    queryFn: () => getMaterials({ includeDeleted: true }),
-    enabled: isTrashOpen,
   })
 
   useEffect(() => {
@@ -214,7 +206,6 @@ export function MaterialsPage() {
   })
 
   const materials = data ?? emptyMaterials
-  const trashedMaterials = (trashData ?? emptyMaterials).filter((material) => material.deletedAt)
   const categories = useMemo(
     () =>
       Array.from(
@@ -248,7 +239,6 @@ export function MaterialsPage() {
     reset(emptyFormValues())
     saveMaterialMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -257,7 +247,6 @@ export function MaterialsPage() {
     reset(formValuesForMaterial(material))
     saveMaterialMutation.reset()
     setSuccessMessage(null)
-    setIsTrashOpen(false)
     setIsFormOpen(true)
   }
 
@@ -277,15 +266,6 @@ export function MaterialsPage() {
     setDeleteTarget(null)
     setDeleteStep(1)
     deleteMaterialMutation.reset()
-  }
-
-  function openTrash() {
-    setIsFormOpen(false)
-    setIsTrashOpen(true)
-  }
-
-  function closeTrash() {
-    setIsTrashOpen(false)
   }
 
   const onSubmit = handleSubmit((values) => {
@@ -338,18 +318,6 @@ export function MaterialsPage() {
           <h2>{t('materials.title')}</h2>
           <p>{t('materials.subtitle')}</p>
         </div>
-        {canManage ? (
-          <div className="page-heading-actions">
-            <button className="secondary-button" onClick={openTrash} type="button">
-              <Trash2 size={17} aria-hidden="true" />
-              {t('common.trash')}
-            </button>
-            <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
-              <Plus size={17} aria-hidden="true" />
-              {t('materials.newMaterial')}
-            </button>
-          </div>
-        ) : null}
       </section>
 
       {successMessage ? (
@@ -544,21 +512,6 @@ export function MaterialsPage() {
         </div>
       ) : null}
 
-      {isTrashOpen ? (
-        <TrashPanel
-          emptyMessage={t('materials.deletedRecentlyEmpty')}
-          getDeletedAt={(material) => material.deletedAt}
-          getId={(material) => material.materialId}
-          getLabel={(material) => translateBackendSeed(material.name) ?? material.name}
-          isLoading={isTrashLoading}
-          items={trashedMaterials}
-          onClose={closeTrash}
-          onRestore={(material) => restoreMaterialMutation.mutate(material.materialId)}
-          restoringId={restoreMaterialMutation.isPending ? restoreMaterialMutation.variables : null}
-          title={t('materials.deletedMaterialsTitle')}
-        />
-      ) : null}
-
       <section className="filters-row filters-row-materials" aria-label={t('materials.filtersAriaLabel')}>
         <label className="search-field">
           <Search size={18} aria-hidden="true" />
@@ -692,6 +645,15 @@ export function MaterialsPage() {
           </div>
         </footer>
       </div>
+
+      {canManage ? (
+        <section className="page-footer-actions">
+          <button className="primary-button inline-button" onClick={openNewMaterialForm} type="button">
+            <Plus size={17} aria-hidden="true" />
+            {t('materials.newMaterial')}
+          </button>
+        </section>
+      ) : null}
 
       <ConfirmDialog
         cancelLabel={t('common.cancel')}
