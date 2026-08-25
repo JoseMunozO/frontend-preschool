@@ -1,13 +1,18 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { Ban, X } from 'lucide-react'
 import { createDiscount, deactivateDiscount, getStudentDiscounts } from '../../api/payments.api'
-import type { DiscountType, StudentDiscount, StudentDiscountRequest } from '../../types/payments'
+import type {
+  DiscountDurationType,
+  DiscountType,
+  StudentDiscount,
+  StudentDiscountRequest,
+} from '../../types/payments'
 import { ConfirmDialog } from './ConfirmDialog'
 
 const emptyDiscounts: StudentDiscount[] = []
@@ -45,12 +50,21 @@ function createDiscountFormSchema(t: TFunction) {
   return z
     .object({
       discountType: z.enum(['PERCENTAGE', 'FIXED_AMOUNT']),
+      durationType: z.enum(['INSTANT', 'SCHEDULED']),
       value: z.string().refine((value) => value.trim() !== '' && Number(value) > 0, t('discounts.valueInvalid')),
       reason: z.string().trim().min(1, t('discounts.reasonRequired')),
-      validFrom: z.string().min(1, t('discounts.validFromRequired')),
+      validFrom: z.string(),
       validUntil: z.string(),
     })
     .superRefine((values, ctx) => {
+      if (values.durationType === 'SCHEDULED' && !values.validFrom) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('discounts.validFromRequired'),
+          path: ['validFrom'],
+        })
+      }
+
       if (values.validUntil && values.validFrom && values.validUntil < values.validFrom) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -66,6 +80,7 @@ type DiscountFormValues = z.infer<ReturnType<typeof createDiscountFormSchema>>
 function emptyDiscountFormValues(): DiscountFormValues {
   return {
     discountType: 'PERCENTAGE',
+    durationType: 'SCHEDULED',
     value: '',
     reason: '',
     validFrom: todayInputValue(),
@@ -86,6 +101,10 @@ export function StudentDiscountsPanel({ studentId, studentName, onClose }: Stude
     PERCENTAGE: t('discounts.typePercentage'),
     FIXED_AMOUNT: t('discounts.typeFixedAmount'),
   }
+  const durationTypeLabels: Record<DiscountDurationType, string> = {
+    INSTANT: t('discounts.durationInstant'),
+    SCHEDULED: t('discounts.durationScheduled'),
+  }
   const discountFormSchema = useMemo(() => createDiscountFormSchema(t), [t])
   const queryClient = useQueryClient()
   const [deactivateTarget, setDeactivateTarget] = useState<StudentDiscount | null>(null)
@@ -93,11 +112,13 @@ export function StudentDiscountsPanel({ studentId, studentName, onClose }: Stude
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<DiscountFormValues>({
     resolver: zodResolver(discountFormSchema),
     defaultValues: emptyDiscountFormValues(),
   })
+  const durationType = useWatch({ control, name: 'durationType' })
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['student-discounts', studentId],
@@ -125,10 +146,11 @@ export function StudentDiscountsPanel({ studentId, studentName, onClose }: Stude
   const onSubmit = handleSubmit((values) => {
     const request: StudentDiscountRequest = {
       discountType: values.discountType,
+      durationType: values.durationType,
       value: Number(values.value),
       reason: values.reason.trim(),
-      validFrom: values.validFrom,
-      validUntil: values.validUntil || undefined,
+      validFrom: values.durationType === 'SCHEDULED' ? values.validFrom : undefined,
+      validUntil: values.durationType === 'SCHEDULED' ? values.validUntil || undefined : undefined,
     }
 
     createMutation.mutate(request)
@@ -172,16 +194,32 @@ export function StudentDiscountsPanel({ studentId, studentName, onClose }: Stude
                 {errors.value ? <span className="field-error">{errors.value.message}</span> : null}
               </label>
               <label>
-                {t('discounts.validFromLabel')}
-                <input type="date" {...register('validFrom')} />
-                {errors.validFrom ? <span className="field-error">{errors.validFrom.message}</span> : null}
+                {t('discounts.durationTypeLabel')}
+                <select {...register('durationType')}>
+                  {Object.entries(durationTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <label>
-                {t('discounts.validUntilLabel')}
-                <input type="date" {...register('validUntil')} />
-                {errors.validUntil ? <span className="field-error">{errors.validUntil.message}</span> : null}
-                <span className="field-hint">{t('discounts.validUntilHint')}</span>
-              </label>
+              {durationType === 'INSTANT' ? (
+                <p className="field-hint entity-form-wide">{t('discounts.instantHint')}</p>
+              ) : (
+                <>
+                  <label>
+                    {t('discounts.validFromLabel')}
+                    <input type="date" {...register('validFrom')} />
+                    {errors.validFrom ? <span className="field-error">{errors.validFrom.message}</span> : null}
+                  </label>
+                  <label>
+                    {t('discounts.validUntilLabel')}
+                    <input type="date" {...register('validUntil')} />
+                    {errors.validUntil ? <span className="field-error">{errors.validUntil.message}</span> : null}
+                    <span className="field-hint">{t('discounts.validUntilHint')}</span>
+                  </label>
+                </>
+              )}
               <label className="entity-form-full">
                 {t('discounts.reasonLabel')}
                 <input maxLength={255} {...register('reason')} />
@@ -217,6 +255,7 @@ export function StudentDiscountsPanel({ studentId, studentName, onClose }: Stude
                       <strong>
                         {discountTypeLabels[discount.discountType]} - {formatDiscountValue(discount, locale)}
                       </strong>
+                      <span className="status-badge status-neutral">{durationTypeLabels[discount.durationType]}</span>
                       <span className={discount.active ? 'status-badge' : 'status-badge status-neutral'}>
                         {discount.active ? t('discounts.active') : t('discounts.inactive')}
                       </span>
