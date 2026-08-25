@@ -6,6 +6,7 @@ import type { AttendanceReportEntry } from '../../api/attendance.api'
 import { getStudents } from '../../api/students.api'
 import type { StudentListItem } from '../../api/students.api'
 import { isForbiddenError } from '../../utils/apiErrors'
+import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyEntries: AttendanceReportEntry[] = []
 const emptyStudents: StudentListItem[] = []
@@ -59,7 +60,7 @@ export function AttendanceSummaryReport() {
           <option value="">{t('reports.attendance.allGroups')}</option>
           {groups.map(([id, name]) => (
             <option key={id} value={id}>
-              {name}
+              {translateBackendSeed(name)}
             </option>
           ))}
         </select>
@@ -100,7 +101,7 @@ export function AttendanceSummaryReport() {
             {entries.map((entry) => (
               <tr key={entry.studentId}>
                 <td>{entry.studentName}</td>
-                <td>{entry.groupName}</td>
+                <td>{translateBackendSeed(entry.groupName)}</td>
                 <td>{entry.presentCount}</td>
                 <td>{entry.absentCount}</td>
                 <td>{entry.lateCount}</td>

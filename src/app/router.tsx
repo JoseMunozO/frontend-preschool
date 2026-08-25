@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../auth/ProtectedRoute'
-import { adminRoles, financeRoles, internalRoles } from '../auth/roleAccess'
+import { adminRoles, financeRoles, internalRoles, teacherReportRoles } from '../auth/roleAccess'
 import { LoginPage } from '../auth/LoginPage'
 import { DashboardHome } from '../dashboards/DashboardHome'
 import { AppLayout } from '../layouts/AppLayout'
@@ -26,7 +26,11 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { index: true, element: <DashboardHome /> },
-          { path: 'students', element: <StudentsPage /> },
+          {
+            path: 'students',
+            element: <ProtectedRoute roles={teacherReportRoles} />,
+            children: [{ index: true, element: <StudentsPage /> }],
+          },
           { path: 'parents', element: <ParentsPage /> },
           {
             path: 'payments',
@@ -34,13 +38,21 @@ export const router = createBrowserRouter([
             children: [{ index: true, element: <PaymentsPage /> }],
           },
           { path: 'materials', element: <MaterialsPage /> },
-          { path: 'schedules', element: <SchedulesPage /> },
+          {
+            path: 'schedules',
+            element: <ProtectedRoute roles={teacherReportRoles} />,
+            children: [{ index: true, element: <SchedulesPage /> }],
+          },
           {
             path: 'staff',
             element: <ProtectedRoute roles={adminRoles} />,
             children: [{ index: true, element: <StaffPage /> }],
           },
-          { path: 'attendance', element: <AttendancePage /> },
+          {
+            path: 'attendance',
+            element: <ProtectedRoute roles={teacherReportRoles} />,
+            children: [{ index: true, element: <AttendancePage /> }],
+          },
           {
             path: 'reports',
             element: <ProtectedRoute roles={internalRoles} />,

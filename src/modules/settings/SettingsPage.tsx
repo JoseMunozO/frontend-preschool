@@ -23,7 +23,6 @@ export function SettingsPage() {
   return (
     <main className="page-content">
       <section className="page-heading">
-        <p className="eyebrow">{t('common.module')}</p>
         <h2>{t('settings.title')}</h2>
         <p>{t('settings.description')}</p>
       </section>

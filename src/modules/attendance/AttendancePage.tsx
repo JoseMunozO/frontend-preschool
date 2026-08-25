@@ -68,9 +68,10 @@ export function AttendancePage() {
   const today = todayInputValue()
   const isToday = date === today
 
-  const { data: allGroupsData } = useQuery({
+  const { data: allGroupsData, error: groupsError } = useQuery({
     queryKey: ['students', 'groups-lookup'],
     queryFn: () => getStudents(),
+    retry: false,
     staleTime: Infinity,
   })
 
@@ -238,7 +239,13 @@ export function AttendancePage() {
         />
       </section>
 
-      {groupId === '' ? <p className="empty-copy">{t('attendance.selectGroupPrompt')}</p> : null}
+      {groupsError ? (
+        <div className="notice">
+          {isForbiddenError(groupsError) ? t('attendance.forbiddenGroups') : t('attendance.loadGroupsError')}
+        </div>
+      ) : null}
+
+      {!groupsError && groupId === '' ? <p className="empty-copy">{t('attendance.selectGroupPrompt')}</p> : null}
 
       {groupId !== '' && rosterError ? (
         <div className="notice">

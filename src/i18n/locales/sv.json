@@ -47,7 +47,6 @@
     "break": "Rast"
   },
   "common": {
-    "module": "Modul",
     "baseReady": "Grunden är klar",
     "cancel": "Avbryt",
     "saving": "Sparar...",
@@ -332,6 +331,8 @@
     "selectGroup": "Välj en grupp",
     "dateAriaLabel": "Datum",
     "selectGroupPrompt": "Välj en grupp för att se elevlistan.",
+    "forbiddenGroups": "Du har inte behörighet att se grupperna.",
+    "loadGroupsError": "Det gick inte att läsa in grupperna.",
     "forbiddenRoster": "Du har inte behörighet att registrera närvaro för den här gruppen.",
     "loadRosterError": "Det gick inte att läsa in närvaron.",
     "archivedDayNotice": "Den här dagen är redan arkiverad: du kan se registreringen men inte redigera den. Närvaro kan bara registreras eller rättas för dagens datum.",

@@ -14,16 +14,16 @@ import {
   UsersRound,
 } from 'lucide-react'
 import { useAuthStore } from '../auth/auth.store'
-import { adminRoles, financeRoles, internalRoles } from '../auth/roleAccess'
+import { adminRoles, financeRoles, internalRoles, teacherReportRoles } from '../auth/roleAccess'
 
 const navItems = [
   { to: '/', labelKey: 'nav.home', icon: Home },
-  { to: '/students', labelKey: 'nav.students', icon: GraduationCap },
+  { to: '/students', labelKey: 'nav.students', icon: GraduationCap, roles: teacherReportRoles },
   { to: '/parents', labelKey: 'nav.parents', icon: UsersRound },
   { to: '/payments', labelKey: 'nav.payments', icon: CreditCard, roles: financeRoles },
   { to: '/materials', labelKey: 'nav.materials', icon: Boxes },
-  { to: '/schedules', labelKey: 'nav.schedules', icon: CalendarDays },
-  { to: '/attendance', labelKey: 'nav.attendance', icon: ClipboardList },
+  { to: '/schedules', labelKey: 'nav.schedules', icon: CalendarDays, roles: teacherReportRoles },
+  { to: '/attendance', labelKey: 'nav.attendance', icon: ClipboardList, roles: teacherReportRoles },
   { to: '/staff', labelKey: 'nav.staff', icon: UserCog, roles: adminRoles },
   { to: '/reports', labelKey: 'nav.reports', icon: FileText, roles: internalRoles },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },

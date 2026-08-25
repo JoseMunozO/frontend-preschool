@@ -47,7 +47,6 @@
     "break": "Break"
   },
   "common": {
-    "module": "Module",
     "baseReady": "Base ready",
     "cancel": "Cancel",
     "saving": "Saving...",
@@ -332,6 +331,8 @@
     "selectGroup": "Select a group",
     "dateAriaLabel": "Date",
     "selectGroupPrompt": "Select a group to see the student list.",
+    "forbiddenGroups": "You don't have permission to view groups.",
+    "loadGroupsError": "Could not load groups.",
     "forbiddenRoster": "You don't have permission to record attendance for this group.",
     "loadRosterError": "Could not load attendance.",
     "archivedDayNotice": "This day is already archived: you can view the record, but not edit it. Attendance can only be recorded or corrected for today.",
