@@ -24,6 +24,7 @@ export type StudentCharge = {
   discountType?: DiscountType | null
   discountValue?: number | null
   discountReason?: string | null
+  paymentIds?: number[]
   createdAt?: string
   updatedAt?: string
 }
