@@ -68,7 +68,17 @@ function ChargesTable({ charges, emptyLabel, locale, statusLabels }: ChargesTabl
               <td>{translateBackendSeed(charge.chargeTypeName)}</td>
               <td>{formatDate(charge.dueDate, locale)}</td>
               <td>{formatCurrency(charge.amountDue, locale)}</td>
-              <td>{formatCurrency(charge.balance, locale)}</td>
+              <td>
+                {formatCurrency(charge.balance, locale)}
+                {charge.lateFeeAmount ? (
+                  <>
+                    <br />
+                    <span className="field-hint">
+                      {t('payments.lateFeeHint', { amount: formatCurrency(charge.lateFeeAmount, locale) })}
+                    </span>
+                  </>
+                ) : null}
+              </td>
               <td>{statusLabels[charge.status]}</td>
             </tr>
           ))}

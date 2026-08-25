@@ -693,6 +693,7 @@
     "colAmount": "Belopp",
     "colPaid": "Betalt",
     "colBalance": "Saldo",
+    "lateFeeHint": "inkluderar förseningsavgift på {{amount}}",
     "colStatus": "Status",
     "colDue": "Förfaller",
     "colActions": "Åtgärder",

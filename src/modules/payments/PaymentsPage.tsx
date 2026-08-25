@@ -1163,7 +1163,17 @@ export function PaymentsPage() {
                   )}
                 </td>
                 <td>{formatCurrency(charge.amountPaid, locale)}</td>
-                <td>{formatCurrency(charge.balance, locale)}</td>
+                <td>
+                  {formatCurrency(charge.balance, locale)}
+                  {charge.lateFeeAmount ? (
+                    <>
+                      <br />
+                      <span className="field-hint">
+                        {t('payments.lateFeeHint', { amount: formatCurrency(charge.lateFeeAmount, locale) })}
+                      </span>
+                    </>
+                  ) : null}
+                </td>
                 <td>
                   <span className={`status-badge ${statusClassNames[charge.status]}`}>
                     {statusLabels[charge.status]}
