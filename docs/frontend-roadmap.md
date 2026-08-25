@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-25 (recargo por atraso visible en Pagos/Reportes de cara a la presentacion, PR #95; pasada general de debugging, PR #94).
+Ultima actualizacion: 2026-08-25 (README reescrito con overview de capacidades, en ingles, PR #97).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -124,6 +124,8 @@ Ultima actualizacion: 2026-08-25 (recargo por atraso visible en Pagos/Reportes d
 
 - Pagos: recargo por atraso visible en cargos vencidos (PR #95). Backend (coordinado en vivo la noche antes de una presentacion) agrego `lateFeeAmount` a `StudentChargeResponse`: 5% de `amountDue` por cada mes o fraccion de atraso, no acumulativo/compuesto, calculado en vivo (no se guarda ni migra), solo distinto de cero para cargos `OVERDUE`. `balance` ya lo incluia del lado del backend en todos lados donde aparece (tabla de cargos, reporte financiero) — se confirmo por grep que el frontend nunca calcula `balance` del lado del cliente, asi que no habia ningun bug de calculo que corregir, solo el campo nuevo estaba invisible en la UI. Se agrego un aviso chico debajo del saldo ("incluye recargo por atraso de $X") en las filas `OVERDUE` de la tabla de cargos de `PaymentsPage.tsx` y en la tabla compartida de Reportes → Financiero (`FinancialReport.tsx`). `StudentCharge` gano `lateFeeAmount` (aditivo, opcional). Backend tambien sembro datos de demo en vivo contra el contenedor real (6 cargos atrasados de 1 a 6 meses, uno por estudiante, para que la escalada del recargo se vea facil en la demo) — verificado end-to-end contra esos datos reales: recargos de $300 a $1.800 DOP escalando correctamente segun los meses de atraso, tanto en Pagos como en Reportes → Financiero.
 
+- Documentacion: `README.md` reescrito, en ingles (PR #97). Pedido directo de Jose, coordinado con backend (mismo pedido replicado alla): el README pasa de ser solo stack + quick start a abrir con un parrafo explicando la esencia de la app (panel administrativo para el personal del preescolar, consume la API de `backend-preschool` por separado) y una seccion "What it does today" con las capacidades reales por modulo (Estudiantes, Padres, Pagos incluyendo descuentos por cargo y el recargo por atraso, Materiales, Horarios, Asistencia, Personal, las 7 pestanas de Reportes, cuenta/preferencias) — sin duplicar el detalle de `docs/frontend-roadmap.md`, a nivel "que puede hacer un usuario hoy". De paso se corrigio el path del backend en el quick start, que seguia apuntando a la ubicacion vieja `/Volumes/KINGSTON/backend-preschool` (movio a `/Users/ozeca/Desktop/backend-preschool` segun `CLAUDE.md`) y el comando de arranque incorrecto. Jose pidio explicitamente que el README quedara en ingles, no en espanol (el resto de la documentacion de este repo se mantiene en espanol, sin cambios).
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
@@ -135,7 +137,7 @@ El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas q
 
 ## Siguiente Punto Recomendado
 
-Actualizado 2026-08-25 (noche, de cara a la presentacion de manana): ademas de lo ya cerrado (suite de tests, unificacion de Reportes/papeleras, descuentos de Pagos a nivel-cargo PR #89, historial de descuentos a Reportes PR #91, descarga de factura PR #92), se sumaron el mismo dia una pasada general de debugging con 3 fixes reales (Asistencia rota en silencio para `FINANCE` + nav/rutas cerradas para ese caso, nombres de grupo sin traducir en 2 tabs de Reportes, texto suelto en Configuracion — PR #94) y el recargo por atraso ahora visible en Pagos/Reportes (`lateFeeAmount`, PR #95, coordinado en vivo con backend la noche antes de la demo). Todo verificado end-to-end contra el backend real, incluyendo los datos de demo que sembro backend (6 cargos atrasados de 1 a 6 meses). No queda ningun pendiente marcado en el roadmap salvo Tailwind (ver abajo); revisar con Jose si hay algo nuevo antes de asumir que no hay mas trabajo.
+Actualizado 2026-08-25 (noche, de cara a la presentacion de manana): ademas de lo ya cerrado (suite de tests, unificacion de Reportes/papeleras, descuentos de Pagos a nivel-cargo PR #89, historial de descuentos a Reportes PR #91, descarga de factura PR #92), se sumaron el mismo dia una pasada general de debugging con 3 fixes reales (Asistencia rota en silencio para `FINANCE` + nav/rutas cerradas para ese caso, nombres de grupo sin traducir en 2 tabs de Reportes, texto suelto en Configuracion — PR #94), el recargo por atraso ahora visible en Pagos/Reportes (`lateFeeAmount`, PR #95, coordinado en vivo con backend la noche antes de la demo), y como cierre de la sesion el `README.md` reescrito en ingles con overview de capacidades (PR #97). Todo verificado end-to-end contra el backend real, incluyendo los datos de demo que sembro backend (6 cargos atrasados de 1 a 6 meses). No queda ningun pendiente marcado en el roadmap salvo Tailwind (ver abajo); revisar con Jose si hay algo nuevo antes de asumir que no hay mas trabajo.
 
 Con menor prioridad:
 
