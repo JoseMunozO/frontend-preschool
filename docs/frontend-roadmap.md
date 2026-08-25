@@ -8,7 +8,7 @@ Crear una aplicacion React administrativa conectada al backend `backend-preschoo
 
 ## Estado Actual
 
-Ultima actualizacion: 2026-08-24 (pantalla real de Reportes con el reporte mensual de pagos).
+Ultima actualizacion: 2026-08-25 (Reportes unificado con los 6 tipos de reporte + consolidacion de papelera/archivados, primera suite de tests).
 
 - Base React/Vite/TypeScript creada.
 - Documentacion inicial y workflow de desarrollo creados.
@@ -99,20 +99,32 @@ Ultima actualizacion: 2026-08-24 (pantalla real de Reportes con el reporte mensu
 
 - Reportes: pantalla real con el reporte mensual de pagos (PR #80). `Reportes` era un `PlaceholderPage` desde el scaffolding inicial, nunca se habia construido nada ahi. Jose pregunto por que estaba vacio; se coordino en vivo con la sesion de `backend-preschool` para confirmar el estado real: hoy solo existe un endpoint de reportes, `GET /api/payments/reports/monthly?month=YYYY-MM` (cargos pendientes/atrasados del mes con sus saldos, mas el total de pagos recibidos) — reportes de estudiantes o inventario no existen todavia en el backend, siguen sin marcar en su roadmap y sin fecha planeada (dependen de que Jose defina alcance). Nuevo `getMonthlyPaymentsReport()` en `payments.api.ts` y `PaymentMonthlyReport` en `types/payments.ts` (contrato confirmado campo por campo con la sesion de backend, coincide con el que ya estaba mirrorado en `docs/backend-api-reference.md`). Nueva `ReportsPage.tsx`: selector de mes, 3 tarjetas resumen (saldo pendiente, saldo atrasado, pagos recibidos) y dos tablas de cargos (pendientes/atrasados), reutilizando el mismo formateo y labels de estado que `PaymentsPage`. Ruta `/reports` y el link del sidebar gateados a `financeRoles`, igual que exige el backend en ese endpoint (mismo patron que `/payments` y `/staff`). `PlaceholderPage.tsx` eliminado, Reportes era su ultimo llamador. Verificado end-to-end contra el backend real: datos reales de agosto 2026 (10 cargos pendientes, $37,500 MXN pendiente, $0 atrasado, $100 MXN recibido) logueado como `admin@school.com`, y como `TEACHER` (`assistant@school.com`) sin el link "Reportes" en el sidebar y `ForbiddenPage` al entrar por URL directa.
 
+- Fix: `PaymentMethod` le faltaban `SWISH`/`OTHER` (PR #76); Pagos: descarga de recibo PDF en el historial (PR #77); fix: notas de estudiante solo editables/eliminables por su autor (PR #78). Ver detalle de los tres en el historial de commits — cambios chicos, cada uno con su propia verificacion end-to-end contra el backend real.
+
+- Fix: moneda cambiada de MXN a DOP en toda la app (PR #82). El colegio esta en Republica Dominicana, no Mexico — `formatCurrency()` en `PaymentsPage.tsx`, `ReportsPage.tsx` (hoy `FinancialReport.tsx`) y `StudentDiscountsPanel.tsx` tenian `currency: 'MXN'` hardcodeado. Cambiado a `'DOP'` en los 3 lugares; el locale (`es`/`en`/`sv`, ya dinamico via `i18n.resolvedLanguage`) no se toco. Verificado en el navegador contra el backend real: los montos ahora se ven como `37 500,00 RD$` en vez de MXN.
+
+- Fase 6: primera suite de tests (PR #83). El proyecto no tenia ningun framework de testing. Nuevo Vitest (entorno `jsdom`) + React Testing Library + `jest-dom`, script `npm run test`, wireado en CI (nuevo paso `npm run test` antes de `npm run build`, job renombrado "Lint, test, and build" en `frontend-ci.yml`). `createStudentFormSchema`/`createScheduleFormSchema` se extrajeron de `StudentsPage.tsx`/`SchedulesPage.tsx` a archivos propios (`students.schema.ts`/`schedules.schema.ts`) para poder testearlos de forma aislada — exportar una funcion no-componente desde un archivo de pagina rompe la regla `react-refresh/only-export-components` (confirmado corriendo eslint contra la alternativa), asi que fue una relocacion necesaria, no solo prolija. Tests unitarios de las reglas cruzadas `superRefine` de ambos schemas (fecha de nacimiento/inscripcion/baja en Estudiantes; fin de hora despues de inicio en Horarios) mas validacion de campos obligatorios. Test de `LoginPage` cubriendo los dos flujos criticos: login exitoso (navega al dashboard y persiste la sesion) y login fallido (muestra el error, no navega, no persiste). 3 archivos, 10 tests, todos verdes. Cierra el ultimo punto sin marcar de Fase 6.
+
+- Reportes: pagina unificada con los 6 tipos de reporte del backend + consolidacion de papelera/archivados (PRs #84, #85). Backend entrego 5 endpoints nuevos (resumen de asistencia, historial de notas con auditoria, movimientos de materiales, salud de estudiantes, papelera unificada) ademas del ya existente reporte mensual de pagos — coordinado en vivo con la sesion de `backend-preschool` para cerrar el contrato exacto (nombres de campo, filtros, reglas de acceso por rol) antes de construir. Cierra ademas el pedido explicito de Jose: que Reportes concentre practicamente todo lo relacionado a reportes/archivados/papelera para que las demas paginas del nav queden mas limpias.
+  - **PR #84 (feat)**: `ReportsPage.tsx` paso de mostrar solo el reporte financiero a ser un selector de 6 pestanas (reutiliza el patron `.view-toggle` ya usado en Horarios), filtradas por rol via `hasAnyRole()`: `financeRoles` -> Financiero; `teacherReportRoles` (admins + `TEACHER`, constante nueva en `roleAccess.ts`) -> Asistencia/Notas/Salud; `internalRoles` -> Materiales (incluye `FINANCE`, para control de compras); `adminRoles` -> Papeleras. Nueva capa de API/tipos siguiendo la convencion de cada dominio (tipos inline en `attendance.api.ts`/`students.api.ts`, split en `types/materials.ts` para materiales, `reports.api.ts`+`types/reports.ts` nuevos para la papelera transversal, que no pertenece a un solo dominio). La pestana Papeleras unifica el restore de las 5 entidades con soft-delete (reutiliza `restoreStudent`/`restoreMaterial`/`restoreParent`/`restoreSchedule`/`restoreStaff` ya existentes, sin tocarlos) y el flujo de "Reclamar" para padres archivados se mudo a `ClaimParentModal.tsx` — necesita su propia consulta `getParents({includeDeleted:true})` porque `GET /api/parents/{id}` devuelve `404` para un padre archivado, y el `label` generico del reporte de papelera no alcanza para prellenar el formulario (nombre/correo). Ruta `/reports` y el link del sidebar se ampliaron de `financeRoles` a `internalRoles` (ahora todos los roles internos ven al menos una pestana). Verificado end-to-end contra el backend real: como admin (6 pestanas con datos reales), como `TEACHER` (exactamente 4 pestanas: Asistencia/Notas/Salud/Materiales, sin Financiero ni Papeleras), como `FINANCE` (exactamente 2: Financiero/Materiales), y un restore + un reclamo real de principio a fin (estudiante de prueba creado/eliminado/restaurado/vuelto a eliminar; padre archivado backdateado a mano para probar el reclamo).
+  - **PR #85 (refactor)**: ahora que Papeleras cubre todo, se saco el boton "Papelera" (y en Padres, "Archivados") de Estudiantes/Padres/Materiales/Horarios/Personal, junto con sus queries `includeDeleted` y el componente compartido `TrashPanel.tsx` (eliminado por completo, cero importadores restantes). Se mantuvo intacta la accion de eliminar/dar de baja por fila (un tema distinto al de navegar la papelera) y cada `restore*Mutation` que un `UndoToast` todavia usa tras un borrado reciente (Personal no tiene `UndoToast`, asi que ahi `restoreStaffMutation` se elimino por completo). Segunda parte del mismo pedido de Jose: el boton "Nuevo X" de cada modulo se movio del encabezado al final de la pagina (nueva clase CSS `.page-footer-actions`, insertada despues de la tabla/paginacion, ambos modos de vista en Horarios) para que lo primero que se vea al entrar no sea un boton de crear — Pagos es la unica excepcion, se dejo igual a pedido explicito de Jose. Tambien se limpiaron las claves de i18n que quedaron muertas (titulos/subtitulos/estados vacios de las papeleras viejas) en los 3 locales. Verificado en el navegador contra el backend real en los 5 modulos: header limpio sin Papelera/Archivados, "Nuevo X" funcionando al final de la pagina, accion por fila (editar/eliminar/dar de baja) intacta.
+
 ## Backend API — cambios pendientes de aprovechar (sync 2026-08-21)
 
 El backend sincronizado en `docs/backend-api-reference.md` expone varias cosas que este frontend todavia no usa. Detalle de contratos en ese archivo; resumen de huecos confirmados en el codigo actual:
 
 - Pagos sigue sin ningun endpoint `DELETE` en el backend (no se pidio, tiene sentido para no perder historial financiero) — es el unico modulo principal sin eliminar/papelera, a proposito.
 - **Backend: generacion automatica mensual de cargos** (2026-08-23). Jose reporto que los cargos se quedaban solo hasta mayo/junio porque nunca hubo generacion automatica, cada cargo se creaba a mano. Backend lo resolvio: un job corre solo todos los dias a las 02:00 (o manual, `POST /api/payments/generate-monthly-charges?month=YYYY-MM`, admin/finanzas) y genera el cargo del mes para cada estudiante activo, prorrateado si se inscribe a mitad de mes — cero cambio de frontend necesario para esto, los cargos nuevos simplemente aparecen en `GET /api/payments/charges` como cualquier otro (confirmado en el navegador: cargos de agosto ya generados automaticamente).
-- **Reportes de estudiantes o inventario: no existen en el backend todavia** (confirmado en vivo con la sesion de `backend-preschool`, 2026-08-24). Solo esta construido el reporte mensual de pagos (ver PR #80 en Estado Actual). Sin fecha planeada — es una pregunta abierta en el propio roadmap del backend, depende de que Jose defina que reportes especificos quiere antes de construir el endpoint.
+- ~~Reportes de estudiantes o inventario: no existen en el backend todavia~~ — **resuelto** (2026-08-24/25): backend construyo los 5 reportes que faltaban (asistencia, notas, materiales, salud, papelera unificada) y el frontend ya los consume, ver PRs #84/#85 en Estado Actual.
+- **Backend: contrato de descuentos cambio** (2026-08-25, PRs #70/#71 de `backend-preschool`). `POST /api/payments/students/{studentId}/discounts` gano un campo obligatorio `durationType` (`INSTANT` | `SCHEDULED`); `SCHEDULED` es el comportamiento actual (rango de fechas manual, `validFrom` ahora obligatorio para este tipo), `INSTANT` es nuevo (aplica ya, el backend ignora `validFrom`/`validUntil` enviados y calcula "desde hoy hasta fin de mes" solo, sin necesitar desactivar despues). Ademas, todo descuento ahora queda topeado a la fecha de baja del estudiante si tiene una (`validFrom` posterior se rechaza con `400`, un `validUntil` posterior se recorta en silencio — conviene leer el `validFrom`/`validUntil` de la respuesta, no asumir lo que se envio). Tambien se corrigio un bug donde crear/desactivar un descuento no recalculaba los cargos abiertos del estudiante. `StudentDiscountsPanel.tsx` (`src/components/ui/`) todavia no conoce `durationType` — falta agregar el selector INSTANT/SCHEDULED al formulario. Sin empezar todavia.
 
 ## Siguiente Punto Recomendado
 
-**Fecha limite: martes 2026-08-25.** Actualizado 2026-08-22: UI de tutor archivado, editar/cancelar cargo, tutores como contactos de emergencia, la ronda completa de rol `TEACHER` (nav/acciones por rol, perfil de estudiante en popup, comentarios, dashboard de profesor), la pagina real de asistencia, y personal/roles por rango — todo completo y verificado end-to-end contra el backend real (ver Estado Actual). Con esto se cierra la lista de pendientes que tenia fecha limite; lo que sigue no es urgente para el martes.
+Actualizado 2026-08-25: la lista con fecha limite (martes 2026-08-25) ya se habia cerrado el 22; desde entonces se sumaron ademas la primera suite de tests (Fase 6 completa) y el pedido de Jose de unificar Reportes/papeleras + reordenar botones "Nuevo X" (PRs #83-#85), todo verificado end-to-end contra el backend real. Fases 0-6 quedan sin pendientes marcados salvo Tailwind (ver abajo).
 
-Con menor prioridad, no urgente para el martes:
+Pendiente para retomar, sin prioridad/fecha definida:
 
+- **Descuentos por estudiante: adaptar `StudentDiscountsPanel.tsx` al nuevo contrato de backend** (`durationType` `INSTANT`/`SCHEDULED` obligatorio, tope en fecha de baja). Ver detalle en "Backend API — cambios pendientes de aprovechar". Backend quiere que se le avise apenas esto quede terminado.
 - Traduccion de la app completa a ingles/sueco: **hecho** (PR #71 shell+dashboard, PR #73 los 9 modulos restantes, ver Estado Actual). No queda ningun modulo pendiente de traducir.
 - **Tailwind incremental — prioridad minima por pedido explicito (2026-08-20 noche); no tocar hasta que el resto de la lista este resuelto.** Mapear las variables CSS actuales al `@theme` de Tailwind v4, usar solo en codigo nuevo. Ver decision registrada en memoria del proyecto.
 
@@ -203,7 +215,7 @@ Con menor prioridad, no urgente para el martes:
 - [x] Asistencia: pagina real por grupo/fecha con guardado en lote (`GET/POST /api/attendance`), verificada contra el backend real.
 - [x] Asistencia: modal de historial por estudiante (`GET /api/attendance/students/{studentId}?from=&to=`), verificado contra el backend real.
 - [x] Personal: alta de puestos, administracion de roles por rango, y dar de baja/reactivar (`GET/POST /api/staff`, `DELETE/POST /api/staff/{id}(/restore)`, `GET /api/roles`, `POST/DELETE /api/users/{userId}/roles`), verificado contra el backend real.
-- [x] Reportes: reporte mensual de pagos pendientes/atrasados (`GET /api/payments/reports/monthly?month=YYYY-MM`), verificado contra el backend real. Reportes de estudiantes/inventario sin construir todavia en el backend (ver "Backend API — cambios pendientes de aprovechar").
+- [x] Reportes: pagina unificada de 6 tipos de reporte, filtrada por rol — financiero (`GET /api/payments/reports/monthly?month=YYYY-MM`), asistencia (`GET /api/attendance/reports/summary`), historial de notas (`GET /api/students/{id}/reports/notes-history`), materiales (`GET /api/materials/reports/movements`), salud (`GET /api/students/reports/health`) y papelera unificada (`GET /api/reports/trash`, admin-only, con restore/reclamo por entidad) — verificado contra el backend real para admin, `TEACHER` y `FINANCE`.
 
 ## Fase 5 - Formularios
 
@@ -225,10 +237,10 @@ Con menor prioridad, no urgente para el martes:
 - [x] Estados vacios.
 - [x] Manejo de errores API: `isForbiddenError()` distingue `403` de otros errores en los 6 modulos con `useQuery`, mostrando "No tienes permiso para..." en vez del mensaje generico. `ProtectedRoute` muestra `ForbiddenPage` si el rol no coincide; la ruta `/payments` ya usa `roles={financeRoles}`. Verificado con un usuario `TEACHER` real.
 - [x] Acciones ocultas por rol: en Estudiantes/Padres/Materiales/Horarios, crear/editar/eliminar/papelera se ocultan (no deshabilitan) para roles fuera de `adminRoles`, via `useAuthStore().hasAnyRole()`. Verificado con `TEACHER` y `admin@school.com`.
-- [x] Confirmaciones para acciones sensibles: `ConfirmDialog` reutilizable conectado a activar/desactivar padre/tutor, y a eliminar (doble confirmacion) en las 4 entidades con soft-delete (estudiantes, padres/tutores, materiales, horarios), cada una con `UndoToast` + `TrashPanel`.
+- [x] Confirmaciones para acciones sensibles: `ConfirmDialog` reutilizable conectado a activar/desactivar padre/tutor, y a eliminar (doble confirmacion) en las 4 entidades con soft-delete (estudiantes, padres/tutores, materiales, horarios), cada una con `UndoToast`. Navegar/restaurar la papelera vive ahora en la pestana "Papeleras" de Reportes (antes era un `TrashPanel` por modulo, consolidado y eliminado en PR #85).
 - [x] Filtros por modulo.
 - [x] Formularios de crear/editar como modal en los 6 modulos, en vez de panel inline.
-- [ ] Tests de formularios y flujos criticos.
+- [x] Tests de formularios y flujos criticos: Vitest + React Testing Library (PR #83) — schemas de Zod con reglas cruzadas (Estudiantes, Horarios) y el flujo de login (exito/error). Ver detalle en Estado Actual.
 
 ## Orden Recomendado De Branches
 
@@ -291,6 +303,14 @@ feat/student-discounts
 feat/dark-mode
 feat/i18n-shell
 feat/i18n-remaining-modules
+fix/payment-method-swish-other
+feat/payment-receipt-download
+fix/notes-edit-own-only
+feat/monthly-payments-report
+fix/currency-dop
+test/critical-flows-setup
+feat/reports-six-tabs
+refactor/move-trash-to-reports-reposition-buttons
 ```
 
 Siguientes:
