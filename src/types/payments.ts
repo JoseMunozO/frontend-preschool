@@ -20,6 +20,10 @@ export type StudentCharge = {
   balance: number
   status: PaymentChargeStatus
   description?: string
+  originalAmount?: number | null
+  discountType?: DiscountType | null
+  discountValue?: number | null
+  discountReason?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -33,6 +37,9 @@ export type StudentChargeRequest = {
   amountDue: number
   status?: PaymentChargeStatus
   description?: string
+  discountType?: DiscountType
+  discountValue?: number
+  discountReason?: string
 }
 
 export type ChargeTypeRecurrence = 'ONE_TIME' | 'MONTHLY' | 'CUSTOM'
@@ -50,32 +57,10 @@ export type ChargeType = {
 
 export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT'
 
-export type DiscountDurationType = 'INSTANT' | 'SCHEDULED'
-
-export type StudentDiscount = {
-  studentDiscountId: number
-  studentId: number
-  studentName: string
+export type ChargeDiscountRequest = {
   discountType: DiscountType
-  durationType: DiscountDurationType
   value: number
   reason: string
-  validFrom: string
-  validUntil?: string
-  active: boolean
-  createdByUserId?: number
-  createdByEmail?: string
-  createdAt?: string
-  updatedAt?: string
-}
-
-export type StudentDiscountRequest = {
-  discountType: DiscountType
-  durationType: DiscountDurationType
-  value: number
-  reason: string
-  validFrom?: string
-  validUntil?: string
 }
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'SWISH' | 'OTHER'

@@ -1,5 +1,6 @@
 import { apiRequest, apiRequestBlob } from './client'
 import type {
+  ChargeDiscountRequest,
   ChargeType,
   Payment,
   PaymentChargeStatus,
@@ -7,8 +8,6 @@ import type {
   PaymentRequest,
   StudentCharge,
   StudentChargeRequest,
-  StudentDiscount,
-  StudentDiscountRequest,
 } from '../types/payments'
 
 type GetStudentChargesParams = {
@@ -71,20 +70,16 @@ export function getChargeTypes(params: { activeOnly?: boolean } = {}) {
   return apiRequest<ChargeType[]>(`/api/payments/charge-types${query}`)
 }
 
-export function getStudentDiscounts(studentId: number) {
-  return apiRequest<StudentDiscount[]>(`/api/payments/students/${studentId}/discounts`)
-}
-
-export function createDiscount(studentId: number, request: StudentDiscountRequest) {
-  return apiRequest<StudentDiscount>(`/api/payments/students/${studentId}/discounts`, {
-    method: 'POST',
+export function applyChargeDiscount(studentChargeId: number, request: ChargeDiscountRequest) {
+  return apiRequest<StudentCharge>(`/api/payments/charges/${studentChargeId}/discount`, {
+    method: 'PUT',
     body: request,
   })
 }
 
-export function deactivateDiscount(studentId: number, discountId: number) {
-  return apiRequest<StudentDiscount>(`/api/payments/students/${studentId}/discounts/${discountId}/deactivate`, {
-    method: 'PATCH',
+export function removeChargeDiscount(studentChargeId: number) {
+  return apiRequest<StudentCharge>(`/api/payments/charges/${studentChargeId}/discount`, {
+    method: 'DELETE',
   })
 }
 
