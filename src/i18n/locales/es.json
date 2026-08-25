@@ -682,6 +682,7 @@
     "colDue": "Vence",
     "colActions": "Acciones",
     "viewPaymentHistory": "Ver historial de pagos",
+    "downloadInvoiceAction": "Descargar factura",
     "discountsAction": "Aplicar descuento",
     "editDiscountAction": "Editar descuento",
     "editDiscountTitle": "Editar descuento",

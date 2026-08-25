@@ -682,6 +682,7 @@
     "colDue": "Förfaller",
     "colActions": "Åtgärder",
     "viewPaymentHistory": "Visa betalningshistorik",
+    "downloadInvoiceAction": "Ladda ner faktura",
     "discountsAction": "Tillämpa rabatt",
     "editDiscountAction": "Redigera rabatt",
     "editDiscountTitle": "Redigera rabatt",

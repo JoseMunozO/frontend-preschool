@@ -5,7 +5,20 @@ import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
-import { Ban, Eye, FilePlus2, FileText, ListFilter, Pencil, Percent, Plus, RotateCcw, Search, X } from 'lucide-react'
+import {
+  Ban,
+  Download,
+  Eye,
+  FilePlus2,
+  FileText,
+  ListFilter,
+  Pencil,
+  Percent,
+  Plus,
+  RotateCcw,
+  Search,
+  X,
+} from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import {
   applyChargeDiscount,
@@ -1172,6 +1185,19 @@ export function PaymentsPage() {
                     {payableStatuses.has(charge.status) ? (
                       <button onClick={() => openPaymentForm(charge)} title={t('payments.registerPayment')} type="button">
                         <FileText size={16} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                    {charge.status === 'PAID' && charge.paymentIds && charge.paymentIds.length > 0 ? (
+                      <button
+                        disabled={
+                          downloadReceiptMutation.isPending &&
+                          downloadReceiptMutation.variables === charge.paymentIds[0]
+                        }
+                        onClick={() => downloadReceiptMutation.mutate(charge.paymentIds![0])}
+                        title={t('payments.downloadInvoiceAction')}
+                        type="button"
+                      >
+                        <Download size={16} aria-hidden="true" />
                       </button>
                     ) : null}
                     <button onClick={() => openEditForm(charge)} title={t('common.edit')} type="button">

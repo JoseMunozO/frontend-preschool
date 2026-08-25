@@ -682,6 +682,7 @@
     "colDue": "Due",
     "colActions": "Actions",
     "viewPaymentHistory": "View payment history",
+    "downloadInvoiceAction": "Download invoice",
     "discountsAction": "Apply discount",
     "editDiscountAction": "Edit discount",
     "editDiscountTitle": "Edit discount",
