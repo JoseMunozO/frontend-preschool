@@ -23,6 +23,7 @@
     "title": "Panel Principal",
     "welcomeAdmin": "Bienvenido, Administrador.",
     "welcomeTeacher": "Bienvenido, Profesor.",
+    "welcomeFinance": "Bienvenido, Finanzas.",
     "forbidden": "No tienes permiso para ver el dashboard.",
     "loadError": "No se pudo cargar el dashboard. Verifica que el backend este iniciado.",
     "students": "Estudiantes",
@@ -44,7 +45,13 @@
     "sickChildrenToday": "Ninos enfermos hoy",
     "todaysSchedule": "Horario de hoy",
     "loading": "Cargando...",
-    "break": "Descanso"
+    "break": "Descanso",
+    "pendingChargesLabel": "Cargos pendientes ({{count}})",
+    "overdueChargesLabel": "Cargos atrasados ({{count}})",
+    "overdueChargesTitle": "Facturas atrasadas",
+    "noOverdueCharges": "No hay cargos atrasados.",
+    "lowStockMaterialsTitle": "Materiales con poco stock",
+    "noLowStockMaterials": "No hay materiales con poco stock."
   },
   "common": {
     "baseReady": "Base lista",
