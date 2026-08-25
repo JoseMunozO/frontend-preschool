@@ -23,6 +23,7 @@
     "title": "Översikt",
     "welcomeAdmin": "Välkommen, Administratör.",
     "welcomeTeacher": "Välkommen, Lärare.",
+    "welcomeFinance": "Välkommen, Ekonomi.",
     "forbidden": "Du har inte behörighet att se instrumentpanelen.",
     "loadError": "Det gick inte att läsa in instrumentpanelen. Kontrollera att backend-tjänsten är igång.",
     "students": "Elever",
@@ -44,7 +45,13 @@
     "sickChildrenToday": "Sjuka barn idag",
     "todaysSchedule": "Dagens schema",
     "loading": "Laddar...",
-    "break": "Rast"
+    "break": "Rast",
+    "pendingChargesLabel": "Väntande avgifter ({{count}})",
+    "overdueChargesLabel": "Förfallna avgifter ({{count}})",
+    "overdueChargesTitle": "Förfallna fakturor",
+    "noOverdueCharges": "Inga förfallna avgifter.",
+    "lowStockMaterialsTitle": "Material med lågt lager",
+    "noLowStockMaterials": "Inga material med lågt lager."
   },
   "common": {
     "baseReady": "Grunden är klar",

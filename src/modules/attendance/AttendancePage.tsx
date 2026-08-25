@@ -99,6 +99,7 @@ export function AttendancePage() {
     queryKey: ['attendance', groupId, date],
     queryFn: () => getAttendance({ groupId: Number(groupId), date }),
     enabled: groupId !== '',
+    retry: false,
   })
 
   const roster = rosterData ?? emptyRoster
@@ -151,6 +152,7 @@ export function AttendancePage() {
         to: historyTo || undefined,
       }),
     enabled: historyStudent !== null,
+    retry: false,
   })
 
   const history = historyData ?? emptyRoster

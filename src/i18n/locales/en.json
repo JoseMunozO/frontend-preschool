@@ -23,6 +23,7 @@
     "title": "Main Dashboard",
     "welcomeAdmin": "Welcome, Administrator.",
     "welcomeTeacher": "Welcome, Teacher.",
+    "welcomeFinance": "Welcome, Finance.",
     "forbidden": "You don't have permission to view the dashboard.",
     "loadError": "Could not load the dashboard. Check that the backend is running.",
     "students": "Students",
@@ -44,7 +45,13 @@
     "sickChildrenToday": "Sick children today",
     "todaysSchedule": "Today's schedule",
     "loading": "Loading...",
-    "break": "Break"
+    "break": "Break",
+    "pendingChargesLabel": "Pending charges ({{count}})",
+    "overdueChargesLabel": "Overdue charges ({{count}})",
+    "overdueChargesTitle": "Overdue invoices",
+    "noOverdueCharges": "No overdue charges.",
+    "lowStockMaterialsTitle": "Low stock materials",
+    "noLowStockMaterials": "No materials with low stock."
   },
   "common": {
     "baseReady": "Base ready",
