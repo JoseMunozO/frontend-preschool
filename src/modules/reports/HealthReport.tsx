@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getStudentHealthReport, getStudents } from '../../api/students.api'
 import type { StudentHealthReportEntry, StudentListItem } from '../../api/students.api'
 import { isForbiddenError } from '../../utils/apiErrors'
+import { translateBackendSeed } from '../../utils/displayText'
 
 const emptyEntries: StudentHealthReportEntry[] = []
 const emptyStudents: StudentListItem[] = []
@@ -55,7 +56,7 @@ export function HealthReport() {
           <option value="">{t('reports.health.allGroups')}</option>
           {groups.map(([id, name]) => (
             <option key={id} value={id}>
-              {name}
+              {translateBackendSeed(name)}
             </option>
           ))}
         </select>
@@ -81,7 +82,7 @@ export function HealthReport() {
             {entries.map((entry) => (
               <tr key={entry.studentId}>
                 <td>{entry.studentName}</td>
-                <td>{entry.groupName}</td>
+                <td>{translateBackendSeed(entry.groupName)}</td>
                 <td>{entry.allergies || '-'}</td>
                 <td>{entry.medicalNotes || '-'}</td>
               </tr>

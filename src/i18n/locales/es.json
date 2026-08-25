@@ -47,7 +47,6 @@
     "break": "Descanso"
   },
   "common": {
-    "module": "Modulo",
     "baseReady": "Base lista",
     "cancel": "Cancelar",
     "saving": "Guardando...",
@@ -332,6 +331,8 @@
     "selectGroup": "Selecciona un grupo",
     "dateAriaLabel": "Fecha",
     "selectGroupPrompt": "Selecciona un grupo para ver la lista de estudiantes.",
+    "forbiddenGroups": "No tienes permiso para ver los grupos.",
+    "loadGroupsError": "No se pudieron cargar los grupos.",
     "forbiddenRoster": "No tienes permiso para registrar asistencia en este grupo.",
     "loadRosterError": "No se pudo cargar la asistencia.",
     "archivedDayNotice": "Este dia ya quedo archivado: puedes consultar el registro, pero no editarlo. Solo se puede registrar o corregir la asistencia del dia de hoy.",
