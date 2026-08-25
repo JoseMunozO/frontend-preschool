@@ -693,6 +693,7 @@
     "colAmount": "Monto",
     "colPaid": "Pagado",
     "colBalance": "Saldo",
+    "lateFeeHint": "incluye recargo por atraso de {{amount}}",
     "colStatus": "Estado",
     "colDue": "Vence",
     "colActions": "Acciones",

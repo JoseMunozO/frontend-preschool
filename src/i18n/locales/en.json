@@ -693,6 +693,7 @@
     "colAmount": "Amount",
     "colPaid": "Paid",
     "colBalance": "Balance",
+    "lateFeeHint": "includes {{amount}} late fee",
     "colStatus": "Status",
     "colDue": "Due",
     "colActions": "Actions",
