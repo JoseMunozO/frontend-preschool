@@ -11,12 +11,18 @@ import type {
 } from '../types/payments'
 
 type GetStudentChargesParams = {
+  studentId?: number
   month?: string
   status?: PaymentChargeStatus | 'ALL'
+  hasDiscount?: boolean
 }
 
 export function getStudentCharges(params: GetStudentChargesParams = {}) {
   const searchParams = new URLSearchParams()
+
+  if (params.studentId) {
+    searchParams.set('studentId', String(params.studentId))
+  }
 
   if (params.month) {
     searchParams.set('month', params.month)
@@ -24,6 +30,10 @@ export function getStudentCharges(params: GetStudentChargesParams = {}) {
 
   if (params.status && params.status !== 'ALL') {
     searchParams.set('status', params.status)
+  }
+
+  if (params.hasDiscount !== undefined) {
+    searchParams.set('hasDiscount', String(params.hasDiscount))
   }
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
